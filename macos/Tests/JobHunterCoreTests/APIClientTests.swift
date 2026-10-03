@@ -246,6 +246,27 @@ struct RequestTests {
         #expect(StubProtocol.lastRequest?.httpMethod == "POST")
     }
 
+    @Test func importJobsAndSaveDescription() async throws {
+        let detail = try fixture("job_detail")
+        let imported = Data(#"{"received":1,"imported":1,"duplicates":0,"invalid":0,"imported_ids":[50],"duplicate_ids":[],"items":[]}"#.utf8)
+        StubProtocol.handler = { req in .init(status: 200, body: req.url!.path().hasSuffix("/import") ? imported : detail, error: nil) }
+        let job = AlertJob(source: .linkedin, externalId: "4416593964", title: "T", company: "C", location: "Berlin",
+                           url: "https://www.linkedin.com/jobs/view/4416593964/", receivedAt: Date(timeIntervalSince1970: 0))
+        let r = try await client.importJobs([job])
+        #expect(r.imported == 1 && r.importedIds == [50])
+        #expect(StubProtocol.lastRequest?.httpMethod == "POST")
+        #expect(StubProtocol.lastRequest?.url?.path() == "/jh/api/v1/jobs/import")
+        let sent = try JSONSerialization.jsonObject(with: try #require(StubProtocol.lastBody)) as? [[String: String]]
+        #expect(sent?.first?["external_id"] == "4416593964" && sent?.first?["source"] == "linkedin-alert")
+        #expect(sent?.first?["received_at"] == "1970-01-01T00:00:00Z")
+
+        _ = try await client.saveDescription(id: 4, text: "Anzeige")
+        #expect(StubProtocol.lastRequest?.httpMethod == "PUT")
+        #expect(StubProtocol.lastRequest?.url?.path() == "/jh/api/v1/jobs/4/description")
+        let body = try JSONSerialization.jsonObject(with: try #require(StubProtocol.lastBody)) as? [String: Any]
+        #expect(body?["description"] as? String == "Anzeige" && body?["write_letter"] as? Bool == true)
+    }
+
     @Test func errorMapping() async throws {
         StubProtocol.handler = { _ in .init(status: 401, body: Data("Authentication required".utf8), error: nil) }
         await #expect(throws: APIError.unauthorized) { try await client.health() }

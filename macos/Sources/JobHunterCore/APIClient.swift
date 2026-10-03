@@ -105,6 +105,22 @@ public struct APIClient: Sendable {
         try await send("PUT", "jobs/\(id)/letter", body: try Self.encoder.encode(["letter": text]))
     }
 
+    /// "Anzeigentext einfügen": saves the pasted posting text, the server re-scores the job and
+    /// (writeLetter) starts a KI letter unless the letter was written by the user.
+    public func saveDescription(id: Int, text: String, writeLetter: Bool = true) async throws -> JobDetail {
+        struct Body: Encodable {
+            let description: String
+            let write_letter: Bool
+        }
+        return try await send("PUT", "jobs/\(id)/description",
+                              body: try Self.encoder.encode(Body(description: text, write_letter: writeLetter)))
+    }
+
+    /// Jobs parsed from job-alert e-mails (`POST /api/v1/jobs/import`).
+    public func importJobs(_ jobs: [AlertJob]) async throws -> ImportResult {
+        try await send("POST", "jobs/import", body: try Self.encoder.encode(jobs))
+    }
+
     public func regenerateLetter(id: Int) async throws -> JobDetail {
         try await send("POST", "jobs/\(id)/regenerate", body: Data("{}".utf8))
     }

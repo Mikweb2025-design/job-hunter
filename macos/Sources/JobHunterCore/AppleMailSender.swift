@@ -109,6 +109,8 @@ public struct AppleMailSender: MailSending {
     enum ScriptArg: Sendable {
         case text(String)
         case flag(Bool)
+        case int(Int)
+        case texts([String])
     }
 
     private static func fourCC(_ s: String) -> UInt32 {
@@ -116,14 +118,19 @@ public struct AppleMailSender: MailSending {
     }
 
     @MainActor
-    private static func call<T: Sendable>(_ handler: String, _ args: [ScriptArg],
-                                          _ transform: (NSAppleEventDescriptor) -> T) throws -> T {
-        guard let script = NSAppleScript(source: scriptSource) else { throw SendError.mail("Skript ungültig") }
+    static func call<T: Sendable>(_ handler: String, _ args: [ScriptArg], source: String = scriptSource,
+                                  _ transform: (NSAppleEventDescriptor) -> T) throws -> T {
+        guard let script = NSAppleScript(source: source) else { throw SendError.mail("Skript ungültig") }
         let params = NSAppleEventDescriptor.list()
         for (i, arg) in args.enumerated() {
             switch arg {
             case .text(let s): params.insert(NSAppleEventDescriptor(string: s), at: i + 1)
             case .flag(let b): params.insert(NSAppleEventDescriptor(boolean: b), at: i + 1)
+            case .int(let n): params.insert(NSAppleEventDescriptor(int32: Int32(clamping: n)), at: i + 1)
+            case .texts(let list):
+                let l = NSAppleEventDescriptor.list()
+                for (j, item) in list.enumerated() { l.insert(NSAppleEventDescriptor(string: item), at: j + 1) }
+                params.insert(l, at: i + 1)
             }
         }
         // kASAppleScriptSuite 'ascr' / kASSubroutineEvent 'psbr' / keyASSubroutineName 'snam' / keyDirectObject '----'

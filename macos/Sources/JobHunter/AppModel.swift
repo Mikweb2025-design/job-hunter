@@ -93,6 +93,12 @@ final class AppModel {
     private var letterBatch: Task<Void, Never>?
     private(set) var availableModels: [String] = OpencodeRunner.fallbackModels
 
+    // Job-Alerts (LinkedIn/StepStone/Indeed e-mails in Apple Mail, read-only)
+    private(set) var alertState = JobAlertState()
+    private(set) var isImportingAlerts = false
+    private(set) var lastAlertOutcome: JobAlertOutcome?
+    let alertReader: AlertMailReading
+
     var filter = JobFilter() {
         didSet { if filter != oldValue { rebuildLists() } }
     }
@@ -101,9 +107,11 @@ final class AppModel {
     private var runPoll: Task<Void, Never>?
     private var saveTask: Task<Void, Never>?
 
-    init(settings: AppSettings, mailSender: MailSending = AppleMailSender(), store: LocalStore? = nil) {
+    init(settings: AppSettings, mailSender: MailSending = AppleMailSender(), store: LocalStore? = nil,
+         alertReader: AlertMailReading = AppleMailAlertReader()) {
         self.settings = settings
         self.mailSender = mailSender
+        self.alertReader = alertReader
         let key = ServerConfig.normalizedURL(settings.serverURL)?.absoluteString ?? settings.serverURL
         self.store = store ?? LocalStore(directory: LocalStore.directory(forServer: key))
         loadLocalState()
@@ -141,6 +149,7 @@ final class AppModel {
 
     private func loadLocalState() {
         queue = store.loadQueue()
+        alertState = store.loadAlertState()
         guard let snap = store.loadSnapshot(), snap.serverURL == serverKey else {
             rebuildLists()
             return
@@ -148,7 +157,7 @@ final class AppModel {
         serverJobs = snap.jobs
         details = snap.details
         stats = snap.stats
-        sources = snap.stats?.sources ?? []
+        sources = Self.withAlertSources(snap.stats?.sources ?? [])
         sendSettings = snap.sendSettings
         sentLog = snap.sentLog
         letterOrigins = snap.letterOrigins
@@ -286,7 +295,7 @@ final class AppModel {
             async let allReq = client.jobs(JobFilter(status: .all), limit: 5000)
             let (s, all) = try await (statsReq, allReq)
             stats = s
-            sources = s.sources
+            sources = Self.withAlertSources(s.sources)
             serverJobs = all
             isRunActive = s.running
             connection = .ok
@@ -305,6 +314,64 @@ final class AppModel {
             await processOutbox()
         }
         await prefetchDetails(client)
+        await autoReplaceTemplates(client)
+        await importJobAlerts()
+    }
+
+    /// Source filter: the server's sources plus the job-alert sources (even before the first import).
+    static func withAlertSources(_ sources: [String]) -> [String] {
+        var out = sources
+        for a in AlertSource.allCases where !out.contains(a.rawValue) { out.append(a.rawValue) }
+        return out
+    }
+
+    // MARK: Job-Alerts (Apple Mail, read-only)
+
+    /// Reads LinkedIn/StepStone/Indeed alert e-mails from Apple Mail, imports the jobs on the
+    /// server (queued while offline). Automatic: after a refresh, at most hourly, only while Mail
+    /// is running (never launches Mail by itself). `manual`: "Jetzt importieren".
+    func importJobAlerts(manual: Bool = false) async {
+        guard manual || settings.jobAlertsEnabled, !isImportingAlerts else { return }
+        let mailRunning = NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == "com.apple.mail" }
+        let due = alertState.lastRun.map { Date.now.timeIntervalSince($0) >= 3600 } ?? true
+        isImportingAlerts = true
+        defer { isImportingAlerts = false }
+        var state = alertState
+        let api: JobImportAPI? = isOnline ? client : nil
+        let outcome: JobAlertOutcome
+        if manual || (due && mailRunning) {
+            outcome = await JobAlertImporter.run(state: &state, reader: alertReader, api: api,
+                                                 account: settings.jobAlertAccount, daysBack: settings.jobAlertDays)
+        } else if api != nil, !state.pending.isEmpty {
+            var o = JobAlertOutcome()  // only send what is still queued from an offline run
+            await JobAlertImporter.flush(state: &state, api: api, outcome: &o)
+            outcome = o
+        } else {
+            return
+        }
+        alertState = state
+        do { try store.saveAlertState(state) } catch {
+            transientMessage = "Job-Alerts: Zustand konnte nicht gespeichert werden: \(error.localizedDescription)"
+        }
+        lastAlertOutcome = outcome
+        if manual || outcome.imported > 0 || outcome.mailError != nil {
+            transientMessage = "Job-Alerts: " + outcome.summary
+        }
+        if outcome.imported > 0, let client, let all = try? await client.jobs(JobFilter(status: .all), limit: 5000) {
+            if let s = try? await client.stats(minScore: settings.notifyThreshold) {
+                stats = s
+                sources = Self.withAlertSources(s.sources)
+            }
+            serverJobs = all
+            rebuildLists()
+            await updateHighScore(from: allJobs)
+            scheduleSave()
+        }
+    }
+
+    /// Mail accounts for the settings picker (read-only).
+    func mailAccountNames() async -> [String] {
+        (try? await (alertReader as? AppleMailAlertReader)?.accountNames()) ?? []
     }
 
     /// Caches posting text/letter of open jobs (best first) so they can be read, edited and
@@ -367,6 +434,9 @@ final class AppModel {
             let what = result.conflicts.map { "\($0.field.label) bei „\($0.title ?? "#\($0.jobID)")“" }.joined(separator: ", ")
             notes.append("Server war neuer, lokale Änderung verworfen: \(what)")
         }
+        if !result.deferred.isEmpty {
+            notes.append("Anzeigentext wartet: der Server unterstützt das Einfügen noch nicht (Backend aktualisieren)")
+        }
         for (c, msg) in result.rejected {
             notes.append("\(c.field.label) bei „\(c.title ?? "#\(c.jobID)")“ abgelehnt: \(msg)")
         }
@@ -407,6 +477,18 @@ final class AppModel {
     }
 
     func pendingChanges(for jobID: Int) -> [PendingChange] { queue.changes(for: jobID) }
+
+    /// "Anzeigentext einfügen": stored locally first (works offline), then the server saves it,
+    /// re-scores the job and writes the KI letter (unless the letter was written by hand).
+    func saveDescription(id: Int, text: String) -> JobDetail? {
+        recordEdit(id: id, field: .description, value: text.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    /// Enough posting text for a KI letter? (Job alerts carry none until the user pastes it.)
+    func hasPostingText(_ job: JobSummary) -> Bool {
+        if job.descriptionLength != nil { return job.hasPostingText }
+        return details[job.id].map { localize($0).hasPostingText } ?? true
+    }
 
     // MARK: E-mail applications
 
@@ -677,13 +759,15 @@ final class AppModel {
         return text
     }
 
-    enum LetterError: LocalizedError {
+    enum LetterError: LocalizedError, Equatable {
         case noProfile(String)
         case busy
+        case noPostingText
         var errorDescription: String? {
             switch self {
             case .noProfile(let p): "Profil nicht gefunden: \(p) (Einstellungen › KI-Anschreiben)."
             case .busy: "Es wird bereits ein Anschreiben geschrieben."
+            case .noPostingText: "Kein Anzeigentext – Anzeigentext einfügen, dann KI-Anschreiben."
             }
         }
     }
@@ -697,11 +781,13 @@ final class AppModel {
         defer { letterJobIDs.remove(id) }
         let profile = try readCVProfile()
         let detail = try await loadDetail(id: id)
+        guard detail.hasPostingText else { throw LetterError.noPostingText }
         let prompt = LetterPrompt.build(cvProfile: profile, job: detail)
         let start = Date.now
         let raw = try await opencode.writeLetter(model: settings.letterModel, prompt: prompt)
         let letter = try LetterOutputCleaner.clean(raw, sources: [profile, detail.description, detail.summary.title,
-                                                                  detail.summary.company ?? ""])
+                                                                  detail.summary.company ?? ""],
+                                                   company: detail.summary.company)
         let saved = saveLetter(id: id, text: letter, origin: LetterPrompt.originLabel)
         return (saved, Date.now.timeIntervalSince(start))
     }
@@ -709,14 +795,37 @@ final class AppModel {
     /// Jobs whose letter is still the template (or missing) and that are still open.
     var templateLetterJobs: [JobSummary] {
         allJobs.filter { ($0.letterOrigin == "vorlage" || !$0.hasLetter)
-            && [.automatic, .manual].contains(category(of: $0)) }
+            && [.automatic, .manual].contains(category(of: $0)) && hasPostingText($0) }
             .sorted { $0.score > $1.score }
     }
 
     /// "Alle Vorlagen schreiben": sequential, cancellable.
     func writeAllTemplateLetters() {
+        writeLetters(for: templateLetterJobs)
+    }
+
+    /// Jobs whose automatic KI attempt failed in this session (not retried on every refresh).
+    private var autoLetterFailed: Set<Int> = []
+
+    /// "Vorlagen automatisch durch KI ersetzen": after a refresh, open jobs that still have the
+    /// template get an opencode letter – only if the server has no KI, or the server had 6 h and
+    /// did not manage. Max. 20 per pass, sequential, cancellable like "Alle Vorlagen schreiben".
+    private func autoReplaceTemplates(_ client: APIClient) async {
+        guard settings.autoReplaceTemplates, letterBatch == nil, opencode.isInstalled else { return }
+        guard let health = try? await client.health() else { return }
+        let serverKI = health.llmEnabled
+        if serverKI && (health.lettersRunning ?? false || health.running) { return }
+        let cutoff = Date.now.addingTimeInterval(-6 * 3600)
+        let targets = templateLetterJobs.filter { job in
+            !autoLetterFailed.contains(job.id) && job.score > 0
+                && (!serverKI || (job.fetchedDate ?? .now) < cutoff)
+        }
+        guard !targets.isEmpty else { return }
+        writeLetters(for: Array(targets.prefix(20)), automatic: true)
+    }
+
+    private func writeLetters(for targets: [JobSummary], automatic: Bool = false) {
         guard letterBatch == nil else { return }
-        let targets = templateLetterJobs
         guard !targets.isEmpty else {
             transientMessage = "Keine Vorlagen-Anschreiben offen."
             return
@@ -731,14 +840,16 @@ final class AppModel {
                     try await self?.writeLetterWithAI(id: job.id)
                 } catch {
                     self?.letterJob?.failed += 1
+                    if automatic { self?.autoLetterFailed.insert(job.id) }
                     errors.append("\(job.title): \(error.localizedDescription)")
-                    if error is LetterError { break }
+                    if let e = error as? LetterError, e != .noPostingText { break }
                 }
                 self?.letterJob?.done += 1
             }
             guard let self else { return }
             let j = self.letterJob
-            self.transientMessage = "KI-Anschreiben: \((j?.done ?? 0) - (j?.failed ?? 0)) geschrieben, \(j?.failed ?? 0) fehlgeschlagen"
+            self.transientMessage = (automatic ? "Vorlagen automatisch ersetzt: " : "KI-Anschreiben: ")
+                + "\((j?.done ?? 0) - (j?.failed ?? 0)) geschrieben, \(j?.failed ?? 0) fehlgeschlagen"
                 + (errors.first.map { " – zuletzt: \($0)" } ?? "")
             self.letterJob = nil
             self.letterBatch = nil
@@ -750,6 +861,33 @@ final class AppModel {
     }
 
     var isWritingBatch: Bool { letterBatch != nil }
+
+    // MARK: Anschreiben als PDF
+
+    private let pdfExporter = LetterPDFExporter()
+
+    /// Full letter document for a job (cached detail works offline). `letter` overrides the
+    /// stored text (e.g. unsaved edits in the editor).
+    func letterDocument(id: Int, letter: String? = nil) async throws -> LetterDocument {
+        let detail: JobDetail
+        if let d = cachedDetail(id: id) { detail = d } else { detail = try await loadDetail(id: id) }
+        return LetterDocument.build(job: detail, letter: letter, applicant: settings.applicant)
+    }
+
+    /// "Als PDF speichern": ~/Bewerbung/Anschreiben/Anschreiben_<Firma>_<Datum>.pdf, shown in Finder.
+    @discardableResult
+    func saveLetterPDF(id: Int, letter: String? = nil) async throws -> URL {
+        let doc = try await letterDocument(id: id, letter: letter)
+        let url = try await pdfExporter.save(doc, folder: settings.letterPDFFolder)
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+        return url
+    }
+
+    /// "Vorschau": temporary PDF opened in Preview.
+    func previewLetterPDF(id: Int, letter: String? = nil) async throws {
+        let doc = try await letterDocument(id: id, letter: letter)
+        NSWorkspace.shared.open(try await pdfExporter.preview(doc))
+    }
 
     // MARK: Server run
 
@@ -811,6 +949,7 @@ final class AppModel {
         sentLog = []
         outbox = nil
         dataDate = nil
+        lastAlertOutcome = nil
         loadLocalState()
     }
 }

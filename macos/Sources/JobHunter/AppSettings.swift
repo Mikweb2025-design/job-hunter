@@ -33,6 +33,41 @@ final class AppSettings {
     var letterTimeout: Int { didSet { defaults.set(letterTimeout, forKey: Keys.letterTimeout) } }
     /// Profile used for sentence 1 (same file the server uses).
     var cvProfilePath: String { didSet { defaults.set(cvProfilePath, forKey: Keys.cvProfilePath) } }
+    /// After a refresh, replace template letters ("vorlage") with opencode letters when the server
+    /// has no KI or did not manage (sequential, cancellable).
+    var autoReplaceTemplates: Bool { didSet { defaults.set(autoReplaceTemplates, forKey: Keys.autoReplaceTemplates) } }
+
+    /// Sender block of the cover-letter PDF (works offline; "Vom Server übernehmen" in the settings).
+    var applicantName: String { didSet { defaults.set(applicantName, forKey: Keys.applicantName) } }
+    var applicantStreet: String { didSet { defaults.set(applicantStreet, forKey: Keys.applicantStreet) } }
+    var applicantCity: String { didSet { defaults.set(applicantCity, forKey: Keys.applicantCity) } }
+    var applicantEmail: String { didSet { defaults.set(applicantEmail, forKey: Keys.applicantEmail) } }
+    var applicantPhone: String { didSet { defaults.set(applicantPhone, forKey: Keys.applicantPhone) } }
+    var applicantLinkedIn: String { didSet { defaults.set(applicantLinkedIn, forKey: Keys.applicantLinkedIn) } }
+    /// "Job-Alerts aus Mail importieren": LinkedIn/StepStone/Indeed alert e-mails (read-only).
+    var jobAlertsEnabled: Bool { didSet { defaults.set(jobAlertsEnabled, forKey: Keys.jobAlertsEnabled) } }
+    /// Mail account (name or address) whose INBOX receives the alerts.
+    var jobAlertAccount: String { didSet { defaults.set(jobAlertAccount, forKey: Keys.jobAlertAccount) } }
+    var jobAlertDays: Int { didSet { defaults.set(jobAlertDays, forKey: Keys.jobAlertDays) } }
+    static let defaultJobAlertAccount = "info@daniele-michelin.com"
+
+    /// Folder for "Als PDF speichern" ("~" allowed).
+    var letterPDFFolder: String { didSet { defaults.set(letterPDFFolder, forKey: Keys.letterPDFFolder) } }
+    static let defaultLetterPDFFolder = "~/Bewerbung/Anschreiben"
+
+    var applicant: Applicant {
+        Applicant(name: applicantName, street: applicantStreet, city: applicantCity, email: applicantEmail,
+                  phone: applicantPhone, linkedin: applicantLinkedIn)
+    }
+
+    func adopt(_ a: Applicant) {
+        applicantName = a.name
+        applicantStreet = a.street
+        applicantCity = a.city
+        applicantEmail = a.email
+        applicantPhone = a.phone
+        applicantLinkedIn = a.linkedin
+    }
 
     static let defaultCVPath = "~/Bewerbung/Lebenslauf_Daniele_Michelin.pdf"
 
@@ -52,6 +87,17 @@ final class AppSettings {
         static let letterModel = "letterModel"
         static let letterTimeout = "letterTimeout"
         static let cvProfilePath = "cvProfilePath"
+        static let autoReplaceTemplates = "autoReplaceTemplates"
+        static let applicantName = "applicantName"
+        static let applicantStreet = "applicantStreet"
+        static let applicantCity = "applicantCity"
+        static let applicantEmail = "applicantEmail"
+        static let applicantPhone = "applicantPhone"
+        static let applicantLinkedIn = "applicantLinkedIn"
+        static let letterPDFFolder = "letterPDFFolder"
+        static let jobAlertsEnabled = "jobAlertsEnabled"
+        static let jobAlertAccount = "jobAlertAccount"
+        static let jobAlertDays = "jobAlertDays"
     }
 
     let ledger: SendLedger
@@ -70,6 +116,17 @@ final class AppSettings {
             Keys.letterModel: OpencodeRunner.defaultModel,
             Keys.letterTimeout: 120,
             Keys.cvProfilePath: LetterPrompt.defaultCVProfilePath,
+            Keys.autoReplaceTemplates: true,
+            Keys.applicantName: Applicant.standard.name,
+            Keys.applicantStreet: Applicant.standard.street,
+            Keys.applicantCity: Applicant.standard.city,
+            Keys.applicantEmail: Applicant.standard.email,
+            Keys.applicantPhone: Applicant.standard.phone,
+            Keys.applicantLinkedIn: Applicant.standard.linkedin,
+            Keys.letterPDFFolder: AppSettings.defaultLetterPDFFolder,
+            Keys.jobAlertsEnabled: true,
+            Keys.jobAlertAccount: AppSettings.defaultJobAlertAccount,
+            Keys.jobAlertDays: 14,
         ])
         serverURL = defaults.string(forKey: Keys.serverURL) ?? ""
         username = defaults.string(forKey: Keys.username) ?? ""
@@ -82,6 +139,17 @@ final class AppSettings {
         letterModel = defaults.string(forKey: Keys.letterModel) ?? OpencodeRunner.defaultModel
         letterTimeout = max(20, defaults.integer(forKey: Keys.letterTimeout))
         cvProfilePath = defaults.string(forKey: Keys.cvProfilePath) ?? LetterPrompt.defaultCVProfilePath
+        autoReplaceTemplates = defaults.bool(forKey: Keys.autoReplaceTemplates)
+        applicantName = defaults.string(forKey: Keys.applicantName) ?? Applicant.standard.name
+        applicantStreet = defaults.string(forKey: Keys.applicantStreet) ?? ""
+        applicantCity = defaults.string(forKey: Keys.applicantCity) ?? Applicant.standard.city
+        applicantEmail = defaults.string(forKey: Keys.applicantEmail) ?? Applicant.standard.email
+        applicantPhone = defaults.string(forKey: Keys.applicantPhone) ?? Applicant.standard.phone
+        applicantLinkedIn = defaults.string(forKey: Keys.applicantLinkedIn) ?? Applicant.standard.linkedin
+        letterPDFFolder = defaults.string(forKey: Keys.letterPDFFolder) ?? AppSettings.defaultLetterPDFFolder
+        jobAlertsEnabled = defaults.bool(forKey: Keys.jobAlertsEnabled)
+        jobAlertAccount = defaults.string(forKey: Keys.jobAlertAccount) ?? AppSettings.defaultJobAlertAccount
+        jobAlertDays = min(90, max(1, defaults.integer(forKey: Keys.jobAlertDays)))
         loadPassword()
     }
 

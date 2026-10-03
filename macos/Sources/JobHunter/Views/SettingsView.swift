@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var pickCV = false
     @State private var accountCheck: String?
     @State private var accountOK = false
+    @State private var mailAccounts: [String] = []
 
     var body: some View {
         @Bindable var settings = settings
@@ -88,11 +89,15 @@ struct SettingsView: View {
                 .formStyle(.grouped)
                 .tabItem { Label("KI-Anschreiben", systemImage: "sparkles") }
 
+            alertsTab
+                .formStyle(.grouped)
+                .tabItem { Label("Job-Alerts", systemImage: "bell.badge") }
+
             offlineTab
                 .formStyle(.grouped)
                 .tabItem { Label("Offline", systemImage: "wifi.slash") }
         }
-        .frame(width: 620, height: 580)
+        .frame(width: 680, height: 600)
         .onAppear { password = settings.password }
     }
 
@@ -171,14 +176,80 @@ struct SettingsView: View {
                 Text("Standard: opencode/big-pickle. Lokale Modelle (z. B. ollama/maternion/spark-x2.5:4b-q4_K_M) funktionieren ohne Internet, sind aber langsamer und schwächer. Die Liste kommt aus „opencode models“.")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            Section("Profil für Satz 1") {
+            Section("Profil (Fakten für das Anschreiben)") {
                 TextField("cv_profile.md", text: $settings.cvProfilePath, prompt: Text(LetterPrompt.defaultCVProfilePath))
                 let exists = FileManager.default.fileExists(atPath: (settings.cvProfilePath as NSString).expandingTildeInPath)
                 Label(exists ? "Profil gefunden" : "Profil nicht gefunden",
                       systemImage: exists ? "checkmark.circle" : "exclamationmark.triangle")
                     .foregroundStyle(exists ? .green : .orange)
                     .font(.caption)
-                Text("Regeln wie auf dem Server: Deutsch, Sie-Form, genau 4 Sätze (Ergebnis aus dem Profil · warum diese Firma · erste 90 Tage · Bitte um Gespräch), keine Buzzwords, keine erfundenen Zahlen. Antworten mit [Platzhaltern], fremden Zahlen oder zu kurzem Text werden verworfen. Es wird nur Text erzeugt – nichts gesendet.")
+                Text("Regeln wie auf dem Server: Deutsch, Ich-Form, 3–4 kurze Absätze (Einstieg mit dem stärksten Ergebnis · 2–3 Belege aus dem Profil · Bezug zur Anzeige + erste 90 Tage · Bitte um Gespräch), keine Buzzwords, keine erfundenen Zahlen. Antworten mit [Platzhaltern], fremden Zahlen, unter 600 oder über 2200 Zeichen werden verworfen. Es wird nur Text erzeugt – nichts gesendet.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Automatik") {
+                Toggle("Vorlagen automatisch durch KI ersetzen", isOn: $settings.autoReplaceTemplates)
+                Text("Nach dem Aktualisieren schreibt die App für offene Stellen, die noch die Vorlage haben, ein KI-Anschreiben – eins nach dem anderen (max. 20 pro Durchgang, abbrechbar). Nur wenn der Server keine KI hat oder es seit 6 Stunden nicht geschafft hat. Selbst bearbeitete Anschreiben bleiben unberührt.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Absender im Anschreiben (PDF)") {
+                TextField("Name", text: $settings.applicantName)
+                TextField("Straße (optional)", text: $settings.applicantStreet)
+                TextField("Ort", text: $settings.applicantCity)
+                TextField("E-Mail", text: $settings.applicantEmail)
+                TextField("Telefon", text: $settings.applicantPhone)
+                TextField("LinkedIn", text: $settings.applicantLinkedIn)
+                TextField("PDF-Ordner", text: $settings.letterPDFFolder, prompt: Text(AppSettings.defaultLetterPDFFolder))
+                HStack {
+                    Button("Vom Server übernehmen") {
+                        if let a = model.sendSettings?.applicant { settings.adopt(a) }
+                    }
+                    .disabled(model.sendSettings?.applicant == nil)
+                    .help("Übernimmt den Abschnitt applicant: aus der config.yaml des Servers")
+                    Button("Standard") { settings.adopt(.standard) }
+                }
+                Text("„Als PDF speichern“ legt Anschreiben_<Firma>_<Datum>.pdf in diesem Ordner ab (A4, eine Seite, Layout wie der Lebenslauf).")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var alertsTab: some View {
+        @Bindable var settings = settings
+        let choices = mailAccounts.contains(settings.jobAlertAccount) ? mailAccounts : [settings.jobAlertAccount] + mailAccounts
+        return Form {
+            Section("Job-Alerts aus Mail importieren") {
+                Toggle("Job-Alerts aus Mail importieren", isOn: $settings.jobAlertsEnabled)
+                HStack {
+                    Picker("Mail-Account", selection: $settings.jobAlertAccount) {
+                        ForEach(choices, id: \.self) { Text($0).tag($0) }
+                    }
+                    Button("Accounts laden") { Task { mailAccounts = await model.mailAccountNames() } }
+                }
+                Stepper(value: $settings.jobAlertDays, in: 1...60) {
+                    LabeledContent("Zeitraum", value: settings.jobAlertDays == 1 ? "letzter Tag" : "letzte \(settings.jobAlertDays) Tage")
+                }
+                HStack {
+                    Button("Jetzt importieren") { Task { await model.importJobAlerts(manual: true) } }
+                        .disabled(model.isImportingAlerts)
+                    if model.isImportingAlerts { ProgressView().controlSize(.small) }
+                    Spacer()
+                }
+                if let last = model.alertState.lastRun {
+                    LabeledContent("Zuletzt", value: last.formatted(date: .abbreviated, time: .shortened))
+                    if let summary = model.alertState.lastSummary {
+                        Text(summary).font(.caption).textSelection(.enabled)
+                    }
+                }
+                if !model.alertState.pending.isEmpty {
+                    Label("\(model.alertState.pending.count) Stellen warten auf den Server", systemImage: "arrow.triangle.2.circlepath")
+                        .foregroundStyle(.orange).font(.caption)
+                }
+                LabeledContent("Verarbeitete Alert-Mails", value: "\(model.alertState.processed.count)")
+            }
+            Section("So funktioniert es") {
+                Text("Liest im Posteingang des gewählten Accounts nur die Job-Alert-E-Mails von LinkedIn („Jobbenachrichtigung“), StepStone und Indeed – nichts wird verschoben, markiert oder gesendet, und die Jobbörsen selbst werden nie aufgerufen (deren AGB verbieten Bots). Titel, Firma, Ort und Link gehen an den Server; schon bekannte Stellen (z. B. von der Arbeitsagentur) werden nicht doppelt angelegt. Automatisch nach dem Aktualisieren, höchstens stündlich und nur, wenn Mail läuft; offline wartet der Import, bis der Server erreichbar ist.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("Alerts enthalten keinen Anzeigentext: Solche Stellen sind immer „Manuell bewerben“. In der Stelle „Anzeigentext einfügen“ – danach wird neu bewertet und das KI-Anschreiben geschrieben.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -198,7 +269,7 @@ struct SettingsView: View {
                     .disabled(model.pendingCount == 0)
             }
             Section("Regeln") {
-                Text("Ohne Server zeigt die App die zuletzt geladenen Daten. Status, Notizen, „Beworben am“ und Anschreiben werden lokal gespeichert und beim nächsten Kontakt übertragen. Konflikte: die lokale Änderung gewinnt – außer der Server hat dasselbe Feld nachweislich später geändert (Status/Anschreiben haben Zeitstempel). E-Mails werden offline nie gesendet; „Jetzt suchen“ braucht den Server.")
+                Text("Ohne Server zeigt die App die zuletzt geladenen Daten. Status, Notizen, „Beworben am“, Anschreiben und eingefügte Anzeigentexte werden lokal gespeichert und beim nächsten Kontakt übertragen. Konflikte: die lokale Änderung gewinnt – außer der Server hat dasselbe Feld nachweislich später geändert (Status/Anschreiben haben Zeitstempel). E-Mails werden offline nie gesendet; „Jetzt suchen“ braucht den Server.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

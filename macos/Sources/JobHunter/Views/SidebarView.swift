@@ -174,9 +174,11 @@ func pendingText(_ n: Int) -> String {
 
 func sourceLabel(_ source: String) -> String {
     switch source {
-    case "arbeitsagentur": "Arbeitsagentur"
-    case "adzuna": "Adzuna"
-    case "rss": "RSS"
-    default: source.prefix(1).uppercased() + source.dropFirst()
+    case "arbeitsagentur": return "Arbeitsagentur"
+    case "adzuna": return "Adzuna"
+    case "rss": return "RSS"
+    default:
+        if let alert = AlertSource(rawValue: source) { return alert.label }
+        return source.prefix(1).uppercased() + source.dropFirst()
     }
 }

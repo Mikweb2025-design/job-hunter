@@ -67,6 +67,16 @@ public struct JobSummary: Codable, Sendable, Identifiable, Hashable {
     public var applyMethod: String?
     public var sendApproved: Bool?
     public var sendState: SendStateInfo?
+    /// "LinkedIn (Job-Alert)" … (newer servers).
+    public var sourceLabel: String?
+    /// Characters of posting text on the server (newer servers). < 300: no automatic KI letter.
+    public var descriptionLength: Int?
+
+    /// Minimum posting text for a KI letter (same rule as the server's letters.candidates).
+    public static let minPostingText = 300
+
+    /// `false` when the server says the posting text is missing/too short (e.g. job alerts).
+    public var hasPostingText: Bool { (descriptionLength ?? Self.minPostingText) >= Self.minPostingText }
 
     public var fetchedDate: Date? { ServerDate.parse(fetchedAt) }
     public var link: URL? { url.flatMap { URL(string: $0) }.flatMap { ["http", "https"].contains($0.scheme?.lowercased()) ? $0 : nil } }
@@ -142,6 +152,11 @@ public struct JobDetail: Codable, Sendable, Identifiable, Hashable {
         try c.encodeIfPresent(applyEmailSource, forKey: .applyEmailSource)
     }
 
+    /// Enough posting text for a KI letter.
+    public var hasPostingText: Bool {
+        description.trimmingCharacters(in: .whitespacesAndNewlines).count >= JobSummary.minPostingText
+    }
+
     /// True for the fixed template draft (server marks it "vorlage"; contains `[...]` gaps).
     public var letterIsTemplate: Bool { summary.letterOrigin == "vorlage" }
 }
@@ -181,6 +196,8 @@ public struct Health: Decodable, Sendable, Hashable {
     public var llmEnabled: Bool
     public var llm: String?
     public var serverTime: String
+    /// A server-side letter batch is running (newer servers).
+    public var lettersRunning: Bool?
 }
 
 public struct RunResponse: Decodable, Sendable, Hashable {

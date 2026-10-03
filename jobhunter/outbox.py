@@ -9,12 +9,13 @@ Rules (all modes unless noted):
 * status                      -> only jobs still at "neu"/"interessant"
 * apply e-mail                -> needs a detected or manually entered address
 * blocklist                   -> company (or recipient domain) matches an entry: never
-* letter                      -> required (require_letter); "[...]" placeholders: never
+* letter                      -> required (require_letter); "[...]" placeholders: never;
+                                 the fixed template ("vorlage") is never e-mailed – only KI or
+                                 user-written ("manuell") letters
 * company cooldown            -> no real send / "beworben" at the same normalized company
                                  within company_cooldown_days
 * daily cap                   -> at most daily_cap real sends per day (Europe/Berlin)
-* auto only (not approved)    -> mode=auto, score >= auto_min_score, letter is not the
-                                 fixed template ("vorlage")
+* auto only (not approved)    -> mode=auto, score >= auto_min_score
 Test sends (dry_run) are logged but never count for dedup, cooldown or cap.
 """
 from __future__ import annotations
@@ -47,7 +48,7 @@ BLOCKER_TEXT = {
     "daily_cap": "Tageslimit erreicht",
     "not_approved": "Nicht freigegeben (Modus „approve“)",
     "score": "Score unter der Auto-Schwelle",
-    "template_letter": "Vorlagen-Anschreiben wird nie automatisch gesendet",
+    "template_letter": "Vorlagen-Anschreiben wird nie gesendet – zuerst mit KI schreiben oder selbst anpassen",
     "auto_off": "Automatischer Versand nur im Modus „auto“",
 }
 
@@ -241,6 +242,8 @@ class Gate:
             b.append("no_letter")
         if has_placeholder(letter):
             b.append("placeholder")
+        if letter and job.get("letter_origin") == "vorlage":
+            b.append("template_letter")
         if self._in_cooldown(job):
             b.append("cooldown")
         counters = counters or self.counters()
@@ -252,8 +255,6 @@ class Gate:
             a.append("not_approved" if cfg.mode == "approve" else "auto_off")
         if (job.get("score") or 0) < cfg.auto_min_score:
             a.append("score")
-        if job.get("letter_origin") == "vorlage":
-            a.append("template_letter")
         if not letter:
             a.append("no_letter")
         return d

@@ -37,7 +37,7 @@ A self-hosted job-search assistant for the German job market. Every morning it f
 
 1. **Find** – the server queries public job APIs (Bundesagentur für Arbeit, optionally Adzuna and RSS feeds) and removes duplicates.
 2. **Score** – each posting gets 0–100 points: keywords from your profile, job title, location/remote, salary vs. your minimum. Excluded titles (Junior, Werkstudent, …) get 0.
-3. **Write** – for good matches, opencode writes a 4-sentence German letter in first person, using only facts from your profile and the posting. Letters with placeholders, invented numbers or the wrong perspective are rejected.
+3. **Write** – for good matches, opencode writes a 3–4 paragraph German letter in first person, using only facts from your profile and the posting. Letters with placeholders, invented numbers or the wrong perspective are rejected.
 4. **Sort** – every job lands in one view:
    - **✉ Automatisch per E-Mail** – the posting contains an application e-mail address
    - **🖐 Manuell bewerben** – apply on the company portal (button opens it and copies the letter)
@@ -52,6 +52,15 @@ A self-hosted job-search assistant for the German job market. Every morning it f
 - Blocklist (e.g. your current employer), never template letters, never while offline.
 - Kill switch in `config.yaml` and an "Automatisch senden" toggle in the app.
 - **No bots on job boards** (StepStone, Indeed, LinkedIn forbid it) and no form-filling on portals – those stay manual.
+
+### Job alerts from LinkedIn, StepStone, Indeed (no bots)
+Job boards forbid scraping, so the macOS app reads the **job-alert e-mails you already receive** in Apple Mail (read-only, no password) and imports title, company, location and link (`POST /api/v1/jobs/import`, deduplicated against existing jobs). These jobs are always **manual**. Alerts carry no posting text: paste it with **„Anzeigentext einfügen“** – the job is re-scored and the AI writes the letter. Settings → **Job-Alerts** (account, days, „Jetzt importieren“). StepStone/Indeed parsers follow their usual layout but are not yet tested with real alerts.
+
+### Cover letter as PDF
+Every letter can be exported as a one-page A4 German business letter (sender, recipient, date, subject, salutation, body, closing, „Anlage: Lebenslauf“) in the CV style: dashboard `/jobs/{id}/anschreiben` (print page) and `/jobs/{id}/anschreiben.pdf`, Mac app **„Als PDF speichern“** → `~/Bewerbung/Anschreiben/`. Sender details: `applicant:` in `config.yaml`.
+
+### Letter quality guards
+3–4 paragraphs (180–260 words), first person, only facts from profile + posting, no placeholders, no invented numbers, no English filler words. Failed generations are retried (`llm.retries`, optional `llm.fallback_model`). **Template letters are never e-mailed** – only AI or user-edited letters. CLI: `python -m jobhunter letters [--all] [--ids 18] [--dry-run]`.
 
 ---
 

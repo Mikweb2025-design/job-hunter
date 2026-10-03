@@ -34,38 +34,39 @@ log = logging.getLogger(__name__)
 
 MAX_POSTING_CHARS = 15000  # postings are rarely longer; keeps cost predictable
 
-SYSTEM_PROMPT = """Du hilfst einem erfahrenen Support Engineer bei der Jobsuche in Deutschland.
-Du bewertest eine Stellenanzeige gegen sein Profil und schreibst einen kurzen Anschreiben-Entwurf.
+LETTER_RULES = """Du hilfst einem erfahrenen Support Engineer bei der Jobsuche in Deutschland und schreibst den Text seines Anschreibens für die Stellenanzeige unten.
 
-Regeln für das Anschreiben (Deutsch, genau 4 Sätze, kein Gruß, keine Anrede). Schreibe in der ICH-FORM aus Sicht des Bewerbers (ich, mein, mir); das Unternehmen wird höflich mit „Sie“ angesprochen. Sprich NIE den Bewerber selbst mit „Sie“ oder „Ihre“ an:
-1. Satz: das relevanteste konkrete Ergebnis aus dem Profil, passend zur Stelle.
-2. Satz: warum genau dieses Unternehmen/diese Stelle – mit einem konkreten Bezug aus dem Anzeigentext.
-3. Satz: was ich in den ersten 90 Tagen konkret tun würde.
-4. Satz: eine schlichte Bitte um ein Gespräch.
-Keine Buzzwords (z.B. "leidenschaftlich", "dynamisch", "Synergien", "Mehrwert schaffen").
-Erfinde NIEMALS Zahlen, Firmen, Zertifikate oder Ergebnisse. Verwende Zahlen nur, wenn sie wörtlich im Profil stehen.
+Form: Deutsch, sachlich, konkret und in natürlichem, flüssigem Deutsch, 3 bis 4 kurze Absätze mit zusammen 180 bis 260 Wörtern; Absätze durch eine Leerzeile getrennt, jeder Absatz höchstens 4 Sätze. Prüfe Grammatik und Rechtschreibung vor der Ausgabe. Nur der Brieftext: keine Anrede, kein Gruß, keine Betreffzeile, keine Unterschrift.
+Schreibe in der ICH-FORM aus Sicht des Bewerbers (ich, mein, mir); das Unternehmen wird höflich mit „Sie“ angesprochen. Sprich NIE den Bewerber selbst mit „Sie“ oder „Ihre“ an.
+
+Aufbau:
+1. Absatz (Einstieg): ein konkreter Einstieg, der mein stärkstes passendes Ergebnis aus dem Profil (mit seiner Zahl, falls vorhanden) mit der Stelle verbindet; nenne den Stellentitel (Zeile „Titel“) und das Unternehmen. Nicht mit „hiermit bewerbe ich mich“ oder „mit großem Interesse“ beginnen.
+2. Absatz (Erfahrung): zwei bis drei konkrete Belege aus dem Profil, jeweils bezogen auf eine Hauptanforderung der Anzeige (z. B. 2nd/3rd-Level-Support, Root-Cause-Analysen, Größe der betreuten Plattformen, Ticketvolumen, FAQ/Wissensdatenbank für Kollegen, KI-gestützte Ticket-Triage über MCP, Python/Docker) – nur was zur Anzeige passt.
+3. Absatz (Warum Sie): ein konkreter Bezug aus dem Anzeigentext (Produkt, Aufgabe, Kunden oder Technik) und was ich in den ersten 90 Tagen als Erstes konkret tun würde.
+4. Absatz (Abschluss): ein kurzer, schlichter Satz, z. B. „Über die Einladung zu einem persönlichen Gespräch freue ich mich.“ Kein Eintrittstermin, keine Kündigungsfrist, keine Gehaltsangabe, keine Selbstbewertung.
+
+Inhalt:
+- Nur Fakten aus dem Profil und der Anzeige. Erfinde NIEMALS Zahlen, Firmen, Kunden, Zertifikate, Werkzeuge oder Ergebnisse. Zahlen nur, wenn sie wörtlich im Profil oder in der Anzeige stehen (Ausnahme: „90 Tage“). Jahreszahlen nur so, wie der Abschnitt „Erfahrung“ des Profils sie einer Station zuordnet (z. B. seit 2008 bei STRATO, aber erst seit 2018 als Specialist Support Engineer).
+- Behaupte keine Erfahrung mit Produkten oder Technologien der Anzeige, die nicht im Profil stehen. Fehlendes höchstens in einem kurzen, positiven Halbsatz (z. B. „in X arbeite ich mich gezielt ein“); keine Aufzählung von Dingen, die ich nicht kann, keine Entschuldigungen.
+- Keine Buzzwords und Floskeln (z. B. „leidenschaftlich“, „dynamisch“, „Synergien“, „Mehrwert schaffen“, „hochmotiviert“, „Teamplayer“, „ich bin überzeugt“, „hiermit bewerbe ich mich“).
+- Keine Platzhalter in eckigen Klammern, kein Markdown, keine Aufzählungszeichen.
+Benutze keine Werkzeuge und lies keine Dateien – alles Nötige steht unten.
+
+Gib ausschließlich den Brieftext aus (3 bis 4 Absätze, durch Leerzeilen getrennt), ohne Überschrift, ohne Anführungszeichen, ohne Erklärung davor oder danach."""
+
+# JSON variant for the anthropic/openai providers: same letter rules + score/reason.
+SYSTEM_PROMPT = LETTER_RULES.split("\n\nGib ausschließlich")[0] + """
 
 Bewertung: score 0-100 = wie gut passt die Stelle zu Profil, Seniorität und Wünschen
 (Berlin oder remote, Mindestgehalt). reason = ein einziger deutscher Satz mit dem wichtigsten Grund.
 
-Antworte ausschließlich mit JSON: {"score": <int>, "reason": "<ein Satz>", "letter": "<4 Sätze>"}"""
+Antworte ausschließlich mit JSON: {"score": <int>, "reason": "<ein Satz>", "letter": "<Brieftext, Absätze durch \\n\\n getrennt>"}"""
 
 
 OPENCODE_ORIGIN = "KI (opencode)"
-MIN_LETTER_CHARS = 200
-
-LETTER_RULES = """Du hilfst einem erfahrenen Support Engineer bei der Jobsuche in Deutschland und schreibst einen kurzen Anschreiben-Entwurf für die Stellenanzeige unten.
-
-Regeln für das Anschreiben (Deutsch, genau 4 Sätze, kein Gruß, keine Anrede). Schreibe in der ICH-FORM aus Sicht des Bewerbers (ich, mein, mir); das Unternehmen wird höflich mit „Sie“ angesprochen. Sprich NIE den Bewerber selbst mit „Sie“ oder „Ihre“ an:
-1. Satz: das relevanteste konkrete Ergebnis aus dem Profil, passend zur Stelle.
-2. Satz: warum genau dieses Unternehmen/diese Stelle – mit einem konkreten Bezug aus dem Anzeigentext.
-3. Satz: was ich in den ersten 90 Tagen konkret tun würde.
-4. Satz: eine schlichte Bitte um ein Gespräch.
-Keine Buzzwords (z.B. "leidenschaftlich", "dynamisch", "Synergien", "Mehrwert schaffen").
-Erfinde NIEMALS Zahlen, Firmen, Zertifikate oder Ergebnisse. Verwende Zahlen nur, wenn sie wörtlich im Profil stehen.
-Keine Platzhalter in eckigen Klammern. Benutze keine Werkzeuge und lies keine Dateien – alles Nötige steht unten.
-
-Gib ausschließlich den Text des Anschreibens aus: genau 4 Sätze als ein Absatz, ohne Überschrift, ohne Anführungszeichen, ohne Erklärung davor oder danach."""
+MIN_LETTER_CHARS = 600
+MAX_LETTER_CHARS = 2200
+MIN_PARAGRAPHS = 3
 
 # One generation at a time, process-wide (pipeline, dashboard button, API, batch).
 _GENERATION_LOCK = threading.Lock()
@@ -93,16 +94,24 @@ class LLMResult:
 
 def build_user_prompt(cv_text: str, job: dict, min_salary: int) -> str:
     desc = (job.get("description") or "")[:MAX_POSTING_CHARS]
+    raw = (job.get("title") or "").strip()
+    raw_title = f"Titel in der Anzeige: {raw}\n" if raw and raw != _letter_title(job) else ""
     salary = "unbekannt"
     if job.get("salary_min") or job.get("salary_max"):
         salary = f"{job.get('salary_min') or '?'} – {job.get('salary_max') or '?'} EUR/Jahr"
     return (
         f"<profil>\n{cv_text.strip()}\n</profil>\n\n"
         f"<wuensche>Mindestgehalt {min_salary} EUR/Jahr; Berlin oder remote.</wuensche>\n\n"
-        f"<stelle>\nTitel: {job.get('title')}\nUnternehmen: {job.get('company') or 'unbekannt'}\n"
+        f"<stelle>\nTitel: {_letter_title(job)}\n{raw_title}"
+        f"Unternehmen: {job.get('company') or 'unbekannt'}\n"
         f"Ort: {job.get('location') or 'unbekannt'}\nRemote möglich: {'ja' if job.get('remote') else 'unbekannt'}\n"
         f"Gehalt: {salary}\n\n{desc}\n</stelle>"
     )
+
+
+def _letter_title(job: dict) -> str:
+    from .letter_doc import letter_title  # local import: letter_doc imports this module
+    return letter_title(job.get("title") or "", job.get("company")) or (job.get("title") or "")
 
 
 def clean_profile(markdown: str) -> str:
@@ -182,6 +191,7 @@ def invented_numbers(letter: str, sources: list[str]) -> list[str]:
     return out
 
 
+_ENGLISH_RE = re.compile(r"\b(customers?|clients?|however|therefore|furthermore|experience|responsibilit(?:y|ies)|skills)\b")
 _ICH_RE = re.compile(r"\b(ich|mein|meine|meinen|meiner|meinem|mir|mich)\b", re.IGNORECASE)
 _WRONG_SIE_RE = re.compile(r"\b(haben Sie bereits|Ihre bisherige|Ihrer bisherigen|Ihre Erfahrung|würden Sie sich|Ihre Eignung|Sie haben .{0,40}(aufgebaut|gezeigt|gearbeitet))", re.IGNORECASE)
 
@@ -191,11 +201,29 @@ def wrong_perspective_ok(letter: str) -> bool:
     return bool(_ICH_RE.search(letter)) and not _WRONG_SIE_RE.search(letter)
 
 
-def clean_letter_output(raw: str, sources: list[str] | None = None) -> str:
+_FLOSKEL_RE = re.compile(r"\bhiermit\s+bewerbe\s+ich\s+mich\b", re.IGNORECASE)
+
+
+def paragraphs(letter: str) -> list[str]:
+    """Paragraphs of a letter body (separated by blank lines), whitespace-normalized."""
+    return [" ".join(p.split()) for p in re.split(r"\n\s*\n", letter or "") if p.strip()]
+
+
+def normalize_paragraphs(letter: str) -> str:
+    """Blank line between paragraphs. If the model separated paragraphs with single line breaks
+    only, every line becomes a paragraph; line breaks inside a paragraph are joined."""
+    text = (letter or "").strip()
+    if not re.search(r"\n\s*\n", text) and "\n" in text:
+        text = re.sub(r"\n+", "\n\n", text)
+    return "\n\n".join(paragraphs(text))
+
+
+def clean_letter_output(raw: str, sources: list[str] | None = None, company: str | None = None) -> str:
     """Extracts the letter from raw CLI output (JSON events or plain text) and validates it.
 
-    Raises LetterRejected for empty / too short (< MIN_LETTER_CHARS) output, "[" placeholders
-    or numbers that appear neither in the profile nor in the posting.
+    Raises LetterRejected for empty, too short/long (MIN_/MAX_LETTER_CHARS) output, fewer than
+    MIN_PARAGRAPHS paragraphs, "[" placeholders, „hiermit bewerbe ich mich“, a letter not in the
+    first person, or numbers that appear neither in the profile nor in the posting.
     """
     text = text_from_json_events(raw)
     if text is None:
@@ -214,12 +242,23 @@ def clean_letter_output(raw: str, sources: list[str] | None = None) -> str:
     for open_q, close_q in _QUOTES:
         if len(letter) > 2 and letter.startswith(open_q) and letter.endswith(close_q):
             letter = letter[1:-1].strip()
+    letter = normalize_paragraphs(letter)
     if not letter:
         raise LetterRejected("Die KI hat keinen Text geliefert.")
-    if "[" in letter or "]" in letter:
+    masked = letter.replace(company, "") if company and ("[" in company or "]" in company) else letter
+    if "[" in masked or "]" in masked:  # (company names like "]init[ AG" are fine)
         raise LetterRejected("Antwort enthält noch Platzhalter „[ … ]“ – verworfen.")
     if len(letter) < MIN_LETTER_CHARS:
         raise LetterRejected(f"Antwort zu kurz ({len(letter)} Zeichen) – kein brauchbares Anschreiben.")
+    if len(letter) > MAX_LETTER_CHARS:
+        raise LetterRejected(f"Antwort zu lang ({len(letter)} Zeichen, max. {MAX_LETTER_CHARS}) – verworfen.")
+    if len(paragraphs(letter)) < MIN_PARAGRAPHS:
+        raise LetterRejected(f"Antwort hat weniger als {MIN_PARAGRAPHS} Absätze – verworfen.")
+    if _FLOSKEL_RE.search(letter):
+        raise LetterRejected("Antwort beginnt mit der Floskel „hiermit bewerbe ich mich“ – verworfen.")
+    english = _ENGLISH_RE.findall(letter)
+    if english:
+        raise LetterRejected(f"Anschreiben enthält englische Wörter ({', '.join(sorted(set(english)))}) – verworfen.")
     if not wrong_perspective_ok(letter):
         raise LetterRejected("Anschreiben nicht in der Ich-Form (spricht den Bewerber mit „Sie“ an) – verworfen.")
     if sources:
@@ -373,14 +412,14 @@ class LLMClient:
             return self.evaluate(cv_text, job, min_salary)
         raw = self.complete(LETTER_RULES, build_user_prompt(clean_profile(cv_text), job, min_salary))
         sources = [cv_text, f"{job.get('title') or ''}\n{job.get('company') or ''}\n{job.get('description') or ''}"]
-        return LLMResult(None, "", clean_letter_output(raw, sources), self.label)
+        return LLMResult(None, "", clean_letter_output(raw, sources, job.get("company")), self.label)
 
     def evaluate(self, cv_text: str, job: dict, min_salary: int) -> LLMResult:
         if self.cfg.provider == "opencode":
             return self.write_letter(cv_text, job, min_salary)
         text = self.complete(SYSTEM_PROMPT, build_user_prompt(cv_text, job, min_salary))
         score, reason, letter = parse_llm_json(text)
-        return LLMResult(score, reason, letter, self.label)
+        return LLMResult(score, reason, normalize_paragraphs(letter), self.label)
 
 
 def get_llm(cfg: LLMConfig) -> LLMClient | None:
@@ -388,33 +427,64 @@ def get_llm(cfg: LLMConfig) -> LLMClient | None:
 
 
 # ---------------------------------------------------------------------------
-# Deterministic fallback (no LLM): a plain template the user must edit.
+# Deterministic fallback (no LLM): a complete, neutral letter from true profile facts only.
+# No "[...]" placeholders, no claims about the company beyond title and name. Stored with
+# letter_origin "vorlage", so the send rules still treat it as a template and the KI rewrites it.
 # ---------------------------------------------------------------------------
-def _best_result(cv: CVProfile, posting_text: str) -> str:
-    if not cv.results:
-        return ""
+def _overlap(result: str, posting_low: str) -> int:
+    words = {w for w in re.findall(r"[a-zäöüß0-9+/.-]{3,}", result.lower())}
+    return sum(1 for w in words if w in posting_low)
+
+
+def _best_results(cv: CVProfile, posting_text: str, n: int = 3) -> list[str]:
     low = posting_text.lower()
+    ranked = sorted(enumerate(cv.results), key=lambda r: (-_overlap(r[1], low), r[0]))
+    return [r for _, r in ranked[:n]]
 
-    def overlap(result: str) -> int:
-        words = {w for w in re.findall(r"[a-zäöüß0-9+/.-]{3,}", result.lower())}
-        return sum(1 for w in words if w in low)
 
-    return max(cv.results, key=overlap)
+def _best_result(cv: CVProfile, posting_text: str) -> str:
+    best = _best_results(cv, posting_text, 1)
+    return best[0] if best else ""
+
+
+def _inline(phrase: str) -> str:
+    """'Technischer Support für …' -> 'technischer Support für …' (adjective at the start of a
+    list item); nouns ('Bearbeitung', 'Aufbau') keep their capital letter."""
+    phrase = phrase.strip().rstrip(".")
+    m = re.match(r"^([A-ZÄÖÜ][a-zäöüß]+(?:e|er|es|en|em))\s+[A-ZÄÖÜ]", phrase)
+    if m and not m.group(1).endswith(("ung", "heit", "keit")):
+        phrase = phrase[0].lower() + phrase[1:]
+    return phrase
+
+
+def _join_de(items: list[str]) -> str:
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " und " + items[-1]
 
 
 def template_letter(cv: CVProfile, job: dict) -> str:
+    from .letter_doc import letter_title  # local import: letter_doc imports this module
+
     text = f"{job.get('title', '')}\n{job.get('description', '')}"
-    result = _best_result(cv, text).rstrip(".")
+    title = letter_title(job.get("title") or "", job.get("company")) or "die ausgeschriebene Position"
+    company = (job.get("company") or "").strip()
+    where = f"bei {company}" if company else "in Ihrem Unternehmen"
+    p1 = (f"die Stelle als {title} {where} liegt sehr nah an meiner täglichen Arbeit: Seit 2008 bin ich "
+          "bei STRATO (IONOS-Gruppe) in Berlin im technischen Support tätig, seit 2018 als Specialist "
+          "Support Engineer im 2nd/3rd Level. Dort analysiere ich komplexe Kundenfälle bis zur Ursache "
+          "und sorge dafür, dass Lösungen auch für Kolleginnen und Kollegen nachvollziehbar dokumentiert sind.")
+    p1 = p1[0].upper() + p1[1:]
+    results = [_inline(r) for r in _best_results(cv, text)]
     matched = [k for k in find_keywords(text, cv.keywords)][:3]
-    company = job.get("company") or "Ihrem Unternehmen"
-    s1 = (f"Aus meiner Arbeit als Specialist Support Engineer bei IONOS/STRATO (seit 2008) passt besonders: {result}."
-          if result else "Seit 2008 arbeite ich als Specialist Support Engineer bei IONOS/STRATO.")
+    p2_parts = []
+    if results:
+        p2_parts.append("Aus meiner aktuellen Arbeit bringe ich unter anderem mit: " + "; ".join(results) + ".")
     if matched:
-        s2 = (f"Die Stelle als {job.get('title')} bei {company} interessiert mich, weil dort "
-              f"{', '.join(matched)} gefragt sind. [konkreten Bezug zur Anzeige ergänzen]")
-    else:
-        s2 = f"Die Stelle als {job.get('title')} bei {company} interessiert mich, weil [konkreter Bezug zur Anzeige]."
-    s3 = ("In den ersten 90 Tagen würde ich mich in Ihre Produkte und Ihr Ticket-Setup einarbeiten, "
-          "die häufigsten Anfragen auswerten und die ersten wiederkehrenden Abläufe dokumentieren und vereinfachen.")
-    s4 = "Ich würde mich über ein Gespräch freuen."
-    return " ".join([s1, s2, s3, s4])
+        p2_parts.append(f"Themen aus Ihrer Anzeige wie {_join_de(matched)} sind mir aus meiner Arbeit vertraut.")
+    if not p2_parts:
+        p2_parts.append("Aus meiner aktuellen Arbeit bringe ich Erfahrung in Fehleranalyse, Kundenkommunikation "
+                        "und der Dokumentation von Lösungen mit.")
+    p3 = ("In den ersten 90 Tagen würde ich mich gründlich in Ihre Produkte, Systeme und Support-Abläufe "
+          "einarbeiten, die häufigsten Anfragen auswerten und daraus Dokumentation und kleine "
+          "Automatisierungen ableiten, die dem Team wiederkehrende Arbeit abnehmen.")
+    p4 = "Über die Gelegenheit, Ihnen meine Erfahrung in einem persönlichen Gespräch näher vorzustellen, freue ich mich."
+    return "\n\n".join([p1, " ".join(p2_parts), p3, p4])

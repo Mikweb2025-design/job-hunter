@@ -37,7 +37,7 @@ Ein selbst gehosteter Assistent für die Jobsuche in Deutschland. Jeden Morgen f
 
 1. **Finden** – der Server fragt öffentliche Job-APIs ab (Bundesagentur für Arbeit, optional Adzuna und RSS-Feeds) und entfernt Dubletten.
 2. **Bewerten** – jede Anzeige bekommt 0–100 Punkte: Keywords aus deinem Profil, Jobtitel, Ort/Remote, Gehalt gegenüber deinem Minimum. Ausgeschlossene Titel (Junior, Werkstudent, …) bekommen 0.
-3. **Schreiben** – für gute Treffer schreibt opencode ein deutsches Anschreiben aus 4 Sätzen in der Ich-Form, nur mit Fakten aus deinem Profil und der Anzeige. Texte mit Platzhaltern, erfundenen Zahlen oder falscher Perspektive werden verworfen.
+3. **Schreiben** – für gute Treffer schreibt opencode ein deutsches Anschreiben aus 3–4 Absätzen in der Ich-Form, nur mit Fakten aus deinem Profil und der Anzeige. Texte mit Platzhaltern, erfundenen Zahlen oder falscher Perspektive werden verworfen.
 4. **Sortieren** – jede Stelle landet in genau einer Ansicht:
    - **✉ Automatisch per E-Mail** – die Anzeige nennt eine Bewerbungsadresse
    - **🖐 Manuell bewerben** – Bewerbung über das Firmenportal (der Button öffnet es und kopiert das Anschreiben)
@@ -52,6 +52,15 @@ Ein selbst gehosteter Assistent für die Jobsuche in Deutschland. Jeden Morgen f
 - Sperrliste (z. B. dein aktueller Arbeitgeber), nie Vorlagen-Anschreiben, nie offline.
 - Not-Aus (`kill_switch`) in `config.yaml` und Schalter „Automatisch senden“ in der App.
 - **Keine Bots auf Jobbörsen** (StepStone, Indeed und LinkedIn verbieten das) und kein automatisches Ausfüllen von Portalformularen – das bleibt Handarbeit.
+
+### Job-Alerts von LinkedIn, StepStone, Indeed (ohne Bots)
+Jobbörsen verbieten Scraping. Deshalb liest die macOS-App die **Job-Alert-E-Mails, die du ohnehin bekommst**, in Apple Mail (nur lesend, ohne Passwort) und übernimmt Titel, Firma, Ort und Link (`POST /api/v1/jobs/import`, mit Dublettenprüfung). Diese Stellen sind immer **manuell**. Alerts enthalten keinen Anzeigentext: über **„Anzeigentext einfügen“** einfügen – die Stelle wird neu bewertet und die KI schreibt das Anschreiben. Einstellungen → **Job-Alerts** (Konto, Tage, „Jetzt importieren“). Die Parser für StepStone/Indeed folgen deren üblichem Aufbau, sind aber noch nicht mit echten Alerts getestet.
+
+### Anschreiben als PDF
+Jedes Anschreiben lässt sich als einseitiger A4-Geschäftsbrief exportieren (Absender, Empfänger, Datum, Betreff, Anrede, Text, Grußformel, „Anlage: Lebenslauf“) im Stil des Lebenslaufs: Dashboard `/jobs/{id}/anschreiben` (Druckseite) und `/jobs/{id}/anschreiben.pdf`, Mac-App **„Als PDF speichern“** → `~/Bewerbung/Anschreiben/`. Absenderdaten: `applicant:` in `config.yaml`.
+
+### Qualitätsprüfung der Anschreiben
+3–4 Absätze (180–260 Wörter), Ich-Form, nur Fakten aus Profil und Anzeige, keine Platzhalter, keine erfundenen Zahlen, keine englischen Füllwörter. Fehlgeschlagene Versuche werden wiederholt (`llm.retries`, optional `llm.fallback_model`). **Vorlagen werden nie per E-Mail gesendet** – nur KI- oder selbst bearbeitete Anschreiben. CLI: `python -m jobhunter letters [--all] [--ids 18] [--dry-run]`.
 
 ---
 

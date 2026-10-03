@@ -24,7 +24,7 @@
       <span class="score s{{ (j.score // 20) * 20 }}">{{ j.score }}</span>
       <div class="todo-title">
         <a href="{{ base }}/jobs/{{ j.id }}">{{ j.title }}</a>
-        <div class="muted small">{{ j.company or '–' }} · {{ j.location or '–' }}{% if j.remote %} · <span class="tag">remote</span>{% endif %}</div>
+        <div class="muted small">{{ j.company or '–' }} · {{ j.location or '–' }}{% if j.source.endswith('-alert') %} · <span class="tag">{{ source_label(j.source) }}</span>{% endif %}{% if j.remote %} · <span class="tag">remote</span>{% endif %}</div>
         <span class="applylabel a-manual">{{ j.apply_label }}</span>
         {% if j.letter_origin %}<span class="small muted"> · Anschreiben: {{ j.letter_origin }}</span>{% endif %}
       </div>
@@ -33,10 +33,15 @@
     <div class="todo-actions">
       {% if j.url %}<a class="button primary" href="{{ j.url }}" target="_blank" rel="noopener noreferrer">Jetzt manuell bewerben ↗</a>{% endif %}
       <button type="button" class="ghost copy-letter" data-src="letter-{{ j.id }}" {% if not j.letter %}disabled title="Noch kein Anschreiben"{% endif %}>📋 Anschreiben kopieren</button>
+      {% if j.letter %}<a class="button ghost" href="{{ base }}/jobs/{{ j.id }}/anschreiben?back=today" target="_blank" rel="noopener">📄 Anschreiben als PDF</a>{% endif %}
+      {% if (j.description or '')|trim|length < 300 %}
+      <a class="button ghost" href="{{ base }}/jobs/{{ j.id }}#posting" title="Kein Anzeigentext (z. B. Job-Alert)">📋 Anzeigentext einfügen, dann KI-Anschreiben</a>
+      {% else %}
       <form method="post" action="{{ base }}/jobs/{{ j.id }}/write-letter">
         <input type="hidden" name="back" value="today">
         <button type="submit" class="ghost" {% if not k.enabled or k.busy %}disabled{% endif %}>🤖 {{ t('write_letter_ki') }}</button>
       </form>
+      {% endif %}
       <form method="post" action="{{ base }}/jobs/{{ j.id }}/mark-applied">
         <input type="hidden" name="back" value="today">
         <button type="submit">✅ Als beworben markieren</button>

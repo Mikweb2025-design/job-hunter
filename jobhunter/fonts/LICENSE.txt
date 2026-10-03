@@ -1,0 +1,5 @@
+Liberation Sans 1.07.4 (LiberationSans-Regular.ttf, LiberationSans-Bold.ttf)
+Copyright (c) 2007 Red Hat, Inc. All rights reserved. LIBERATION is a trademark of Red Hat, Inc.
+Licensed under the Liberation Fonts license (GNU GPL v2 with the font embedding exception):
+https://fedoraproject.org/wiki/Licensing/LiberationFontLicense
+Metric-compatible with Arial; embedded in the cover-letter PDF (jobhunter/letter_doc.py).

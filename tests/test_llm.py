@@ -70,6 +70,8 @@ def test_openai_compatible():
 
 def test_pipeline_calls_llm_only_above_threshold(settings, monkeypatch):
     calls = []
+    from jobhunter import alerts
+    monkeypatch.setattr(alerts, "MIN_DESCRIPTION_FOR_KI", 0)  # fixture snippets are short
 
     def fake_evaluate(self, cv_text, job, min_salary):
         from jobhunter.llm import LLMResult

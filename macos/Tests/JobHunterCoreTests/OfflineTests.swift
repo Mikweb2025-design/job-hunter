@@ -242,6 +242,14 @@ actor FakeSyncAPI: JobSyncAPI {
         return d
     }
 
+    func saveDescription(id: Int, text: String) async throws -> JobDetail {
+        try gate("PUT description \(id)")
+        var d = details[id]!
+        d.description = text
+        details[id] = d
+        return d
+    }
+
     func saveLetter(id: Int, text: String) async throws -> JobDetail {
         try gate("PUT \(id)")
         var d = details[id]!
@@ -316,6 +324,29 @@ struct ReplayTests {
         #expect(r.stoppedError == nil)
     }
 
+    @Test func pastedPostingTextIsQueuedAndReplayed() async throws {
+        let d = try detail()
+        let api = FakeSyncAPI(details: [4: d])
+        let text = String(repeating: "Anzeigentext ", count: 30)
+        var q = PendingQueue()
+        q.record(jobID: 4, field: .description, value: text, base: d.description, at: .now)
+        let local = q.apply(to: d)
+        #expect(local.description == text && local.hasPostingText)
+        #expect(local.summary.descriptionLength == text.trimmingCharacters(in: .whitespaces).count)
+        let r = await SyncEngine.replay(q, api: api)
+        #expect(r.done.count == 1 && r.details[4]?.description == text)
+        #expect(await api.calls == ["GET 4", "PUT description 4"])
+    }
+
+    @Test func descriptionOnOlderServerStaysQueued() async throws {
+        let d = try detail()
+        let api = OldServerAPI(detail: d)
+        var q = PendingQueue()
+        q.record(jobID: 4, field: .description, value: "Text", base: d.description, at: .now)
+        let r = await SyncEngine.replay(q, api: api)
+        #expect(r.deferred.count == 1 && r.rejected.isEmpty && r.finishedIDs.isEmpty && r.stoppedError == nil)
+    }
+
     @Test func transientClassification() {
         #expect(SyncEngine.isTransient(APIError.unreachable("x")))
         #expect(SyncEngine.isTransient(APIError.server(status: 503, detail: nil)))
@@ -378,13 +409,13 @@ struct LetterTests {
     @Test func promptContainsRulesProfileAndPosting() throws {
         let d = try detail()
         let p = LetterPrompt.build(cvProfile: profile, job: d)
-        #expect(p.contains("genau 4 Sätze"))
+        #expect(p.contains("3 bis 4 kurze Absätze"))
         #expect(p.contains("ersten 90 Tagen"))
         #expect(p.contains("Erfinde NIEMALS Zahlen"))
-        #expect(p.contains("Gib ausschließlich den Text des Anschreibens aus"))
+        #expect(p.contains("Gib ausschließlich den Brieftext aus"))
         #expect(p.contains("15.000 Instanzen"))
         #expect(!p.contains("Hinweis für den Editor"))
-        #expect(p.contains("Titel: \(d.summary.title)"))
+        #expect(p.contains("Titel: \(LetterFormatting.letterTitle(d.summary.title, company: d.summary.company))"))
         #expect(p.contains("Unternehmen: Beispiel Cloud GmbH"))
         #expect(p.contains("Gehalt: 52000 – 62000 EUR/Jahr"))
         #expect(p.contains(String(d.description.prefix(80))))
@@ -396,7 +427,15 @@ struct LetterTests {
         #expect(!LetterPrompt.build(cvProfile: profile, job: d).contains("ENDE"))
     }
 
-    let good = "Bei IONOS/STRATO betreue ich seit 2008 den technischen Support für eine Nextcloud-Plattform mit rund 15.000 Instanzen. Ihre Stelle reizt mich, weil Sie ausdrücklich Erfahrung mit Objektspeicher suchen. In den ersten 90 Tagen würde ich mich in Ihr Ticket-System einarbeiten und die häufigsten Anfragen dokumentieren. Ich freue mich auf ein Gespräch."
+    let good = """
+    Bei IONOS/STRATO betreue ich seit 2008 den technischen Support für eine Nextcloud-Plattform mit rund 15.000 Instanzen und kenne die Anforderungen an einen verlässlichen Cloud-Support aus erster Hand.
+
+    Dort löse ich im Second- und Third-Level-Support komplexe Linux-Fälle, analysiere Störungen bis zur Ursache und schreibe FAQ-Artikel, damit Kolleginnen und Kollegen wiederkehrende Anfragen selbst lösen können.
+
+    Ihre Stelle reizt mich, weil Sie ausdrücklich Erfahrung mit Objektspeicher suchen. In den ersten 90 Tagen würde ich mich in Ihr Ticket-System einarbeiten und die häufigsten Anfragen dokumentieren.
+
+    Über die Einladung zu einem persönlichen Gespräch freue ich mich.
+    """
 
     @Test func cleansPlainOutputWithANSIAndHeader() throws {
         let raw = "\u{1B}[0m\n> build · big-pickle\n\u{1B}[0m\n\u{1B}[1m" + good + "\u{1B}[0m\n"
@@ -426,7 +465,7 @@ struct LetterTests {
         #expect(throws: LetterRejection.placeholder) {
             try LetterOutputCleaner.clean(good + " [Firmenname ergänzen]")
         }
-        #expect(throws: LetterRejection.tooShort(20)) { try LetterOutputCleaner.clean("Ich bewerbe mich.  \n Ok") }
+        #expect(throws: LetterRejection.tooShort(21)) { try LetterOutputCleaner.clean("Ich bewerbe mich.  \n\n Ok") }
         #expect(throws: LetterRejection.empty) { try LetterOutputCleaner.clean("\u{1B}[0m\n> build · x\n") }
     }
 
@@ -436,6 +475,30 @@ struct LetterTests {
             try LetterOutputCleaner.clean(invented, sources: [profile])
         }
         #expect(try LetterOutputCleaner.clean(good, sources: [profile]) == good)
+    }
+
+    @Test func requiresParagraphsLengthAndNoFloskel() throws {
+        let onePar = LetterOutputCleaner.paragraphs(good).joined(separator: " ")
+        #expect(throws: LetterRejection.tooFewParagraphs) { try LetterOutputCleaner.clean(onePar) }
+        // single line breaks between paragraphs are accepted and normalized
+        #expect(try LetterOutputCleaner.clean(good.replacingOccurrences(of: "\n\n", with: "\n")) == good)
+        let long = good + "\n\n" + String(repeating: "Ich ergänze noch viele Details. ", count: 60)
+        #expect(throws: LetterRejection.tooLong(LetterOutputCleaner.normalizeParagraphs(long).count)) {
+            try LetterOutputCleaner.clean(long)
+        }
+        #expect(throws: LetterRejection.floskel) { try LetterOutputCleaner.clean("Hiermit bewerbe ich mich. " + good) }
+        let bracket = good.replacingOccurrences(of: "IONOS/STRATO", with: "]init[ AG")
+        #expect(try LetterOutputCleaner.clean(bracket, company: "]init[ AG") == bracket)
+        #expect(throws: LetterRejection.placeholder) { try LetterOutputCleaner.clean(bracket) }
+    }
+
+    @Test func rulesMatchBackend() throws {
+        // LETTER_RULES in ~/job-hunter/jobhunter/llm.py must stay identical (checked when the repo is there).
+        let path = NSHomeDirectory() + "/job-hunter/jobhunter/llm.py"
+        guard let py = try? String(contentsOfFile: path, encoding: .utf8),
+              let start = py.range(of: "LETTER_RULES = \"\"\""),
+              let end = py.range(of: "\"\"\"", range: start.upperBound..<py.endIndex) else { return }
+        #expect(String(py[start.upperBound..<end.lowerBound]) == LetterPrompt.rules)
     }
 
     @Test func parsesModelList() {
@@ -481,4 +544,12 @@ struct OpencodeE2ETests {
         #expect(!letter.contains("["))
         #expect(letter.count >= LetterOutputCleaner.minLength)
     }
+}
+
+/// Server before the "Anzeigentext einfügen" endpoint: jobs exist, PUT /description is 404.
+struct OldServerAPI: JobSyncAPI {
+    let detail: JobDetail
+    func job(id: Int) async throws -> JobDetail { detail }
+    func update(id: Int, _ update: JobUpdate) async throws -> JobDetail { detail }
+    func saveLetter(id: Int, text: String) async throws -> JobDetail { detail }
 }

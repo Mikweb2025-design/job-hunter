@@ -111,10 +111,12 @@ class Database:
         """Detect application e-mail addresses for stored jobs (keeps manual entries)."""
         n = 0
         with self.conn() as c:
-            rows = c.execute("SELECT id, description, apply_email_source FROM jobs").fetchall()
+            rows = c.execute("SELECT id, source, description, apply_email_source FROM jobs").fetchall()
             for r in rows:
                 if r["apply_email_source"] == "manuell" and not overwrite:
                     continue
+                if (r["source"] or "").endswith("-alert"):
+                    continue  # job-alert e-mails: always "apply manually" unless set by hand
                 f = apply_fields(r["description"])
                 c.execute("UPDATE jobs SET apply_email=?, apply_method=?, apply_email_source=? WHERE id=?",
                           (f["apply_email"], f["apply_method"], f["apply_email_source"], r["id"]))

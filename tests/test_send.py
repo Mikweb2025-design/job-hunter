@@ -227,11 +227,20 @@ def test_min_score_for_auto(env):
     assert [i["reason"] for i in gate(settings, db).outbox()] == ["approved"]
 
 
-def test_template_letter_never_auto(env):
+def test_template_letter_never_sent_even_if_approved(env):
     settings, db = env
     j = add_job(db, origin="vorlage", letter=LETTER)
-    assert "template_letter" in auto_blockers(settings, db, j)
+    assert "template_letter" in blockers(settings, db, j)  # hard blocker: only KI/manual letters are e-mailed
+    import pytest
+    with pytest.raises(actions.SendBlocked):
+        actions.approve(settings, db, j)
     assert gate(settings, db).outbox() == []
+
+
+def test_ki_letter_is_sendable(env):
+    settings, db = env
+    j = add_job(db, origin="KI (opencode)", letter=LETTER)
+    assert "template_letter" not in blockers(settings, db, j)
 
 
 def test_placeholder_never_sent(env):

@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import actions, letters, pipeline
+from . import actions, alerts, letter_doc, letters, pipeline
 from .api import build_api_router
 from .config import Settings, load_settings
 from .db import Database
@@ -30,6 +30,13 @@ from .views import VIEW_LABELS, VIEWS, annotate, filter_view, outbox_rows, real_
 
 log = logging.getLogger(__name__)
 HERE = Path(__file__).parent
+
+
+def _attachment(filename: str) -> str:
+    """Content-Disposition with an ASCII fallback and the UTF-8 name (umlauts in company names)."""
+    from urllib.parse import quote
+    ascii_name = filename.encode("ascii", "replace").decode().replace("?", "_").replace('"', "")
+    return f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(filename)}'
 
 
 def _start_scheduler(settings: Settings):
@@ -76,7 +83,7 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
     # Evaluated on every page render: the send banner must always show the live state.
     templates.env.globals["send_status"] = lambda: status_summary(settings, Gate(settings, db), db.client_states())
     templates.env.globals["view_counts"] = lambda: view_counts(db, settings.send.blocklist)
-    templates.env.globals.update(VIEW_LABELS=VIEW_LABELS, NAV_VIEWS=VIEWS)
+    templates.env.globals.update(VIEW_LABELS=VIEW_LABELS, NAV_VIEWS=VIEWS, source_label=alerts.source_label)
     llm_name = f"{settings.llm.provider}:{settings.llm.model}"
     templates.env.globals["ki"] = lambda: {"enabled": settings.llm.enabled, "label": llm_name,
                                            "provider": settings.llm.provider,
@@ -147,7 +154,8 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
             j["send"] = send_state(j, gate, light=True)
         qs = urlencode({k: v for k, v in f.items() if v})
         return templates.TemplateResponse(request, "index.html", {
-            "jobs": jobs, "f": f, "sources": db.sources(), "counts": db.counts_by_status(),
+            "jobs": jobs, "f": f, "sources": list(dict.fromkeys([*db.sources(), *alerts.ALERT_SOURCES])),
+            "counts": db.counts_by_status(),
             "runs": db.last_runs(5), "running": pipeline.is_running(), "qs": qs,
             "msg": request.query_params.get("msg"), "err": request.query_params.get("err"),
             "llm_label": settings.llm.provider, "active_view": f["view"],
@@ -198,7 +206,7 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
         jobs = letters.candidates(settings, db, view=view if view in VIEWS else None)
         if not jobs:
             return _back(back, msg="letters_none")
-        if not letters.start(settings, db, jobs):
+        if not letters.start(settings, db, jobs, only_needed=True):
             return _back(back, msg="letters_busy")
         return _back(back, msg="letters_started")
 
@@ -214,7 +222,46 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
             "err_mail": request.query_params.get("err_mail"),
             "err": request.query_params.get("err"), "llm_enabled": settings.llm.enabled,
             "llm_label": f"{settings.llm.provider}:{settings.llm.model}" if settings.llm.enabled else None,
+            "has_posting": alerts.has_posting_text(job), "is_alert": alerts.is_alert_source(job.get("source")),
         })
+
+    @app.post("/jobs/{job_id}/description")
+    def save_description(job_id: int, description: str = Form(""), write_letter: str = Form("")):
+        """"Anzeigentext einfügen": save, re-score, then (optionally) start the KI letter."""
+        job = db.get_job(job_id)
+        if not job:
+            raise HTTPException(404)
+        job = alerts.set_description(settings, db, job, description[:50000])
+        msg = "description_saved"
+        if (write_letter and alerts.has_posting_text(job) and settings.llm.enabled
+                and job.get("letter_origin") != "manuell"):
+            msg = "letter_started" if letters.start(settings, db, [job]) else "letters_busy"
+        return RedirectResponse(f"{base}/jobs/{job_id}?msg={msg}#letter", status_code=303)
+
+    @app.get("/jobs/{job_id}/anschreiben", response_class=HTMLResponse)
+    def letter_print(request: Request, job_id: int):
+        """Print-optimized A4 page of the full letter ("Als PDF speichern" → browser print)."""
+        job = db.get_job(job_id)
+        if not job:
+            raise HTTPException(404)
+        doc = letter_doc.build_document(job, settings.applicant)
+        back = request.query_params.get("back")
+        back_url = f"{base}/today" if back == "today" else f"{base}/jobs/{job_id}#letter"
+        return templates.TemplateResponse(request, "anschreiben.html", {
+            "doc": doc, "back_url": back_url,
+            "pdf_url": f"{base}/jobs/{job_id}/anschreiben.pdf" if letter_doc.pdf_available() else None,
+        })
+
+    @app.get("/jobs/{job_id}/anschreiben.pdf")
+    def letter_pdf(job_id: int):
+        job = db.get_job(job_id)
+        if not job:
+            raise HTTPException(404)
+        if not letter_doc.pdf_available():
+            raise HTTPException(501, "PDF nicht verfügbar (fpdf2 fehlt) – Druckansicht benutzen")
+        doc = letter_doc.build_document(job, settings.applicant)
+        return Response(letter_doc.render_pdf(doc), media_type="application/pdf",
+                        headers={"Content-Disposition": _attachment(doc["filename"])})
 
     @app.post("/jobs/{job_id}/status")
     def update_status(job_id: int, status: str = Form(...), notes: str = Form(""),

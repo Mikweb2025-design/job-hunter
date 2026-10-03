@@ -2,25 +2,32 @@ import Foundation
 
 // MARK: - Prompt
 
-/// German 4-sentence cover-letter prompt, same rules as the backend (`jobhunter/llm.py`).
+/// German cover-letter prompt (3–4 paragraphs), same rules as the backend (`jobhunter/llm.py`).
 public enum LetterPrompt {
     public static let maxPostingChars = 15_000
     public static let defaultCVProfilePath = NSHomeDirectory() + "/job-hunter/data/cv_profile.md"
     public static let originLabel = "KI (opencode)"
 
     public static let rules = """
-    Du hilfst einem erfahrenen Support Engineer bei der Jobsuche in Deutschland und schreibst einen kurzen Anschreiben-Entwurf für die Stellenanzeige unten.
+    Du hilfst einem erfahrenen Support Engineer bei der Jobsuche in Deutschland und schreibst den Text seines Anschreibens für die Stellenanzeige unten.
 
-    Regeln für das Anschreiben (Deutsch, genau 4 Sätze, kein Gruß, keine Anrede). Schreibe in der ICH-FORM aus Sicht des Bewerbers (ich, mein, mir); das Unternehmen wird höflich mit „Sie“ angesprochen. Sprich NIE den Bewerber selbst mit „Sie“ oder „Ihre“ an:
-    1. Satz: das relevanteste konkrete Ergebnis aus dem Profil, passend zur Stelle.
-    2. Satz: warum genau dieses Unternehmen/diese Stelle – mit einem konkreten Bezug aus dem Anzeigentext.
-    3. Satz: was ich in den ersten 90 Tagen konkret tun würde.
-    4. Satz: eine schlichte Bitte um ein Gespräch.
-    Keine Buzzwords (z.B. "leidenschaftlich", "dynamisch", "Synergien", "Mehrwert schaffen").
-    Erfinde NIEMALS Zahlen, Firmen, Zertifikate oder Ergebnisse. Verwende Zahlen nur, wenn sie wörtlich im Profil stehen.
-    Keine Platzhalter in eckigen Klammern. Benutze keine Werkzeuge und lies keine Dateien – alles Nötige steht unten.
+    Form: Deutsch, sachlich, konkret und in natürlichem, flüssigem Deutsch, 3 bis 4 kurze Absätze mit zusammen 180 bis 260 Wörtern; Absätze durch eine Leerzeile getrennt, jeder Absatz höchstens 4 Sätze. Prüfe Grammatik und Rechtschreibung vor der Ausgabe. Nur der Brieftext: keine Anrede, kein Gruß, keine Betreffzeile, keine Unterschrift.
+    Schreibe in der ICH-FORM aus Sicht des Bewerbers (ich, mein, mir); das Unternehmen wird höflich mit „Sie“ angesprochen. Sprich NIE den Bewerber selbst mit „Sie“ oder „Ihre“ an.
 
-    Gib ausschließlich den Text des Anschreibens aus: genau 4 Sätze als ein Absatz, ohne Überschrift, ohne Anführungszeichen, ohne Erklärung davor oder danach.
+    Aufbau:
+    1. Absatz (Einstieg): ein konkreter Einstieg, der mein stärkstes passendes Ergebnis aus dem Profil (mit seiner Zahl, falls vorhanden) mit der Stelle verbindet; nenne den Stellentitel (Zeile „Titel“) und das Unternehmen. Nicht mit „hiermit bewerbe ich mich“ oder „mit großem Interesse“ beginnen.
+    2. Absatz (Erfahrung): zwei bis drei konkrete Belege aus dem Profil, jeweils bezogen auf eine Hauptanforderung der Anzeige (z. B. 2nd/3rd-Level-Support, Root-Cause-Analysen, Größe der betreuten Plattformen, Ticketvolumen, FAQ/Wissensdatenbank für Kollegen, KI-gestützte Ticket-Triage über MCP, Python/Docker) – nur was zur Anzeige passt.
+    3. Absatz (Warum Sie): ein konkreter Bezug aus dem Anzeigentext (Produkt, Aufgabe, Kunden oder Technik) und was ich in den ersten 90 Tagen als Erstes konkret tun würde.
+    4. Absatz (Abschluss): ein kurzer, schlichter Satz, z. B. „Über die Einladung zu einem persönlichen Gespräch freue ich mich.“ Kein Eintrittstermin, keine Kündigungsfrist, keine Gehaltsangabe, keine Selbstbewertung.
+
+    Inhalt:
+    - Nur Fakten aus dem Profil und der Anzeige. Erfinde NIEMALS Zahlen, Firmen, Kunden, Zertifikate, Werkzeuge oder Ergebnisse. Zahlen nur, wenn sie wörtlich im Profil oder in der Anzeige stehen (Ausnahme: „90 Tage“). Jahreszahlen nur so, wie der Abschnitt „Erfahrung“ des Profils sie einer Station zuordnet (z. B. seit 2008 bei STRATO, aber erst seit 2018 als Specialist Support Engineer).
+    - Behaupte keine Erfahrung mit Produkten oder Technologien der Anzeige, die nicht im Profil stehen. Fehlendes höchstens in einem kurzen, positiven Halbsatz (z. B. „in X arbeite ich mich gezielt ein“); keine Aufzählung von Dingen, die ich nicht kann, keine Entschuldigungen.
+    - Keine Buzzwords und Floskeln (z. B. „leidenschaftlich“, „dynamisch“, „Synergien“, „Mehrwert schaffen“, „hochmotiviert“, „Teamplayer“, „ich bin überzeugt“, „hiermit bewerbe ich mich“).
+    - Keine Platzhalter in eckigen Klammern, kein Markdown, keine Aufzählungszeichen.
+    Benutze keine Werkzeuge und lies keine Dateien – alles Nötige steht unten.
+
+    Gib ausschließlich den Brieftext aus (3 bis 4 Absätze, durch Leerzeilen getrennt), ohne Überschrift, ohne Anführungszeichen, ohne Erklärung davor oder danach.
     """
 
     /// Removes HTML comments (editor hints in cv_profile.md) and surrounding whitespace.
@@ -33,6 +40,10 @@ public enum LetterPrompt {
     public static func build(cvProfile: String, job: JobDetail, minSalary: Int = 44_000) -> String {
         let s = job.summary
         let desc = String(job.description.prefix(maxPostingChars))
+        let cleaned = LetterFormatting.letterTitle(s.title, company: s.company)
+        let title = cleaned.isEmpty ? s.title : cleaned
+        let raw = s.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawTitle = !raw.isEmpty && raw != title ? "Titel in der Anzeige: \(raw)\n" : ""
         var salary = "unbekannt"
         if s.salaryMin != nil || s.salaryMax != nil {
             salary = "\(s.salaryMin.map { String(Int($0)) } ?? "?") – \(s.salaryMax.map { String(Int($0)) } ?? "?") EUR/Jahr"
@@ -47,8 +58,8 @@ public enum LetterPrompt {
         <wuensche>Mindestgehalt \(minSalary) EUR/Jahr; Berlin oder remote.</wuensche>
 
         <stelle>
-        Titel: \(s.title)
-        Unternehmen: \(s.company ?? "unbekannt")
+        Titel: \(title)
+        \(rawTitle)Unternehmen: \(s.company ?? "unbekannt")
         Ort: \(s.location ?? "unbekannt")
         Remote möglich: \(s.remote ? "ja" : "unbekannt")
         Gehalt: \(salary)
@@ -64,15 +75,23 @@ public enum LetterPrompt {
 public enum LetterRejection: LocalizedError, Equatable, Sendable {
     case empty
     case tooShort(Int)
+    case tooLong(Int)
+    case tooFewParagraphs
+    case floskel
     case placeholder
     case inventedNumbers([String])
     case wrongPerspective
+    case englishWords(String)
 
     public var errorDescription: String? {
         switch self {
         case .empty: "Die KI hat keinen Text geliefert."
         case .tooShort(let n): "Antwort zu kurz (\(n) Zeichen) – kein brauchbares Anschreiben."
+        case .tooLong(let n): "Antwort zu lang (\(n) Zeichen, max. \(LetterOutputCleaner.maxLength)) – verworfen."
+        case .tooFewParagraphs: "Antwort hat weniger als \(LetterOutputCleaner.minParagraphs) Absätze – verworfen."
+        case .floskel: "Antwort beginnt mit der Floskel „hiermit bewerbe ich mich“ – verworfen."
         case .placeholder: "Antwort enthält noch Platzhalter „[ … ]“ – verworfen."
+        case .englishWords(let w): "Anschreiben enthält englische Wörter („\(w)“) – verworfen."
         case .wrongPerspective: "Anschreiben nicht in der Ich-Form (spricht den Bewerber mit „Sie“ an) – verworfen."
         case .inventedNumbers(let n): "Antwort enthält Zahlen, die weder im Profil noch in der Anzeige stehen (\(n.joined(separator: ", "))) – verworfen."
         }
@@ -80,7 +99,28 @@ public enum LetterRejection: LocalizedError, Equatable, Sendable {
 }
 
 public enum LetterOutputCleaner {
-    public static let minLength = 180
+    public static let minLength = 600
+    public static let maxLength = 2200
+    public static let minParagraphs = 3
+
+    /// Paragraphs of a letter body (separated by blank lines), whitespace-normalized.
+    public static func paragraphs(_ letter: String) -> [String] {
+        letter.replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\n[ \t]*\n\\s*", with: "\u{1E}", options: .regularExpression)
+            .split(separator: "\u{1E}")
+            .map { $0.split(whereSeparator: \.isWhitespace).joined(separator: " ") }
+            .filter { !$0.isEmpty }
+    }
+
+    /// Blank line between paragraphs; if the model used single line breaks only, every line
+    /// becomes a paragraph (same as `normalize_paragraphs` in llm.py).
+    public static func normalizeParagraphs(_ letter: String) -> String {
+        var text = letter.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.range(of: "\n\\s*\n", options: .regularExpression) == nil, text.contains("\n") {
+            text = text.replacingOccurrences(of: "\n+", with: "\n\n", options: .regularExpression)
+        }
+        return paragraphs(text).joined(separator: "\n\n")
+    }
 
     /// ANSI CSI/OSC escape sequences and stray control characters.
     public static func stripANSI(_ s: String) -> String {
@@ -124,7 +164,7 @@ public enum LetterOutputCleaner {
 
     /// Extracts the letter from raw CLI output and validates it.
     /// - Parameter sources: profile + posting text; numbers in the letter must occur there.
-    public static func clean(_ raw: String, sources: [String] = []) throws -> String {
+    public static func clean(_ raw: String, sources: [String] = [], company: String? = nil) throws -> String {
         let text = textFromJSONEvents(raw) ?? raw
         var lines = stripANSI(text).components(separatedBy: .newlines)
         lines = lines.filter { !matches(noiseLine, $0) }
@@ -144,10 +184,25 @@ public enum LetterOutputCleaner {
         for (open, close) in quotes where letter.count > 2 && letter.first == open && letter.last == close {
             letter = String(letter.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
         }
+        letter = normalizeParagraphs(letter)
         guard !letter.isEmpty else { throw LetterRejection.empty }
-        if letter.contains("[") || letter.contains("]") { throw LetterRejection.placeholder }
+        // Brackets that belong to the company name ("]init[ AG") are not placeholders.
+        var masked = letter
+        if let company, !company.isEmpty, company.contains("[") || company.contains("]") {
+            masked = masked.replacingOccurrences(of: company, with: "")
+        }
+        if masked.contains("[") || masked.contains("]") { throw LetterRejection.placeholder }
         if letter.count < minLength { throw LetterRejection.tooShort(letter.count) }
+        if letter.count > maxLength { throw LetterRejection.tooLong(letter.count) }
+        if paragraphs(letter).count < minParagraphs { throw LetterRejection.tooFewParagraphs }
+        if letter.range(of: #"\bhiermit\s+bewerbe\s+ich\s+mich\b"#, options: [.regularExpression, .caseInsensitive]) != nil {
+            throw LetterRejection.floskel
+        }
         if !Self.isFirstPerson(letter) { throw LetterRejection.wrongPerspective }
+        if let r = letter.range(of: #"\b(customers?|clients?|however|therefore|furthermore|experience|responsibilit(y|ies)|skills)\b"#,
+                                options: .regularExpression) {
+            throw LetterRejection.englishWords(String(letter[r]))
+        }
         if !sources.isEmpty {
             let invented = inventedNumbers(in: letter, sources: sources)
             if !invented.isEmpty { throw LetterRejection.inventedNumbers(invented) }

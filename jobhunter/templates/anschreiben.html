@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ doc.filename[:-4] }}</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #e9eef0; color: #222; }
+  body { font-family: Arial, "Liberation Sans", Helvetica, sans-serif; }
+  .toolbar { position: sticky; top: 0; display: flex; gap: 10px; align-items: center; padding: 10px 16px;
+             background: #fff; border-bottom: 1px solid #cfd8da; font-size: 14px; z-index: 2; flex-wrap: wrap; }
+  .toolbar button, .toolbar a.btn { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid #1E5F66;
+             background: #1E5F66; color: #fff; cursor: pointer; text-decoration: none; }
+  .toolbar a.ghost { background: #fff; color: #1E5F66; }
+  .toolbar .warn { color: #a33; }
+  .page { width: 210mm; min-height: 297mm; margin: 16px auto; background: #fff; position: relative;
+          padding: 16mm 20mm 15mm 25mm; box-shadow: 0 2px 12px rgba(0,0,0,.15); font-size: 11pt; line-height: 1.4; }
+  .name { font-size: 20pt; font-weight: bold; color: #1E5F66; line-height: 1.2; }
+  .contact { font-size: 9pt; color: #555; margin-top: 1mm; padding-bottom: 2.5mm; border-bottom: 0.6mm solid #1E5F66; }
+  .address { position: absolute; top: 45mm; left: 25mm; width: 85mm; }
+  .backline { font-size: 7.5pt; color: #555; margin-bottom: 1.5mm; }
+  .date { position: absolute; top: 88mm; right: 20mm; }
+  .content { margin-top: 67mm; }
+  .subject { font-weight: bold; font-size: 12pt; margin: 0 0 6mm; }
+  .content p { margin: 0 0 0.7em; }
+  .content .sign { margin-top: 2.2em; }
+  .content .encl { margin-top: 1.2em; font-size: 9.5pt; color: #555; }
+  @media print {
+    html, body { background: #fff; }
+    .toolbar { display: none; }
+    .page { margin: 0; box-shadow: none; height: 297mm; min-height: 0; overflow: hidden; }
+  }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button type="button" onclick="window.print()">Als PDF speichern</button>
+  {% if pdf_url %}<a class="btn ghost" href="{{ pdf_url }}">PDF herunterladen</a>{% endif %}
+  <a class="btn ghost" href="{{ back_url }}">← Zurück</a>
+  <span class="small">Im Druckdialog „Als PDF sichern“ wählen · A4, 1 Seite</span>
+  {% if not doc.has_letter %}<span class="warn">Noch kein Anschreiben gespeichert.</span>{% endif %}
+  {% if doc.has_placeholder %}<span class="warn">Achtung: Der Text enthält noch Platzhalter [ … ].</span>{% endif %}
+</div>
+<main class="page">
+  <div class="name">{{ doc.sender.name }}</div>
+  <div class="contact">{{ (doc.sender.lines + doc.sender.contact)|join('  ·  ') }}</div>
+  <div class="address">
+    <div class="backline">{{ ([doc.sender.name] + doc.sender.lines)|join(', ') }}</div>
+    {% for line in doc.recipient.lines %}<div>{{ line }}</div>{% endfor %}
+  </div>
+  <div class="date">{{ doc.place_date }}</div>
+  <div class="content">
+    <p class="subject">{{ doc.subject }}</p>
+    <p>{{ doc.salutation }}</p>
+    {% for para in doc.body %}<p>{{ para }}</p>{% endfor %}
+    <p>{{ doc.closing }}</p>
+    <p class="sign">{{ doc.signature }}</p>
+    {% if doc.enclosures %}<p class="encl">Anlage: {{ doc.enclosures|join(', ') }}</p>{% endif %}
+  </div>
+</main>
+</body>
+</html>

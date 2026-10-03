@@ -17,10 +17,15 @@ from jobhunter.models import JobPosting
 from jobhunter.views import VIEW_LABELS, annotate, classify, filter_view, real_sent_ids, view_counts
 
 AUTH = ("u", "p")
-GOOD = ("Bei IONOS/STRATO betreue ich seit Jahren den technischen Support einer Nextcloud-Plattform "
-        "und löse dort komplexe Linux- und Python-Fälle. Ihre Anzeige sucht genau diese Erfahrung im Cloud-Support. "
-        "In den ersten 90 Tagen würde ich Ihre Ticket-Abläufe kennenlernen und wiederkehrende Fragen dokumentieren. "
-        "Ich freue mich auf ein Gespräch.")
+GOOD = ("Als Cloud Support Engineer bei Acme GmbH möchte ich meine Erfahrung aus dem technischen Support "
+        "einer Nextcloud-Plattform einbringen, die ich bei IONOS/STRATO seit Jahren betreue.\n\n"
+        "Dort löse ich im Second- und Third-Level-Support komplexe Linux- und Python-Fälle, analysiere Störungen bis zur Ursache "
+        "und schreibe FAQ-Artikel, damit Kolleginnen und Kollegen wiederkehrende Anfragen selbst lösen können. "
+        "Eigene Werkzeuge mit Python und Docker nutze ich, um Abläufe im Team zu vereinfachen.\n\n"
+        "Ihre Anzeige betont den direkten Kontakt mit Geschäftskunden und stabile Cloud-Dienste. In den ersten "
+        "90 Tagen würde ich Ihre Ticket-Abläufe kennenlernen, die häufigsten Anfragen auswerten und daraus "
+        "Dokumentation für das Team ableiten.\n\n"
+        "Ich freue mich auf ein persönliches Gespräch.")
 
 FAKE = """#!{python}
 import json, os, sys, time
@@ -71,6 +76,7 @@ def oc_cfg(binary, **kw):
 def add_job(db, title="Cloud Support Engineer", company="Acme GmbH", email="jobs@acme.de", score=70,
             letter=None, origin=None, status="neu"):
     desc = (f"Bewerbung an {email}. " if email else "Bewerbung nur über das Portal. ") + "Linux, Python, Nextcloud."
+    desc += " Wir suchen Verstärkung für unser Support-Team in Berlin." * 6  # >= 300 chars: KI letters allowed
     jid = db.insert_job(JobPosting(source="test", source_id=title + company, title=title, company=company,
                                    description=desc, url="https://example.org/job"), score, {})
     db.update_job(jid, score=score, letter=letter, letter_origin=origin, status=status)
@@ -150,7 +156,7 @@ def test_clean_rejects_invented_numbers():
 
 def test_letter_prompt_rules_and_profile():
     p = build_letter_prompt("# CV\n<!-- Hinweis -->\nNextcloud", {"title": "Support", "description": "Linux"}, 44000)
-    assert "genau 4 Sätze" in p and "Keine Platzhalter" in p and "Hinweis" not in p
+    assert "3 bis 4 kurze Absätze" in p and "Keine Platzhalter" in p and "Hinweis" not in p
     assert "<profil>" in p and "Titel: Support" in p and "Mindestgehalt 44000" in p
 
 
@@ -165,7 +171,7 @@ def test_config_opencode(tmp_path, monkeypatch, fake_oc):
     monkeypatch.delenv("LLM_MODEL", raising=False)
     s = load_settings(cfg)
     assert s.llm.provider == "opencode" and s.llm.model == "opencode/big-pickle"
-    assert s.llm.timeout_s == 180 and s.llm.max_per_run == 10 and s.llm.enabled
+    assert s.llm.timeout_s == 180 and s.llm.max_per_run == 20 and s.llm.enabled
     monkeypatch.setenv("OPENCODE_BIN", str(tmp_path / "missing"))
     assert not load_settings(cfg).llm.enabled
     monkeypatch.setenv("LLM_PROVIDER", "anthropic")
@@ -187,7 +193,7 @@ def test_client_write_letter_opencode(fake_oc, cv_text):
                                                          "description": "Linux"}, 44000)
     assert (r.score, r.letter, r.origin) == (None, GOOD, OPENCODE_ORIGIN)
     prompt = json.loads(args_file.read_text())["args"][-1]
-    assert "genau 4 Sätze" in prompt and "Titel: Support" in prompt
+    assert "3 bis 4 kurze Absätze" in prompt and "Titel: Support" in prompt
 
 
 def test_action_write_letter_sets_origin(settings, fake_oc):
@@ -405,7 +411,9 @@ def test_outbox_rows_states(client):
         assert label in html
 
 
-def test_pipeline_uses_opencode_for_letters(settings, fake_oc):
+def test_pipeline_uses_opencode_for_letters(settings, fake_oc, monkeypatch):
+    from jobhunter import alerts
+    monkeypatch.setattr(alerts, "MIN_DESCRIPTION_FOR_KI", 0)  # fixture snippets are short
     from jobhunter.pipeline import run_cycle
     from jobhunter.sources.adzuna import parse_response as adzuna_parse
 

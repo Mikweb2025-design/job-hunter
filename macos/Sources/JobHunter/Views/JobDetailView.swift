@@ -13,6 +13,7 @@ struct JobDetailView: View {
 
     // Editable state
     @State private var letter = ""
+    @State private var pdfRunning = false
     @State private var notes = ""
     @State private var hasAppliedDate = false
     @State private var appliedDate = Date.now
@@ -20,6 +21,11 @@ struct JobDetailView: View {
     @State private var confirmRegenerate = false
     @State private var confirmAI = false
     @State private var aiRunning = false
+
+    // "Anzeigentext einfügen" (job alerts carry no posting text)
+    @State private var posting = ""
+    @State private var editPosting = false
+    @State private var waitingForLetter: Task<Void, Never>?
 
     // E-mail application
     @State private var preview: EmailPreview?
@@ -83,23 +89,108 @@ struct JobDetailView: View {
                         Label("Begründung (LLM)", systemImage: "text.bubble")
                     }
                 }
+                if !d.hasPostingText { postingBox(d) }
                 letterBox(d)
-                GroupBox {
-                    Text(d.description.isEmpty ? "Kein Anzeigentext vorhanden." : d.description)
-                        .font(.body)
-                        .lineSpacing(2)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(4)
-                } label: {
-                    Label("Anzeigentext", systemImage: "doc.plaintext")
-                }
+                if d.hasPostingText { postingBox(d) }
             }
             .padding(20)
             .frame(maxWidth: 900, alignment: .leading)
         }
         .navigationTitle(d.summary.title)
         .disabled(busy)
+        .onDisappear { waitingForLetter?.cancel() }
+    }
+
+    private func postingBox(_ d: JobDetail) -> some View {
+        let isAlert = AlertSource(rawValue: d.summary.source) != nil
+        return GroupBox {
+            VStack(alignment: .leading, spacing: 8) {
+                if !d.description.isEmpty && !(editPosting || !d.hasPostingText) {
+                    Text(d.description)
+                        .font(.body)
+                        .lineSpacing(2)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(4)
+                }
+                if !d.hasPostingText {
+                    Label(isAlert
+                          ? "Job-Alert-E-Mails enthalten keinen Anzeigentext. Anzeige öffnen („Bewerbung öffnen“), Text kopieren und hier einfügen – danach wird die Stelle neu bewertet und das KI-Anschreiben geschrieben."
+                          : "Kein oder nur sehr kurzer Anzeigentext. Text aus der Anzeige hier einfügen – danach wird neu bewertet und das KI-Anschreiben geschrieben.",
+                          systemImage: "info.circle")
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                }
+                if editPosting || !d.hasPostingText {
+                    TextEditor(text: $posting)
+                        .font(.body)
+                        .frame(minHeight: 160)
+                        .scrollContentBackground(.hidden)
+                        .padding(6)
+                        .background(.background, in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+                    HStack {
+                        Button {
+                            if let text = NSPasteboard.general.string(forType: .string) { posting = text }
+                        } label: {
+                            Label("Aus Zwischenablage einfügen", systemImage: "doc.on.clipboard")
+                        }
+                        Text("\(posting.trimmingCharacters(in: .whitespacesAndNewlines).count) Zeichen (KI ab \(JobSummary.minPostingText))")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        if editPosting {
+                            Button("Abbrechen") { editPosting = false; posting = "" }
+                        }
+                        Button {
+                            savePosting()
+                        } label: {
+                            Label("Speichern & neu bewerten", systemImage: "arrow.clockwise.circle")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(posting.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                  || posting.trimmingCharacters(in: .whitespacesAndNewlines) == d.description)
+                    }
+                } else {
+                    HStack {
+                        Spacer()
+                        Button("Anzeigentext ersetzen …") {
+                            posting = d.description
+                            editPosting = true
+                        }
+                        .controlSize(.small)
+                    }
+                }
+            }
+        } label: {
+            Label(d.hasPostingText ? "Anzeigentext" : "Anzeigentext einfügen", systemImage: "doc.plaintext")
+        }
+    }
+
+    private func savePosting() {
+        let oldLetter = detail?.letter ?? ""
+        let online = model.isOnline
+        applyLocal(model.saveDescription(id: jobID, text: posting),
+                   online ? "Anzeigentext gespeichert – der Server bewertet neu und schreibt das KI-Anschreiben (30–120 s)."
+                          : "Anzeigentext offline gespeichert – wird beim nächsten Kontakt übertragen, dann neu bewertet.",
+                   keepLetter: true, keepNotes: true)
+        posting = ""
+        editPosting = false
+        guard online else { return }
+        // Pick up the new score and (later) the server's KI letter while this job is open.
+        waitingForLetter?.cancel()
+        let id = jobID
+        waitingForLetter = Task {
+            for _ in 0..<18 {
+                try? await Task.sleep(for: .seconds(10))
+                guard !Task.isCancelled, id == jobID else { return }
+                guard (try? await model.loadDetail(id: id)) != nil else { continue }
+                refreshFromModel()
+                if let l = detail?.letter, !l.isEmpty, l != oldLetter {
+                    info = "KI-Anschreiben vom Server ist da."
+                    return
+                }
+            }
+        }
     }
 
     private func header(_ d: JobDetail) -> some View {
@@ -195,7 +286,11 @@ struct JobDetailView: View {
                         .controlSize(.large)
                         .disabled(s.status == .beworben)
                     }
-                    if d.letterIsTemplate || letter.isEmpty {
+                    if !d.hasPostingText && (d.letterIsTemplate || letter.isEmpty) {
+                        Label("Noch kein Anschreiben: unten „Anzeigentext einfügen“, dann schreibt die KI das Anschreiben.",
+                              systemImage: "doc.badge.plus")
+                            .font(.caption).foregroundStyle(.orange)
+                    } else if d.letterIsTemplate || letter.isEmpty {
                         Label("Das Anschreiben ist nur eine Vorlage – erst „Anschreiben mit KI schreiben“ (unten) oder selbst anpassen.",
                               systemImage: "exclamationmark.triangle")
                             .font(.caption).foregroundStyle(.orange)
@@ -460,8 +555,13 @@ struct JobDetailView: View {
     private func letterBox(_ d: JobDetail) -> some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 8) {
+                if !d.hasPostingText {
+                    Label("Kein Anzeigentext – Anzeigentext einfügen, dann KI-Anschreiben.", systemImage: "doc.badge.plus")
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                }
                 if d.letterIsTemplate {
-                    Label("Vorlage ohne LLM – bitte die markierten Stellen [ … ] anpassen.", systemImage: "info.circle")
+                    Label("Vorlage ohne KI (neutraler Text) – mit „Anschreiben mit KI schreiben“ ersetzen oder selbst anpassen.", systemImage: "info.circle")
                         .font(.callout)
                         .foregroundStyle(.orange)
                 }
@@ -486,8 +586,8 @@ struct JobDetailView: View {
                         Label("Anschreiben mit KI schreiben", systemImage: "sparkles")
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(aiRunning || model.letterJobIDs.contains(jobID))
-                    .help("Schreibt mit opencode (\(model.settings.letterModel)) ein 4-Satz-Anschreiben aus Profil + Anzeige und speichert es. Funktioniert auch offline (wird später synchronisiert).")
+                    .disabled(aiRunning || model.letterJobIDs.contains(jobID) || !d.hasPostingText)
+                    .help("Schreibt mit opencode (\(model.settings.letterModel)) ein Anschreiben (3–4 Absätze) aus Profil + Anzeige und speichert es. Funktioniert auch offline (wird später synchronisiert).")
                     .confirmationDialog("Vorhandenes Anschreiben ersetzen?", isPresented: $confirmAI) {
                         Button("Mit KI neu schreiben", role: .destructive) { Task { await writeWithAI() } }
                     } message: {
@@ -520,6 +620,24 @@ struct JobDetailView: View {
                     .keyboardShortcut("s", modifiers: .command)
                     .disabled(letter == d.letter)
                 }
+                HStack {
+                    Spacer()
+                    if pdfRunning { ProgressView().controlSize(.small) }
+                    Button {
+                        Task { await exportPDF(preview: true) }
+                    } label: {
+                        Label("Vorschau", systemImage: "eye")
+                    }
+                    .disabled(letter.isEmpty || pdfRunning)
+                    .help("Ganzes Anschreiben (Absender, Empfänger, Datum, Betreff, Anrede, Gruß) als PDF in Vorschau öffnen")
+                    Button {
+                        Task { await exportPDF(preview: false) }
+                    } label: {
+                        Label("Als PDF speichern", systemImage: "doc.richtext")
+                    }
+                    .disabled(letter.isEmpty || pdfRunning)
+                    .help("Speichert das ganze Anschreiben als A4-PDF in \(model.settings.letterPDFFolder) und zeigt es im Finder – funktioniert offline")
+                }
             }
             .padding(4)
         } label: {
@@ -528,6 +646,21 @@ struct JobDetailView: View {
     }
 
     // MARK: Actions
+
+    private func exportPDF(preview: Bool) async {
+        pdfRunning = true
+        defer { pdfRunning = false }
+        do {
+            if preview {
+                try await model.previewLetterPDF(id: jobID, letter: letter)
+            } else {
+                let url = try await model.saveLetterPDF(id: jobID, letter: letter)
+                info = "PDF gespeichert: \(url.path(percentEncoded: false))" + (letter != detail?.letter ? " (mit ungespeicherten Änderungen)" : "")
+            }
+        } catch {
+            info = error.localizedDescription
+        }
+    }
 
     private func load() async {
         loadError = nil

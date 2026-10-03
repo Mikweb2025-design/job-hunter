@@ -49,6 +49,8 @@ class LLMConfig:
     anthropic_fallbacks: bool = True
     effort: str | None = None
     opencode_bin: str = ""  # provider=opencode: path of the opencode CLI (OPENCODE_BIN)
+    retries: int = 1        # extra attempts per letter after a timeout / rejected output
+    fallback_model: str = ""  # optional: model for the last attempt (e.g. another opencode model)
 
     @property
     def enabled(self) -> bool:
@@ -111,6 +113,19 @@ class SendConfig:
 
 
 @dataclass
+class ApplicantConfig:
+    """Sender block of the cover-letter document (`applicant:` in config.yaml). Public contact
+    data only – no secrets."""
+    name: str = "Daniele Michelin"
+    street: str = ""                 # optional; empty = not printed
+    city: str = "Berlin"             # also used for "Berlin, <Datum>"
+    email: str = "info@daniele-michelin.com"
+    phone: str = "+49 160 7804710"
+    linkedin: str = "linkedin.com/in/daniele-michelin-02863143b"
+    enclosures: list[str] = field(default_factory=lambda: ["Lebenslauf"])
+
+
+@dataclass
 class Settings:
     profile: SearchProfile
     llm: LLMConfig
@@ -128,6 +143,7 @@ class Settings:
     telegram_chat_id: str | None = None
     ui_lang: str = "de"
     send: SendConfig = field(default_factory=SendConfig)
+    applicant: ApplicantConfig = field(default_factory=ApplicantConfig)
 
     @property
     def db_path(self) -> Path:
@@ -185,10 +201,12 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         base_url=base_url,
         api_key=api_key,
         threshold=int(l.get("threshold", 55)),
-        max_per_run=int(l.get("max_per_run", 10)),
+        max_per_run=int(l.get("max_per_run", 20 if provider == "opencode" else 10)),
         timeout_s=float(_env("LLM_TIMEOUT_S") or l.get("timeout_s", 180 if provider == "opencode" else 120)),
         anthropic_fallbacks=bool(l.get("anthropic_fallbacks", True)),
         effort=l.get("effort"),
+        retries=int(_env("LLM_RETRIES") or l.get("retries", 1)),
+        fallback_model=str(_env("LLM_FALLBACK_MODEL") or l.get("fallback_model", "") or ""),
         opencode_bin=resolve_opencode_bin(_env("OPENCODE_BIN") or l.get("opencode_bin"))
         if provider == "opencode" else "",
     )
@@ -211,6 +229,15 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         cv_attachment=str(sd.get("cv_attachment", defaults.cv_attachment)),
     )
 
+    ad = raw.get("applicant", {}) or {}
+    a_def = ApplicantConfig()
+    applicant = ApplicantConfig(
+        name=str(ad.get("name") or a_def.name), street=str(ad.get("street") or ""),
+        city=str(ad.get("city") or a_def.city), email=str(ad.get("email") or a_def.email),
+        phone=str(ad.get("phone") or a_def.phone), linkedin=str(ad.get("linkedin") or a_def.linkedin),
+        enclosures=[str(e) for e in (ad.get("enclosures") if ad.get("enclosures") is not None else a_def.enclosures)],
+    )
+
     sched = raw.get("schedule", {}) or {}
     notify = raw.get("notify", {}) or {}
     return Settings(
@@ -230,4 +257,5 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         telegram_chat_id=_env("TELEGRAM_CHAT_ID"),
         ui_lang=(_env("UI_LANG") or raw.get("ui_lang") or "de"),
         send=send,
+        applicant=applicant,
     )

@@ -21,6 +21,8 @@ public struct SendSettings: Codable, Sendable, Hashable {
     public var dryRunTotal: Int
     public var dryRunToday: Int
     public var remainingToday: Int
+    /// Sender block for the cover-letter PDF (newer servers).
+    public var applicant: Applicant?
 }
 
 /// Rendered e-mail as the server would send it.

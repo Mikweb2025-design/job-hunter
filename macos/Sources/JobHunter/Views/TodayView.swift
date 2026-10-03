@@ -93,6 +93,15 @@ struct TodayView: View {
                         .controlSize(.small)
                         .fixedSize()
                         .help("Anschreiben kopieren")
+                        Button {
+                            Task { await savePDF(job) }
+                        } label: {
+                            Label("PDF", systemImage: "doc.richtext")
+                        }
+                        .controlSize(.small)
+                        .fixedSize()
+                        .disabled(!job.hasLetter)
+                        .help("Ganzes Anschreiben als A4-PDF speichern (\(model.settings.letterPDFFolder)) und im Finder zeigen")
                         Label(letterReady ? "fertig" : "nur Vorlage",
                               systemImage: letterReady ? "checkmark" : "exclamationmark.triangle")
                             .font(.caption)
@@ -105,6 +114,15 @@ struct TodayView: View {
         }
         .padding(.vertical, 4)
         .opacity(checked ? 0.6 : 1)
+    }
+
+    private func savePDF(_ job: JobSummary) async {
+        do {
+            let url = try await model.saveLetterPDF(id: job.id)
+            message = "PDF gespeichert: \(url.lastPathComponent)"
+        } catch {
+            message = error.localizedDescription
+        }
     }
 
     private func copyLetter(_ job: JobSummary, quiet: Bool = false) async {

@@ -12,11 +12,11 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import actions, letters, pipeline
+from . import actions, alerts, letter_doc, letters, pipeline
 from .config import Settings
 from .db import Database
 from .llm import LLMError, generation_busy
@@ -46,6 +46,8 @@ def job_summary(job: dict, send: dict | None = None) -> dict:
     out["salary_predicted"] = _bool(job.get("salary_predicted"))
     out["also_seen_on"] = [s for s in (job.get("also_seen_on") or "").split(",") if s]
     out["has_letter"] = bool(job.get("letter"))
+    out["source_label"] = alerts.source_label(job.get("source"))
+    out["description_length"] = len((job.get("description") or "").strip())
     if "view" in job:
         out["view"] = job["view"]
         out["apply_label"] = job["apply_label"]
@@ -98,7 +100,14 @@ def send_settings_dict(settings: Settings, gate: Gate) -> dict:
         "require_letter": cfg.require_letter, "from_address": cfg.from_address,
         "sender_name": cfg.sender_name, "subject_template": cfg.subject_template,
         "cv_attachment": cfg.cv_attachment, **counters_dict(gate),
+        "applicant": applicant_dict(settings),
     }
+
+
+def applicant_dict(settings: Settings) -> dict:
+    a = settings.applicant
+    return {"name": a.name, "street": a.street, "city": a.city, "email": a.email, "phone": a.phone,
+            "linkedin": a.linkedin, "enclosures": list(a.enclosures)}
 
 
 def sent_dict(r: dict) -> dict:
@@ -169,6 +178,27 @@ class LetterUpdate(BaseModel):
     # Who wrote it, e.g. "KI (opencode)" when the Mac app generated it locally. Default "manuell".
     # "vorlage" is reserved for the server's fixed template.
     origin: str | None = Field(default=None, max_length=40)
+
+
+class AlertJobIn(BaseModel):
+    """One job parsed from a job-alert e-mail by the macOS app."""
+    model_config = ConfigDict(extra="ignore")
+    source: str = Field(max_length=40)              # linkedin-alert | stepstone-alert | indeed-alert
+    external_id: str = Field(default="", max_length=200)
+    title: str = Field(max_length=500)
+    company: str = Field(default="", max_length=300)
+    location: str = Field(default="", max_length=300)
+    url: str = Field(default="", max_length=2000)
+    received_at: str = Field(default="", max_length=40)
+    description: str | None = Field(default=None, max_length=50000)
+
+
+class DescriptionUpdate(BaseModel):
+    """"Anzeigentext einfügen": pasted posting text; write_letter=true starts a KI letter
+    (in the background) unless the letter was written/edited by the user."""
+    model_config = ConfigDict(extra="forbid")
+    description: str = Field(max_length=50000)
+    write_letter: bool = True
 
 
 class WriteAll(BaseModel):
@@ -278,6 +308,33 @@ def build_api_router(settings: Settings, db: Database, t) -> APIRouter:
             raise HTTPException(422, f"invalid {exc}") from None
         return _detail(job)
 
+    @router.get("/sources")
+    def sources():
+        """All sources (incl. the job-alert ones, even before the first import) with UI labels."""
+        ids = list(dict.fromkeys([*db.sources(), *alerts.ALERT_SOURCES]))
+        return [{"id": s, "label": alerts.source_label(s)} for s in ids]
+
+    @router.post("/jobs/import", dependencies=write)
+    def import_jobs(body: list[AlertJobIn] = Body(..., max_length=500)):
+        """Jobs from job-alert e-mails (parsed by the macOS app from Apple Mail). Dedup against
+        existing jobs, rule score, apply manually, no letter until the posting text is pasted."""
+        items = [alerts.AlertItem(**it.model_dump(exclude={"description"}), description=it.description or "")
+                 for it in body]
+        return alerts.import_alert_jobs(settings, db, items).as_dict()
+
+    @router.put("/jobs/{job_id}/description", dependencies=write)
+    def put_description(job_id: int, body: DescriptionUpdate):
+        job = alerts.set_description(settings, db, _get(job_id), body.description)
+        started = False
+        hint = None
+        if not alerts.has_posting_text(job):
+            hint = alerts.KI_NEEDS_POSTING_HINT
+        elif body.write_letter and settings.llm.enabled and job.get("letter_origin") != "manuell":
+            started = letters.start(settings, db, [job])
+            if not started:
+                hint = "Die KI ist gerade beschäftigt – Anschreiben später schreiben."
+        return {**_detail(_get(job_id)), "letter_started": started, "hint": hint}
+
     @router.put("/jobs/{job_id}/letter", dependencies=write)
     def put_letter(job_id: int, body: LetterUpdate):
         _get(job_id)
@@ -324,7 +381,7 @@ def build_api_router(settings: Settings, db: Database, t) -> APIRouter:
             return JSONResponse({"detail": "Keine KI konfiguriert (llm.provider / OPENCODE_BIN)",
                                  "llm": _llm_info()}, status_code=503)
         jobs = letters.candidates(settings, db, view=body.view, limit=body.limit)
-        started = letters.start(settings, db, jobs)
+        started = letters.start(settings, db, jobs, only_needed=True)
         return {"started": started, "queued": len(jobs) if started else 0,
                 "letters": letters.status(), "llm": _llm_info()}
 
@@ -347,6 +404,12 @@ def build_api_router(settings: Settings, db: Database, t) -> APIRouter:
         return {"started": started, "running": True}
 
     # ---- e-mail applications ---------------------------------------------------
+    @router.get("/jobs/{job_id}/letter-document")
+    def letter_document(job_id: int):
+        """The full letter as structured fields (sender, recipient, date, subject, salutation,
+        body paragraphs, closing) – the macOS app renders the same layout as the PDF."""
+        return letter_doc.build_document(_get(job_id), settings.applicant)
+
     @router.get("/send-settings")
     def get_send_settings():
         return send_settings_dict(settings, Gate(settings, db))

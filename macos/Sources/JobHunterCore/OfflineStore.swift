@@ -74,7 +74,7 @@ public struct LocalLetterOrigin: Codable, Sendable, Equatable {
 // MARK: - Pending changes (offline edits)
 
 public enum PendingField: String, Codable, Sendable, CaseIterable {
-    case status, notes, appliedDate, letter
+    case status, notes, appliedDate, letter, description
 
     public var label: String {
         switch self {
@@ -82,6 +82,7 @@ public enum PendingField: String, Codable, Sendable, CaseIterable {
         case .notes: "Notizen"
         case .appliedDate: "Beworben am"
         case .letter: "Anschreiben"
+        case .description: "Anzeigentext"
         }
     }
 
@@ -92,6 +93,7 @@ public enum PendingField: String, Codable, Sendable, CaseIterable {
         case .notes: d.notes
         case .appliedDate: d.summary.appliedDate
         case .letter: d.letter
+        case .description: d.description
         }
     }
 
@@ -100,7 +102,7 @@ public enum PendingField: String, Codable, Sendable, CaseIterable {
         switch self {
         case .status: ServerDate.parse(d.summary.statusUpdatedAt)
         case .letter: ServerDate.parse(d.letterUpdatedAt)
-        case .notes, .appliedDate: nil
+        case .notes, .appliedDate, .description: nil
         }
     }
 }
@@ -143,7 +145,7 @@ public struct PendingChange: Codable, Sendable, Identifiable, Equatable {
         case .status: value.flatMap(JobStatus.init(rawValue:)).map { JobUpdate(status: $0) }
         case .notes: JobUpdate(notes: value ?? "")
         case .appliedDate: JobUpdate(appliedDate: value.map { .set($0) } ?? .clear)
-        case .letter: nil
+        case .letter, .description: nil
         }
     }
 }
@@ -173,7 +175,7 @@ public struct PendingQueue: Codable, Sendable, Equatable {
                                 at date: Date, origin: String? = nil, title: String? = nil) {
         if let i = changes.firstIndex(where: { $0.jobID == jobID && $0.field == field }) {
             var c = changes[i]
-            if value == c.base && field != .letter {
+            if value == c.base && field != .letter && field != .description {
                 changes.remove(at: i)
                 return
             }
@@ -184,7 +186,7 @@ public struct PendingQueue: Codable, Sendable, Equatable {
             c.title = title ?? c.title
             changes[i] = c
         } else {
-            if value == base && field != .letter { return }
+            if value == base && field != .letter && field != .description { return }
             changes.append(PendingChange(jobID: jobID, field: field, value: value, base: base, createdAt: date,
                                          seq: nextSeq, origin: origin, title: title))
         }
@@ -206,6 +208,9 @@ public struct PendingQueue: Codable, Sendable, Equatable {
                 d.letter = c.value ?? ""
                 d.summary.hasLetter = !(c.value ?? "").isEmpty
                 d.summary.letterOrigin = c.origin ?? "manuell"
+            case .description:
+                d.description = c.value ?? ""
+                d.summary.descriptionLength = d.description.trimmingCharacters(in: .whitespacesAndNewlines).count
             }
         }
         return d
@@ -220,6 +225,8 @@ public struct PendingQueue: Codable, Sendable, Equatable {
             case .letter:
                 s.hasLetter = !(c.value ?? "").isEmpty
                 s.letterOrigin = c.origin ?? "manuell"
+            case .description:
+                s.descriptionLength = (c.value ?? "").trimmingCharacters(in: .whitespacesAndNewlines).count
             case .notes: break
             }
         }
@@ -265,9 +272,21 @@ public protocol JobSyncAPI: Sendable {
     func job(id: Int) async throws -> JobDetail
     func update(id: Int, _ update: JobUpdate) async throws -> JobDetail
     func saveLetter(id: Int, text: String) async throws -> JobDetail
+    /// Pasted posting text (server re-scores and may start a KI letter).
+    func saveDescription(id: Int, text: String) async throws -> JobDetail
 }
 
-extension APIClient: JobSyncAPI {}
+extension JobSyncAPI {
+    public func saveDescription(id: Int, text: String) async throws -> JobDetail { throw APIError.notFound }
+}
+
+extension APIClient: JobSyncAPI {
+    public func saveDescription(id: Int, text: String) async throws -> JobDetail {
+        try await saveDescription(id: id, text: text, writeLetter: true)
+    }
+}
+
+extension APIClient: JobImportAPI {}
 
 public struct ReplayResult: Sendable {
     /// Changes the server now has (sent or already in sync).
@@ -276,6 +295,9 @@ public struct ReplayResult: Sendable {
     public var conflicts: [PendingChange] = []
     /// Dropped because the server rejected them for good (404/422 …), with the message.
     public var rejected: [(PendingChange, String)] = []
+    /// Kept queued: the server does not support this change yet (e.g. pasted posting text on an
+    /// older server).
+    public var deferred: [PendingChange] = []
     /// Fresh server details of the touched jobs.
     public var details: [Int: JobDetail] = [:]
     /// Set when replay stopped because the server is (again) unreachable; the remaining
@@ -319,6 +341,8 @@ public enum SyncEngine {
                     let updated: JobDetail
                     if change.field == .letter {
                         updated = try await api.saveLetter(id: change.jobID, text: change.value ?? "")
+                    } else if change.field == .description {
+                        updated = try await api.saveDescription(id: change.jobID, text: change.value ?? "")
                     } else if let body = change.jobUpdate {
                         updated = try await api.update(id: change.jobID, body)
                     } else {
@@ -329,6 +353,12 @@ public enum SyncEngine {
                     result.done.append(change)
                 }
             } catch {
+                if change.field == .description, (error as? APIError) == .notFound, result.details[change.jobID] != nil {
+                    // The job exists but the server has no /description endpoint yet (older
+                    // version): keep the pasted text queued instead of dropping it.
+                    result.deferred.append(change)
+                    continue
+                }
                 if isTransient(error) {
                     result.stoppedError = error
                     break

@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from .config import Settings
 from .db import Database
 from .dedup import dedup_key, dedupe
-from .llm import LLMError, get_llm, template_letter
+from .llm import get_llm, template_letter
 from .models import JobPosting
 from .notify import format_message, send_telegram
 from .scoring import CVProfile, find_keywords, score_job
@@ -109,21 +109,24 @@ def _run(settings: Settings, db: Database, sources: list[Source] | None, notify:
         if job_id:
             rep.new_ids.append(job_id)
 
-    # 4) LLM rerank + letter for promising jobs only (cost control); template otherwise
-    llm = get_llm(settings.llm)
-    candidates = [db.get_job(i) for i in rep.new_ids]
-    candidates = sorted((j for j in candidates if j and j["rule_score"] >= settings.llm.threshold),
-                        key=lambda j: -j["rule_score"])
-    for i, job in enumerate(candidates):
-        if llm and i < settings.llm.max_per_run:
-            try:
-                r = llm.evaluate(cv.text, job, profile.min_salary)
-                db.set_llm_result(job["id"], r.score, r.reason, r.letter, r.origin)
-                rep.llm_done += 1
-                continue
-            except LLMError as exc:
-                rep.errors.append(f"LLM ({job['id']}): {exc}")
-        db.set_llm_result(job["id"], None, None, template_letter(cv, job), "vorlage")
+    # 4) letters. a) every new job (score > 0) gets the complete no-LLM template at once, so no
+    #    job is ever without a letter; old "[...]" templates are replaced the same way.
+    for job_id in rep.new_ids:
+        job = db.get_job(job_id)
+        if job and job["rule_score"] > 0 and not (job.get("letter") or "").strip():
+            db.set_llm_result(job_id, None, None, template_letter(cv, job), "vorlage")
+    from . import letters  # local import: letters -> actions -> pipeline
+    letters.fix_old_templates(settings, db)
+    #    b) KI: ALL open jobs whose letter is missing or still a template, best score first,
+    #    one at a time, at most llm.max_per_run per run ("manuell" letters are never touched).
+    if get_llm(settings.llm):
+        todo = letters.candidates(settings, db)
+        result = letters.run_sync(settings, db, todo) if todo else None
+        if result:
+            rep.llm_done += result["done"]
+            rep.errors += [f"LLM ({e['id']}): {e['error']}" for e in result["errors"]]
+        elif todo:
+            rep.errors.append("KI-Anschreiben übersprungen: ein anderer Anschreiben-Lauf ist aktiv")
 
     # 5) notify
     if notify and settings.telegram_token and settings.telegram_chat_id:

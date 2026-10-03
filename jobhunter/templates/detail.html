@@ -13,8 +13,8 @@
     <div><span class="applylabel a-{{ job.view }}">{{ job.apply_label }}</span> {{ send_badge(mail.send_state) }}</div>
     <p class="muted">{{ job.company or '–' }} · {{ job.location or t('unknown') }}{% if job.remote %} · <span class="tag">{{ t('remote') }}</span>{% endif %}</p>
     <p class="small muted">
-      {{ t('source') }}: <span class="tag">{{ job.source }}</span>
-      {% if job.also_seen_on %} · {{ t('also_seen') }}: {{ job.also_seen_on }}{% endif %}
+      {{ t('source') }}: <span class="tag">{{ source_label(job.source) }}</span>
+      {% if job.also_seen_on %} · {{ t('also_seen') }}: {% for s in job.also_seen_on.split(',') if s %}{{ source_label(s) }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
       {% if job.published %} · {{ t('published') }}: {{ job.published }}{% endif %}
       · {{ t('found') }}: {{ job.fetched_at[:10] }}
       {% if job.salary_min or job.salary_max %} · {{ t('salary') }}: {{ '{:,.0f}'.format(job.salary_min or job.salary_max).replace(',', '.') }}{% if job.salary_max and job.salary_max != job.salary_min %}–{{ '{:,.0f}'.format(job.salary_max).replace(',', '.') }}{% endif %} €{% if job.salary_predicted %} (geschätzt){% endif %}{% endif %}
@@ -87,12 +87,14 @@
         <div class="row">
           <button type="button" id="copy-btn" data-label="{{ t('copy') }}" data-done="{{ t('copied') }}">{{ t('copy') }}</button>
           <button type="submit" class="ghost">{{ t('save') }}</button>
+          <a class="button ghost" href="{{ base }}/jobs/{{ job.id }}/anschreiben" target="_blank" rel="noopener">📄 Anschreiben als PDF</a>
           {% if job.letter_origin %}<span class="small muted">{{ job.letter_origin }}{% if job.letter_updated_at %} · {{ job.letter_updated_at[:16].replace('T', ' ') }}{% endif %}</span>{% endif %}
         </div>
       </form>
       {% set k = ki() %}
+      {% if not has_posting %}<p class="small warn-text">Kein Anzeigentext: <a href="#posting">Anzeigentext einfügen</a>, dann KI-Anschreiben.</p>{% endif %}
       <form method="post" action="{{ base }}/jobs/{{ job.id }}/write-letter" class="row">
-        <button type="submit" {% if not k.enabled or k.busy %}disabled{% endif %}>🤖 {{ t('write_letter_ki') }}</button>
+        <button type="submit" {% if not k.enabled or k.busy or not has_posting %}disabled{% endif %}>🤖 {{ t('write_letter_ki') }}</button>
         <span class="small muted">{% if k.enabled %}{{ k.label }} · läuft im Hintergrund (30–120 s){% if k.busy %} · KI ist gerade beschäftigt{% endif %}{% else %}Keine KI konfiguriert (llm.provider opencode + OPENCODE_BIN){% endif %}</span>
       </form>
       <form method="post" action="{{ base }}/jobs/{{ job.id }}/regenerate" class="row">
@@ -101,9 +103,22 @@
       </form>
     </section>
 
-    <section class="card">
+    <section class="card" id="posting">
       <h2>{{ t('posting') }}</h2>
-      <div class="posting">{{ job.description or '–' }}</div>
+      {% if job.description %}<div class="posting">{{ job.description }}</div>{% endif %}
+      {% if not has_posting %}
+        <p class="small muted">{% if is_alert %}Job-Alert-E-Mails enthalten keinen Anzeigentext.{% else %}Der Anzeigentext ist sehr kurz.{% endif %}
+          Öffne die Anzeige{% if job.url %} (<a href="{{ job.url }}" target="_blank" rel="noopener noreferrer">Link</a>){% endif %}, kopiere den Text und füge ihn hier ein:
+          danach wird die Stelle neu bewertet und{% if ki().enabled %} die KI schreibt das Anschreiben{% else %} du kannst ein Anschreiben erstellen{% endif %}.</p>
+      {% endif %}
+      <details {% if not has_posting %}open{% endif %}>
+        <summary class="small">📋 Anzeigentext einfügen{% if job.description %} / ersetzen{% endif %}</summary>
+        <form method="post" action="{{ base }}/jobs/{{ job.id }}/description" class="stack">
+          <textarea name="description" rows="10" placeholder="Anzeigentext hier einfügen …">{{ job.description or '' }}</textarea>
+          <label class="small"><input type="checkbox" name="write_letter" value="1" checked> danach KI-Anschreiben schreiben (nicht bei selbst bearbeitetem Anschreiben)</label>
+          <button type="submit">Speichern &amp; neu bewerten</button>
+        </form>
+      </details>
     </section>
   </div>
 

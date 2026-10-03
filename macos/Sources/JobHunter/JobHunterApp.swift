@@ -9,7 +9,11 @@ struct JobHunterApp: App {
     init() {
         // Also behave like a normal app when launched as a bare binary (`swift run`).
         NSApplication.shared.setActivationPolicy(.regular)
-        _model = State(initialValue: AppModel(settings: AppSettings()))
+        // Test instance (JOBHUNTER_DATA_DIR set): own preferences, so it never writes into the real
+        // app's settings (seen jobs, send ledger …). Launch arguments still override as usual.
+        let defaults = ProcessInfo.processInfo.environment["JOBHUNTER_DATA_DIR"].flatMap { $0.isEmpty ? nil : $0 } != nil
+            ? (UserDefaults(suiteName: "de.daniele.JobHunter.testinstance") ?? .standard) : .standard
+        _model = State(initialValue: AppModel(settings: AppSettings(defaults: defaults)))
     }
 
     var body: some Scene {

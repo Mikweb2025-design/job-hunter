@@ -55,7 +55,7 @@
   <label>{{ t('source') }}
     <select name="source">
       <option value="">{{ t('all') }}</option>
-      {% for s in sources %}<option value="{{ s }}" {% if f.source == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      {% for s in sources %}<option value="{{ s }}" {% if f.source == s %}selected{% endif %}>{{ source_label(s) }}</option>{% endfor %}
     </select>
   </label>
   <label>{{ t('new_since') }}
@@ -94,7 +94,7 @@
       </td>
       <td data-label="{{ t('location') }}">{{ j.location or '–' }}{% if j.remote %} <span class="tag">remote</span>{% endif %}</td>
       <td data-label="{{ t('salary') }}">{{ salary(j) }}</td>
-      <td data-label="{{ t('source') }}"><span class="tag">{{ j.source }}</span></td>
+      <td data-label="{{ t('source') }}"><span class="tag">{{ source_label(j.source) }}</span></td>
       <td data-label="{{ t('status') }}"><span class="pill st-{{ j.status }}">{{ t('st_' ~ j.status) }}</span></td>
       <td data-label="{{ t('found') }}" class="small muted">{{ j.fetched_at[:10] }}</td>
     </tr>
