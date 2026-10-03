@@ -8,6 +8,18 @@ Ein selbst gehosteter Assistent für die Jobsuche in Deutschland. Jeden Morgen f
 
 ---
 
+## Screenshots
+
+| Heute zu tun (manuelle Bewerbungen) | Alle Stellen mit Automatisch/Manuell |
+|---|---|
+| ![Heute zu tun](docs/screenshots/web-today.png) | ![Stellen](docs/screenshots/web-jobs.png) |
+| **Stellendetail: KI-Anschreiben, Score** | **Ansicht Automatisch per E-Mail** |
+| ![Detail](docs/screenshots/web-detail.png) | ![Automatisch](docs/screenshots/web-auto.png) |
+| **Postausgang (Gesendet / Test / Wartet / Fehler)** | **macOS-App** |
+| ![Postausgang](docs/screenshots/web-outbox.png) | ![macOS](docs/screenshots/mac-app.png) |
+
+---
+
 ## So funktioniert es
 
 ```

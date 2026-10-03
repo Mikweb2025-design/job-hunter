@@ -8,6 +8,18 @@ A self-hosted job-search assistant for the German job market. Every morning it f
 
 ---
 
+## Screenshots
+
+| Today's manual applications | All jobs with auto/manual labels |
+|---|---|
+| ![Heute zu tun](docs/screenshots/web-today.png) | ![Stellen](docs/screenshots/web-jobs.png) |
+| **Job detail: AI letter, score breakdown** | **Automatic (e-mail) view** |
+| ![Detail](docs/screenshots/web-detail.png) | ![Automatisch](docs/screenshots/web-auto.png) |
+| **Postausgang (sent / test / waiting / error)** | **macOS app** |
+| ![Postausgang](docs/screenshots/web-outbox.png) | ![macOS](docs/screenshots/mac-app.png) |
+
+---
+
 ## How it works
 
 ```
