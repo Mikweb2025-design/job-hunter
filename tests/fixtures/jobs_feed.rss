@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Beispiel Jobfeed</title>
+    <link>https://jobs.example.org/</link>
+    <description>Test feed</description>
+    <item>
+      <title>Application Support Specialist (w/m/d) - Muster Software GmbH</title>
+      <link>https://jobs.example.org/stellen/123</link>
+      <guid>https://jobs.example.org/stellen/123</guid>
+      <pubDate>Wed, 30 Sep 2026 09:00:00 +0200</pubDate>
+      <description><![CDATA[<p>Wir suchen Verstärkung im <b>Application Support</b>.</p><ul><li>Linux &amp; SQL</li><li>Ticketbearbeitung</li></ul><p>Homeoffice möglich.</p>]]></description>
+    </item>
+    <item>
+      <title>Senior DevOps Engineer - Beispiel AG</title>
+      <link>https://jobs.example.org/stellen/124</link>
+      <pubDate>Tue, 29 Sep 2026 12:00:00 +0200</pubDate>
+      <description>Kubernetes, Terraform, CI/CD.</description>
+    </item>
+  </channel>
+</rss>

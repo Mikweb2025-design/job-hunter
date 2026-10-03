@@ -1,0 +1,46 @@
+{
+  "__CLASS__": "Adzuna::API::Response::JobSearchResults",
+  "count": 3,
+  "mean": 52000,
+  "results": [
+    {
+      "__CLASS__": "Adzuna::API::Response::Job",
+      "id": "4711000001",
+      "adref": "eyJhbGciOiJIUzI1NiJ9.example",
+      "title": "<strong>Cloud Support Engineer</strong> (m/w/d)",
+      "description": "Du betreust Kunden unserer Cloud-Plattform im 2nd Level Support, analysierst Tickets, arbeitest mit Linux, Docker und Kubernetes und automatisierst Abläufe mit Python. Remote möglich.",
+      "company": {"__CLASS__": "Adzuna::API::Response::Company", "display_name": "Beispiel Cloud GmbH"},
+      "location": {"__CLASS__": "Adzuna::API::Response::Location", "display_name": "Berlin, Deutschland", "area": ["Deutschland", "Berlin"]},
+      "redirect_url": "https://www.adzuna.de/land/ad/4711000001?se=example",
+      "salary_min": 52000,
+      "salary_max": 62000,
+      "salary_is_predicted": "0",
+      "created": "2026-09-30T08:15:00Z",
+      "contract_time": "full_time",
+      "category": {"label": "IT-Stellen", "tag": "it-jobs"}
+    },
+    {
+      "__CLASS__": "Adzuna::API::Response::Job",
+      "id": "4711000002",
+      "title": "Technical Support Engineer [m/w/d]",
+      "description": "Support für unsere B2B Software, XSLT, Java oder SQL ...",
+      "company": {"display_name": "Virtimo AG"},
+      "location": {"display_name": "Mitte, Berlin"},
+      "redirect_url": "https://www.adzuna.de/land/ad/4711000002",
+      "salary_min": 41000.5,
+      "salary_max": 41000.5,
+      "salary_is_predicted": "1",
+      "created": "2026-09-29T10:00:00Z"
+    },
+    {
+      "__CLASS__": "Adzuna::API::Response::Job",
+      "id": "4711000003",
+      "title": "Werkstudent IT-Support (m/w/d)",
+      "description": "Studienbegleitende Tätigkeit im First Level Support.",
+      "company": {"display_name": "Irgendwer GmbH"},
+      "location": {"display_name": "Potsdam, Brandenburg"},
+      "redirect_url": "https://www.adzuna.de/land/ad/4711000003",
+      "created": "2026-09-28T10:00:00Z"
+    }
+  ]
+}

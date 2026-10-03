@@ -1,0 +1,163 @@
+"""One fetch → dedup → score → (LLM) → notify cycle.
+
+Never submits applications and never logs in to job boards: it only reads public search
+APIs/feeds and stores drafts locally. E-mail applications are sent by the macOS app
+(Apple Mail) under the rules in jobhunter.outbox.
+"""
+from __future__ import annotations
+
+import logging
+import threading
+from dataclasses import dataclass, field
+
+from .config import Settings
+from .db import Database
+from .dedup import dedup_key, dedupe
+from .llm import LLMError, get_llm, template_letter
+from .models import JobPosting
+from .notify import format_message, send_telegram
+from .scoring import CVProfile, find_keywords, score_job
+from .sources import Source, build_sources
+
+log = logging.getLogger(__name__)
+_run_lock = threading.Lock()
+
+
+@dataclass
+class RunReport:
+    fetched: dict[str, int] = field(default_factory=dict)
+    skipped: dict[str, str] = field(default_factory=dict)
+    errors: list[str] = field(default_factory=list)
+    new_ids: list[int] = field(default_factory=list)
+    llm_done: int = 0
+    notified: int = 0
+
+    def summary(self) -> str:
+        parts = [f"{k}: {v}" for k, v in self.fetched.items()]
+        parts += [f"{k}: übersprungen ({v})" for k, v in self.skipped.items()]
+        return (f"Quellen [{', '.join(parts)}] · neu: {len(self.new_ids)} · LLM: {self.llm_done}"
+                f" · benachrichtigt: {self.notified} · Fehler: {len(self.errors)}")
+
+
+def is_running() -> bool:
+    return _run_lock.locked()
+
+
+def run_cycle(settings: Settings, db: Database | None = None,
+              sources: list[Source] | None = None, notify: bool = True) -> RunReport:
+    if not _run_lock.acquire(blocking=False):
+        rep = RunReport()
+        rep.errors.append("Ein Lauf ist bereits aktiv")
+        return rep
+    try:
+        return _run(settings, db or Database(settings.db_path), sources, notify)
+    finally:
+        _run_lock.release()
+
+
+def _run(settings: Settings, db: Database, sources: list[Source] | None, notify: bool) -> RunReport:
+    rep = RunReport()
+    run_id = db.start_run()
+    profile = settings.profile
+    cv = CVProfile.load(settings.cv_path, profile.keyword_weights)
+    if not cv.text:
+        rep.errors.append(f"CV-Profil fehlt: {settings.cv_path}")
+
+    # 1) fetch
+    sources = sources if sources is not None else build_sources(settings.sources)
+    by_source: dict[str, Source] = {}
+    postings: list[JobPosting] = []
+    for src in sources:
+        ok, why = src.is_configured()
+        if not ok:
+            rep.skipped[src.name] = why
+            continue
+        try:
+            got = src.fetch(profile)
+            rep.fetched[src.name] = len(got)
+            postings.extend(got)
+            for p in got:
+                by_source.setdefault(p.source, src)
+        except Exception as exc:  # a broken source must not stop the run
+            log.exception("source %s failed", src.name)
+            rep.errors.append(f"{src.name}: {exc}")
+            rep.fetched[src.name] = 0
+
+    # 2) dedup (within batch, then against DB)
+    unique = dedupe(postings)
+    existing = db.existing_keys([dedup_key(p.title, p.company) for p in unique])
+    new: list[JobPosting] = []
+    for p in unique:
+        if dedup_key(p.title, p.company) in existing:
+            db.note_duplicate(p)
+        else:
+            new.append(p)
+
+    # 3) enrich (details) + rule score + store
+    details_left = settings.max_details_per_run
+    for p in new:
+        src = by_source.get(p.source)
+        title_excluded = find_keywords(p.title, profile.excluded_title_keywords + profile.excluded_keywords)
+        if src is not None and details_left > 0 and len(p.description) < 400 and not title_excluded:
+            try:
+                src.enrich(p)
+            except Exception as exc:
+                log.info("enrich failed for %s: %s", p.source_id, exc)
+            details_left -= 1
+        res = score_job(p, profile, cv)
+        job_id = db.insert_job(p, res.score, res.breakdown)
+        if job_id:
+            rep.new_ids.append(job_id)
+
+    # 4) LLM rerank + letter for promising jobs only (cost control); template otherwise
+    llm = get_llm(settings.llm)
+    candidates = [db.get_job(i) for i in rep.new_ids]
+    candidates = sorted((j for j in candidates if j and j["rule_score"] >= settings.llm.threshold),
+                        key=lambda j: -j["rule_score"])
+    for i, job in enumerate(candidates):
+        if llm and i < settings.llm.max_per_run:
+            try:
+                r = llm.evaluate(cv.text, job, profile.min_salary)
+                db.set_llm_result(job["id"], r.score, r.reason, r.letter, r.origin)
+                rep.llm_done += 1
+                continue
+            except LLMError as exc:
+                rep.errors.append(f"LLM ({job['id']}): {exc}")
+        db.set_llm_result(job["id"], None, None, template_letter(cv, job), "vorlage")
+
+    # 5) notify
+    if notify and settings.telegram_token and settings.telegram_chat_id:
+        top = db.unnotified(settings.notify_min_score, settings.notify_max_items)
+        if top and send_telegram(settings.telegram_token, settings.telegram_chat_id,
+                                 format_message(top, _public_url())):
+            db.mark_notified([j["id"] for j in top])
+            rep.notified = len(top)
+
+    db.finish_run(run_id, {"fetched": rep.fetched, "skipped": rep.skipped, "llm": rep.llm_done},
+                  len(rep.new_ids), rep.errors)
+    log.info("run finished: %s", rep.summary())
+    return rep
+
+
+def _public_url() -> str | None:
+    import os
+    return os.environ.get("PUBLIC_URL") or None
+
+
+def rescore_all(settings: Settings, db: Database | None = None) -> int:
+    """Recompute rule scores after editing config.yaml or cv_profile.md; re-detect
+    application e-mail addresses (manual entries are kept)."""
+    db = db or Database(settings.db_path)
+    db.backfill_apply_email()
+    cv = CVProfile.load(settings.cv_path, settings.profile.keyword_weights)
+    n = 0
+    for j in db.list_jobs(limit=100000):
+        p = JobPosting(source=j["source"], source_id=j["source_id"] or "", title=j["title"],
+                       company=j["company"] or "", location=j["location"] or "",
+                       description=j["description"] or "", remote=bool(j["remote"]),
+                       salary_min=j["salary_min"], salary_max=j["salary_max"],
+                       salary_predicted=bool(j["salary_predicted"]))
+        res = score_job(p, settings.profile, cv)
+        db.set_rule_score(j["id"], res.score, res.breakdown)
+        n += 1
+    return n

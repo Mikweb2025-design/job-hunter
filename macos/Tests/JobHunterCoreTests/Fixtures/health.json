@@ -1,0 +1,8 @@
+{
+  "ok": true,
+  "api_version": 1,
+  "running": false,
+  "llm_enabled": false,
+  "llm": null,
+  "server_time": "2026-10-03T10:01:26+00:00"
+}

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ t('outbox') }} – {{ t('app_title') }}{% endblock %}
+{% block content %}
+{% set sm = log.summary %}
+<h1>{{ t('outbox') }}</h1>
+
+<section class="summary-tiles" aria-label="Zusammenfassung">
+  <div class="tile"><span class="big">{{ sm.sent_today }} <small>von {{ sm.daily_cap }}</small></span><span class="small muted">heute gesendet</span></div>
+  <div class="tile"><span class="big">{{ sm.sent_total }}</span><span class="small muted">insgesamt gesendet</span></div>
+  <div class="tile"><span class="big">{{ sm.test_total }}</span><span class="small muted">Test 🧪 (nicht gesendet)</span></div>
+  <div class="tile"><span class="big">{{ sm.waiting }}</span><span class="small muted">wartet ⏳</span></div>
+  <div class="tile{% if sm.errors %} bad{% endif %}"><span class="big">{{ sm.errors }}</span><span class="small muted">Fehler ❌</span></div>
+</section>
+{% if cfg.dry_run %}<p class="small warn-text">Testmodus: die Mac-App sendet nichts – Einträge erscheinen als „Test 🧪“.</p>{% endif %}
+
+<section class="card">
+  <h2>Verlauf ({{ log.rows|length }})</h2>
+  {% if log.rows %}
+  <table class="log outbox">
+    <thead><tr><th>Status</th><th>Datum (UTC)</th><th>Stelle</th><th>Empfänger</th><th>Betreff</th></tr></thead>
+    <tbody>
+    {% for r in log.rows %}
+      <tr class="row-{{ r.state }}">
+        <td><span class="obstate o-{{ r.state }}">{{ r.label }}</span>
+          <div class="small muted">{{ r.detail }}</div></td>
+        <td>{{ r.date[:16].replace('T', ' ') if r.date else '–' }}</td>
+        <td><a href="{{ base }}/jobs/{{ r.job_id }}">{{ r.title }}</a><div class="muted small">{{ r.company or '–' }}</div></td>
+        <td>{{ r.to or '–' }}</td>
+        <td>{{ r.subject }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="small muted">„In Mail öffnen“ gibt es in der Mac-App (Postausgang). Versendet wird nur von der Mac-App über Apple Mail.</p>
+  {% else %}<p class="muted small">Noch nichts – keine Stelle wartet, nichts gesendet, keine Testläufe.</p>{% endif %}
+</section>
+
+<section class="card">
+  <h2>Regeln (config.yaml › send)</h2>
+  <p class="small">
+    Modus <strong>{{ cfg.mode }}</strong>{% if cfg.dry_run %} · <strong>dry_run (Testmodus)</strong>{% endif %}{% if cfg.kill_switch %} · <strong class="err">kill_switch</strong>{% endif %}
+    · Auto ab Score {{ cfg.auto_min_score }} · max. {{ cfg.daily_cap }}/Tag · Firmen-Sperrfrist {{ cfg.company_cooldown_days }} Tage
+    · Absender {{ cfg.sender_name }} &lt;{{ cfg.from_address }}&gt;
+    · Sperrliste: {{ cfg.blocklist|join(', ') or '–' }}
+  </p>
+</section>
+{% endblock %}

@@ -1,0 +1,26 @@
+{
+  "total": 5,
+  "by_status": {
+    "neu": 4,
+    "interessant": 0,
+    "beworben": 1,
+    "gespraech": 0,
+    "absage": 0,
+    "angebot": 0
+  },
+  "sources": [
+    "adzuna",
+    "arbeitsagentur"
+  ],
+  "running": false,
+  "new_since_last_run": 5,
+  "new_since_last_run_above_threshold": 1,
+  "threshold": 70,
+  "last_run": {
+    "id": 1,
+    "started_at": "2026-10-03T10:01:26+00:00",
+    "finished_at": "2026-10-03T10:01:26+00:00",
+    "new_jobs": 5,
+    "errors": []
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "count": 2,
+  "items": [
+    {
+      "id": 2,
+      "job_id": 7,
+      "company": "Beta AG",
+      "title": "Support Engineer",
+      "to": "karriere@beta.de",
+      "subject": "Bewerbung als Support Engineer",
+      "body": "Sehr geehrte Damen und Herren,\n\nIch betreue seit Jahren Kunden einer Hosting-Plattform. Ihre Anzeige nennt Linux. In den ersten 90 Tagen würde ich Tickets auswerten. Ich freue mich auf ein Gespräch.\n\nMeinen Lebenslauf finden Sie im Anhang.\n\nMit freundlichen Grüßen\nDaniele Michelin\ninfo@daniele-michelin.com\n",
+      "sent_at": "2026-10-03T08:15:00+00:00",
+      "dry_run": false,
+      "message_id": null,
+      "trigger": "auto"
+    },
+    {
+      "id": 1,
+      "job_id": 7,
+      "company": "Beta AG",
+      "title": "Support Engineer",
+      "to": "karriere@beta.de",
+      "subject": "Bewerbung als Support Engineer",
+      "body": "Sehr geehrte Damen und Herren,\n\nIch betreue seit Jahren Kunden einer Hosting-Plattform. Ihre Anzeige nennt Linux. In den ersten 90 Tagen würde ich Tickets auswerten. Ich freue mich auf ein Gespräch.\n\nMeinen Lebenslauf finden Sie im Anhang.\n\nMit freundlichen Grüßen\nDaniele Michelin\ninfo@daniele-michelin.com\n",
+      "sent_at": "2026-10-02T09:00:00+00:00",
+      "dry_run": true,
+      "message_id": null,
+      "trigger": "manual"
+    }
+  ],
+  "sent_today": 1,
+  "sent_total": 1,
+  "dry_run_total": 1,
+  "dry_run_today": 0,
+  "remaining_today": 4
+}

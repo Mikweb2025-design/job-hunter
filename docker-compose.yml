@@ -1,0 +1,18 @@
+services:
+  jobhunter:
+    build:
+      context: .
+      args:
+        INSTALL_OPENCODE: ${INSTALL_OPENCODE:-0}   # 1 = opencode CLI für KI-Anschreiben ins Image
+    image: job-hunter:latest
+    container_name: job-hunter
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/app/data                    # SQLite DB + cv_profile.md
+      - ./config.yaml:/app/config.yaml:ro   # Suchprofil
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # e.g. Ollama running on the host
+    ports:
+      # Only on localhost: put a reverse proxy with HTTPS (Caddy/nginx/Traefik) in front.
+      - "127.0.0.1:${JOBHUNTER_PORT:-8000}:8000"

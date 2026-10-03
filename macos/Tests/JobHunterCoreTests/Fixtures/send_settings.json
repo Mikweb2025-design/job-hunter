@@ -1,0 +1,26 @@
+{
+  "mode": "auto",
+  "dry_run": false,
+  "kill_switch": false,
+  "auto_min_score": 80,
+  "daily_cap": 5,
+  "company_cooldown_days": 90,
+  "blocklist": [
+    "IONOS",
+    "STRATO",
+    "1&1",
+    "United Internet",
+    "IONOS SE",
+    "STRATO AG"
+  ],
+  "require_letter": true,
+  "from_address": "info@daniele-michelin.com",
+  "sender_name": "Daniele Michelin",
+  "subject_template": "Bewerbung als {title}",
+  "cv_attachment": "~/Bewerbung/Lebenslauf_Daniele_Michelin.pdf",
+  "sent_today": 1,
+  "sent_total": 1,
+  "dry_run_total": 1,
+  "dry_run_today": 0,
+  "remaining_today": 4
+}

@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+data/*.db
+data/*.db-*
+data/exports/
+.git/
+tests/
+*.md
+!data/cv_profile.md

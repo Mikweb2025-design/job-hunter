@@ -1,0 +1,48 @@
+{
+ "stellenangebotsart": "ARBEIT",
+ "stellenangebotsTitel": "Technical Support Engineer [m/w/d]",
+ "quereinstiegGeeignet": false,
+ "stellenangebotsBeschreibung": "## Technical Support Engineer [m/w/d] gesucht: Verwirkliche dich bei dem Unternehmen mit dem V-Faktor!\n\nVielfalt.  \n Ein Team aus 120 Expert:innen – und echten Persönlichkeiten.\n\nVerbindung.  \n Mehr als 400 Kund:innen verschiedener Branchen haben sich für uns entschieden.\n\nVerantwortung.  \n Gegründet 2010 in Berlin, vollständig in Mitarbeiterbesitz.\n\nVerstehen.  \n Von der Analyse über den Betrieb der Anwendungen bis hin zur Schulung.\n\nVorausdenken.  \n Digitale Transformation, Branchen-, Fach- und IT-Prozesse, IT-Architektur.\n\nVereinfachen.  \n Maßgeschneiderte Lösungen, moderne Technologien, Prozesstools und Fachapplikationen.\n\nVerbinde Arbeit mit Spaß und Gestaltungsspielraum  \n Verstärke Virtimo als Technical Support Engineer [m/w/d]!\n\n## Deine Aufgaben.\n\nAls Technical Support Engineer [m/w/d] unterstützt Du als Teil eines Expertenteams unsere Kunden und Partner bei der Anwendung unserer B2B Software. Du analysierst die Anwendung, findest und behebst Fehler in Programmfunktionen und löst unternehmensspezifische, komplexe Problemstellungen.\n\n- Du stellst anspruchsvolle Szenarien nach, treibst die Fehleranalyse voran und verfolgst den Gesamtprozess bis hin zum Release-Management.\n- Du hilfst unternehmensspezifische Problemstellungen zu lösen, unterstützt bei der Anwendung unserer Software und beseitigst Fehler bei falscher Anwendung von Programmfunktionen.\n- Du koordinierst, priorisierst und überwachst eingehende Anfragen professionell und im Kontakt mit unseren Kunden.\n- Du leitest produkt- und projektbezogenen Support in enger Zusammenarbeit mit unseren IT-Consultants und unserer Produktentwicklung.\n- Du dokumentierst Lösungen, Workarounds und Best Practices.\n- Du unterstützt den ITIL-basierten Ausbau unserer Servicestrukturen.\n\n## Was du mitbringst.\n\n- Du hast Dein Hochschulstudium im Bereich Wirtschaftsinformatik, -Mathematik oder -Physik erfolgreich abgeschlossen oder verfügst über eine vergleichbare Ausbildung.\n- Du bringst gute Kenntnisse in mindestens einer der Sprachen XSLT, Java oder SQL sowie in den Standards und Produkten wie XML, XPath, WS\\*, MySQL, Oracle, Tomcat, Linux oder Unix mit.\n- Du hast Freude daran, komplexe Sachverhalte im Zusammenspiel verschiedener Softwarekomponenten aufzuschlüsseln und den Dingen auf den Grund zu gehen.\n- Du möchtest Dein Wissen stetig erweitern.\n- Du verfügst über mindestens 2 Jahre Berufserfahrung im Support oder in der IT-Beratung komplexer Softwarelösungen und damit einhergehendem Kundenkontakt.\n- Du besitzt ",
+ "arbeitszeitSchichtNachtWochenende": false,
+ "arbeitszeitTeilzeitAbend": false,
+ "arbeitszeitTeilzeitNachmittag": false,
+ "arbeitszeitTeilzeitVormittag": false,
+ "arbeitszeitTeilzeitFlexibel": false,
+ "arbeitszeitVollzeit": false,
+ "eintrittszeitraum": {
+  "von": "2026-10-01"
+ },
+ "verguetungsangabe": "KEINE_ANGABEN",
+ "vertragsdauer": "KEINE_ANGABE",
+ "istGeringfuegigeBeschaeftigung": false,
+ "istBehinderungGefordert": false,
+ "stellenlokationen": [
+  {
+   "adresse": {
+    "plz": "10178",
+    "ort": "Berlin",
+    "region": "BERLIN",
+    "land": "DEUTSCHLAND"
+   },
+   "breite": 52.5210906,
+   "laenge": 13.4099785
+  }
+ ],
+ "homeofficemoeglich": true,
+ "homeofficetyp": "NACH_VEREINBARUNG",
+ "chiffrenummer": "297443",
+ "istPrivateArbeitsvermittlung": false,
+ "istArbeitnehmerUeberlassung": false,
+ "veroeffentlichungszeitraum": {
+  "von": "2026-09-03"
+ },
+ "datumErsteVeroeffentlichung": "2026-09-03",
+ "aenderungsdatum": "2026-10-01T07:07:51.110",
+ "externeURL": "https://www.get-in-it.de/jobsuche/p297443?utm_source=arbeitsagentur&utm_medium=organic&utm_campaign=launch-premium",
+ "istBetreut": false,
+ "hauptberuf": "IT-Systemadministrator/in",
+ "firma": "Virtimo",
+ "allianzpartnerUrl": "www.get-in-IT.de",
+ "allianzpartnerName": "get in GmbH",
+ "referenznummer": "13644-297443-S"
+}

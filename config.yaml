@@ -1,0 +1,121 @@
+# job-hunter – Suchprofil. Secrets gehören in .env, nicht hierher.
+
+search:
+  queries:
+    - Support Engineer
+    - Technical Support
+    - Cloud Support
+    - Technical Account Manager
+    - Application Support
+    - Platform Engineer
+  location: Berlin
+  radius_km: 30
+  remote_ok: true          # Remote/Homeoffice-Stellen deutschlandweit zulassen
+  days_back: 7             # nur Anzeigen der letzten N Tage
+  min_salary: 44000        # EUR/Jahr; unbekanntes Gehalt = neutral
+  target_titles:           # Titel-Treffer (volle Punkte bei exaktem Teilstring)
+    - Support Engineer
+    - Technical Support Engineer
+    - Technical Support Specialist
+    - Cloud Support Engineer
+    - Technical Account Manager
+    - Application Support
+    - Customer Success Engineer
+    - Solutions Engineer
+    - DevOps Engineer
+    - Platform Engineer
+    - Site Reliability Engineer
+    - IT Support Specialist
+    - AI Engineer
+  excluded_title_keywords: # Titel enthält das -> Score 0
+    - Praktikum
+    - Praktikant
+    - Werkstudent
+    - Ausbildung
+    - Azubi
+    - Junior
+    - Minijob
+    - Elektriker
+    - Mechatroniker
+    - Vertriebsmitarbeiter
+  excluded_keywords:       # im Text -> -10 Punkte je Treffer (max -30); im Titel -> Score 0
+    - Schichtdienst
+    - Zeitarbeit
+    - Arbeitnehmerüberlassung
+  keyword_saturation: 15   # Summe der Keyword-Gewichte für volle 40 Punkte
+  keyword_weights:         # überschreibt/ergänzt die Keywords aus data/cv_profile.md
+    Nextcloud: 4
+    Support: 2
+    Linux: 2
+    Python: 2
+    Docker: 2
+    S3: 2
+    Ticket: 1.5
+    LLM: 2
+    MCP: 2
+
+llm:
+  provider: opencode       # none | anthropic | openai | opencode (oder per ENV: LLM_PROVIDER)
+  model: opencode/big-pickle  # opencode: kostenloses Modell, läuft remote (keine lokale CPU-Last)
+                           # anthropic: claude-sonnet-5-5 · openai: Modellname des Endpoints
+                           # Ollama (openai) auf dem CPU-Server NUR kleine Modelle, z.B. llama3.2:3b
+  # opencode_bin: ~/.opencode/bin/opencode   # sonst OPENCODE_BIN oder `opencode` im PATH
+  timeout_s: 180           # pro Anschreiben; danach wird opencode abgebrochen
+  # base_url: https://openai.inference.de-txl.ionos.com/v1   # nur bei provider=openai (oder OPENAI_BASE_URL)
+  threshold: 55            # LLM nur für Stellen mit Regel-Score >= threshold
+  max_per_run: 10          # Bremse pro Lauf / „Alle Vorlagen schreiben“; immer nur 1 gleichzeitig
+  anthropic_fallbacks: true  # serverseitiger Fallback bei Ablehnung (refusal)
+  # effort: medium         # optional: low | medium | high
+
+sources:
+  arbeitsagentur:
+    enabled: true
+    page_size: 50
+    max_pages: 2
+    remote_search: true    # zusätzliche bundesweite Suche nach Homeoffice-Stellen
+  adzuna:
+    enabled: true          # wird übersprungen, solange ADZUNA_APP_ID/KEY fehlen
+    country: de
+    results_per_page: 50
+    max_pages: 1
+  rss:
+    enabled: false
+    feeds: []
+    #  - url: https://example.org/jobs.rss
+    #    name: beispiel
+    #    title_separator: " - "
+    #    location: Berlin
+
+schedule:
+  cron: "30 6 * * *"       # täglich 06:30 (oder per ENV: RUN_CRON)
+  timezone: Europe/Berlin
+  run_on_start: false
+
+notify:
+  min_score: 70            # Telegram nur für Stellen ab diesem Score
+  max_items: 5
+
+max_details_per_run: 80    # max. Detailabrufe (Arbeitsagentur) pro Lauf
+ui_lang: de                # de | it
+
+# Bewerbungen per E-Mail (gesendet von der macOS-App über Apple Mail).
+# Der Server entscheidet nur (Regeln unten) und protokolliert; er verschickt selbst nichts.
+send:
+  mode: approve            # off | approve (nur nach Freigabe pro Stelle) | auto (automatisch)
+  dry_run: true            # true = TESTMODUS: es wird nie etwas versendet
+  auto_min_score: 80       # auto: nur Stellen ab diesem Score
+  daily_cap: 5             # max. echte Sendungen pro Tag (Europe/Berlin), gilt für alle Modi
+  company_cooldown_days: 90  # nie zwei Bewerbungen an dieselbe Firma innerhalb von N Tagen
+  blocklist:               # Firma (Teilstring, Groß/klein egal) -> nie senden
+    - IONOS
+    - STRATO
+    - 1&1
+    - United Internet
+    - IONOS SE
+    - STRATO AG
+  require_letter: true     # ohne Anschreiben kein Versand; Vorlagen mit [...] werden nie gesendet
+  kill_switch: false       # true = sofort alles stoppen (auch freigegebene)
+  from_address: info@daniele-michelin.com
+  sender_name: Daniele Michelin
+  subject_template: "Bewerbung als {title}"   # Platzhalter: {title} {company}
+  cv_attachment: ~/Bewerbung/Lebenslauf_Daniele_Michelin.pdf   # Pfad auf dem Mac (in der App änderbar)

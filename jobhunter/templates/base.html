@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ t('app_title') }}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ base }}/static/style.css">
+  <script>
+    try { const th = localStorage.getItem('jh-theme'); if (th) document.documentElement.dataset.theme = th; } catch (e) {}
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ base }}/">{{ t('app_title') }}</a>
+    <nav>
+      <a href="{{ base }}/">{{ t('jobs') }}</a>
+      <a href="{{ base }}/outbox">{{ t('outbox') }}</a>
+      <button type="button" class="ghost" id="theme-toggle" title="{{ t('theme') }}" aria-label="{{ t('theme') }}">◐</button>
+    </nav>
+  </header>
+  {% set ss = send_status() %}
+  <div class="sendbar k-{{ ss.kind }}" role="status">
+    <strong>{{ ss.headline }}</strong>
+    <span class="counters">
+      Server: send.mode = {{ ss.mode }}{% if ss.dry_run %}, dry_run{% endif %}{% if ss.kill_switch %}, kill_switch{% endif %}
+      · Mac-App „Automatisch senden“: {% if ss.app_auto_send is none %}unbekannt (App noch nicht verbunden){% elif ss.app_auto_send %}AN{% else %}AUS{% endif %}{% if ss.app_seen_at %} <span title="zuletzt gemeldet">({{ ss.app_seen_at[:16].replace('T', ' ') }} UTC)</span>{% endif %}
+      <br>Heute gesendet: {{ ss.sent_today }} · Insgesamt gesendet: {{ ss.sent_total }} · Im Testmodus vorbereitet: {{ ss.dry_run_total }}
+      · <a href="{{ base }}/outbox">{{ t('outbox') }}</a>
+    </span>
+  </div>
+  {% set vc = view_counts() %}
+  <nav class="viewnav" aria-label="Ansichten">
+    {% for v in NAV_VIEWS %}
+      <a class="vtab v-{{ v }} {% if active_view == v %}active{% endif %}" href="{{ base }}/{{ 'today' if v == 'today' else '?view=' ~ v }}">{{ VIEW_LABELS[v] }} <span class="count">{{ vc[v] }}</span></a>
+    {% endfor %}
+    <a class="vtab {% if active_view == 'outbox' %}active{% endif %}" href="{{ base }}/outbox">📤 {{ t('outbox') }}</a>
+  </nav>
+  {% set k = ki() %}
+  <div class="kibar" id="kibar" {% if not k.busy %}hidden{% endif %} role="status" aria-live="polite">
+    <span class="spinner" aria-hidden="true"></span>
+    <span id="kibar-text">KI schreibt{% if k.total %} {{ k.done + k.failed }}/{{ k.total }}{% endif %}{% if k.current %} – {{ k.current.title }}{% endif %} …</span>
+  </div>
+  {% if not k.busy and k.finished_at and k.failed %}
+  <details class="kilast small"><summary>Letzte KI-Runde ({{ k.finished_at[:16].replace('T', ' ') }} UTC): {{ k.done }} geschrieben, {{ k.failed }} fehlgeschlagen</summary>
+    <ul>{% for e in k.errors %}<li><a href="{{ base }}/jobs/{{ e.id }}">{{ e.title }}</a>: {{ e.error }}</li>{% endfor %}</ul>
+  </details>
+  {% endif %}
+  {% if not auth_enabled %}<div class="banner warn">{{ t('no_auth_warning') }}</div>{% endif %}
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <script>
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+      const root = document.documentElement;
+      const dark = root.dataset.theme ? root.dataset.theme === 'dark'
+                                      : matchMedia('(prefers-color-scheme: dark)').matches;
+      root.dataset.theme = dark ? 'light' : 'dark';
+      try { localStorage.setItem('jh-theme', root.dataset.theme); } catch (e) {}
+    });
+  </script>
+  <script>
+    // KI letters: poll the background writer while it runs, reload once when it is done.
+    (function () {
+      const bar = document.getElementById('kibar'), txt = document.getElementById('kibar-text');
+      let wasBusy = {{ 'true' if k.busy else 'false' }};
+      if (!wasBusy) return;
+      async function poll() {
+        try {
+          const r = await fetch('{{ base }}/api/v1/letters/status', {credentials: 'same-origin'});
+          const s = await r.json();
+          if (s.busy) {
+            bar.hidden = false;
+            txt.textContent = 'KI schreibt' + (s.total ? ' ' + (s.done + s.failed) + '/' + s.total : '')
+              + (s.current ? ' – ' + s.current.title : '') + ' …';
+            setTimeout(poll, 3000);
+          } else {
+            txt.textContent = 'Fertig: ' + s.done + ' geschrieben' + (s.failed ? ', ' + s.failed + ' fehlgeschlagen' : '') + '.';
+            setTimeout(() => location.reload(), 800);
+          }
+        } catch (e) { setTimeout(poll, 5000); }
+      }
+      setTimeout(poll, 3000);
+    })();
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

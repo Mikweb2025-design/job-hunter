@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% from "_send.html" import send_badge %}
+{% block title %}{{ job.title }} – {{ t('app_title') }}{% endblock %}
+{% block content %}
+{% set bd = job.score_breakdown %}
+<p><a href="{{ base }}/">← {{ t('back') }}</a></p>
+{% if msg %}<div class="banner ok">{{ t(msg) }}</div>{% endif %}
+{% if err %}<div class="banner warn">{{ t('llm_error') }}: {{ err }}</div>{% endif %}
+
+<header class="job-head">
+  <div>
+    <h1>{{ job.title }}</h1>
+    <div><span class="applylabel a-{{ job.view }}">{{ job.apply_label }}</span> {{ send_badge(mail.send_state) }}</div>
+    <p class="muted">{{ job.company or '–' }} · {{ job.location or t('unknown') }}{% if job.remote %} · <span class="tag">{{ t('remote') }}</span>{% endif %}</p>
+    <p class="small muted">
+      {{ t('source') }}: <span class="tag">{{ job.source }}</span>
+      {% if job.also_seen_on %} · {{ t('also_seen') }}: {{ job.also_seen_on }}{% endif %}
+      {% if job.published %} · {{ t('published') }}: {{ job.published }}{% endif %}
+      · {{ t('found') }}: {{ job.fetched_at[:10] }}
+      {% if job.salary_min or job.salary_max %} · {{ t('salary') }}: {{ '{:,.0f}'.format(job.salary_min or job.salary_max).replace(',', '.') }}{% if job.salary_max and job.salary_max != job.salary_min %}–{{ '{:,.0f}'.format(job.salary_max).replace(',', '.') }}{% endif %} €{% if job.salary_predicted %} (geschätzt){% endif %}{% endif %}
+    </p>
+  </div>
+  <div class="score-big s{{ (job.score // 20) * 20 }}">{{ job.score }}</div>
+</header>
+
+<div class="cta">
+  {% if job.url %}<a class="button primary" href="{{ job.url }}" target="_blank" rel="noopener noreferrer">{% if job.view == 'manual' %}Jetzt manuell bewerben{% else %}{{ t('open_application') }}{% endif %} ↗</a>{% endif %}
+  {% if job.view in ('auto', 'manual') %}
+  <form method="post" action="{{ base }}/jobs/{{ job.id }}/mark-applied"><button type="submit" class="ghost">✅ Als beworben markieren</button></form>
+  {% endif %}
+  <span class="small muted">{{ t('open_hint') }}</span>
+</div>
+
+<div class="grid">
+  <div class="col-main">
+    <section class="card" id="mail">
+      <h2>E-Mail-Bewerbung</h2>
+      {% if err_mail %}<div class="banner warn">{{ t(err_mail) }}</div>{% endif %}
+      <form method="post" action="{{ base }}/jobs/{{ job.id }}/apply-email" class="row">
+        <label class="grow">Empfänger (aus der Anzeige{% if mail.apply_email_source %}: {{ mail.apply_email_source }}{% endif %})
+          <input type="email" name="apply_email" value="{{ mail.apply_email or '' }}" placeholder="keine Adresse – nur manuell">
+        </label>
+        <button type="submit" class="ghost">{{ t('save') }}</button>
+      </form>
+      {% if mail.email %}
+        <table class="mailmeta small">
+          <tr><td class="muted">Von</td><td>{{ mail.email.sender }}</td></tr>
+          <tr><td class="muted">An</td><td>{{ mail.email.to }}</td></tr>
+          <tr><td class="muted">Betreff</td><td>{{ mail.email.subject }}</td></tr>
+          <tr><td class="muted">Anhang</td><td>{{ mail.email.attachment or '–' }} <span class="muted">(Pfad auf dem Mac, in der App einstellbar)</span></td></tr>
+        </table>
+        <div class="mailprev">{{ mail.email.body }}</div>
+        {% if mail.blocker_texts %}
+          <p class="small warn-text">Kann jetzt nicht gesendet werden:</p>
+          <ul class="blockers small">{% for b in mail.blocker_texts %}<li>{{ b }}</li>{% endfor %}</ul>
+        {% elif mail.in_outbox %}
+          <p class="small">Im Postausgang: {% if mail.dry_run %}im Testmodus wird nichts gesendet.{% else %}die Mac-App sendet beim nächsten Aktualisieren.{% endif %}</p>
+        {% endif %}
+        <div class="row">
+          {% if mail.approved %}
+            <form method="post" action="{{ base }}/jobs/{{ job.id }}/unapprove"><button type="submit" class="ghost">Freigabe zurücknehmen</button></form>
+          {% elif mail.can_send %}
+            <form method="post" action="{{ base }}/jobs/{{ job.id }}/approve"
+                  onsubmit="return confirm('Bewerbung an {{ mail.email.to }} freigeben?{% if not mail.dry_run %} Die Mac-App sendet sie dann ECHT über Apple Mail.{% else %} (Testmodus: es wird nichts gesendet.){% endif %}')">
+              <button type="submit">Zum Senden freigeben</button>
+            </form>
+          {% endif %}
+          <span class="small muted">Versendet wird nur von der Mac-App (Apple Mail, {{ mail.email['from'] }}).</span>
+        </div>
+      {% endif %}
+      {% if mail.sent %}
+        <h3 class="small">Verlauf</h3>
+        <ul class="small">
+        {% for r in mail.sent %}
+          <li>{% if r.dry_run %}<span class="sbadge test">Test – nicht gesendet</span>{% else %}<span class="sbadge sent">✉ Gesendet</span>{% endif %}
+            {{ r.sent_at[:16].replace('T', ' ') }} UTC an {{ r.to }} – „{{ r.subject }}“</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+
+    <section class="card" id="letter">
+      <h2>{{ t('letter') }}</h2>
+      {% if job.letter_origin == 'vorlage' %}<p class="small warn-text">{{ t('letter_template_note') }}</p>{% endif %}
+      <form method="post" action="{{ base }}/jobs/{{ job.id }}/letter">
+        <textarea id="letter-text" name="letter" rows="9">{{ job.letter or '' }}</textarea>
+        <div class="row">
+          <button type="button" id="copy-btn" data-label="{{ t('copy') }}" data-done="{{ t('copied') }}">{{ t('copy') }}</button>
+          <button type="submit" class="ghost">{{ t('save') }}</button>
+          {% if job.letter_origin %}<span class="small muted">{{ job.letter_origin }}{% if job.letter_updated_at %} · {{ job.letter_updated_at[:16].replace('T', ' ') }}{% endif %}</span>{% endif %}
+        </div>
+      </form>
+      {% set k = ki() %}
+      <form method="post" action="{{ base }}/jobs/{{ job.id }}/write-letter" class="row">
+        <button type="submit" {% if not k.enabled or k.busy %}disabled{% endif %}>🤖 {{ t('write_letter_ki') }}</button>
+        <span class="small muted">{% if k.enabled %}{{ k.label }} · läuft im Hintergrund (30–120 s){% if k.busy %} · KI ist gerade beschäftigt{% endif %}{% else %}Keine KI konfiguriert (llm.provider opencode + OPENCODE_BIN){% endif %}</span>
+      </form>
+      <form method="post" action="{{ base }}/jobs/{{ job.id }}/regenerate" class="row">
+        <button type="submit" class="ghost">{{ t('regenerate') if job.letter else t('generate') }}</button>
+        <span class="small muted">{{ llm_label or 'Vorlage (kein LLM konfiguriert)' }}</span>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>{{ t('posting') }}</h2>
+      <div class="posting">{{ job.description or '–' }}</div>
+    </section>
+  </div>
+
+  <aside class="col-side">
+    <section class="card">
+      <h2>{{ t('status') }}</h2>
+      <form method="post" action="{{ base }}/jobs/{{ job.id }}/status" class="stack">
+        <select name="status">
+          {% for s in STATUSES %}<option value="{{ s }}" {% if job.status == s %}selected{% endif %}>{{ t('st_' ~ s) }}</option>{% endfor %}
+        </select>
+        <label>{{ t('applied_date') }}<input type="date" name="applied_date" value="{{ job.applied_date or '' }}"></label>
+        <label>{{ t('notes') }}<textarea name="notes" rows="4">{{ job.notes or '' }}</textarea></label>
+        <button type="submit">{{ t('save') }}</button>
+      </form>
+    </section>
+
+    {% if job.llm_reason %}
+    <section class="card">
+      <h2>{{ t('reason') }}</h2>
+      <p>{{ job.llm_reason }}</p>
+    </section>
+    {% endif %}
+
+    <section class="card">
+      <h2>{{ t('breakdown') }}</h2>
+      {% if bd.excluded %}
+        <p class="err">{{ t('excluded') }}: {{ bd.excluded|join(', ') }}</p>
+      {% else %}
+      <table class="breakdown">
+        <tr><td>{{ t('keywords') }}</td><td>{{ bd.keywords }} / 40</td></tr>
+        <tr><td>{{ t('title_match') }}</td><td>{{ bd.title }} / 25{% if bd.title_match %} <span class="small muted">({{ bd.title_match }})</span>{% endif %}</td></tr>
+        <tr><td>{{ t('location_pts') }}</td><td>{{ bd.location }} / 15 <span class="small muted">({{ bd.location_reason }})</span></td></tr>
+        <tr><td>{{ t('salary_pts') }}</td><td>{{ bd.salary }} / 20 <span class="small muted">({{ bd.salary_reason }})</span></td></tr>
+        {% if bd.penalty %}<tr><td>{{ t('penalty') }}</td><td>{{ bd.penalty }} <span class="small muted">({{ bd.excluded_in_text|join(', ') }})</span></td></tr>{% endif %}
+        <tr class="total"><td>{{ t('rule_score') }}</td><td>{{ job.rule_score }}</td></tr>
+        {% if job.llm_score is not none %}<tr><td>{{ t('llm_score') }}</td><td>{{ job.llm_score }}</td></tr>{% endif %}
+      </table>
+      {% if bd.matched %}<p class="small">{{ t('matched_keywords') }}: {% for k in bd.matched %}<span class="tag">{{ k }}</span> {% endfor %}</p>{% endif %}
+      {% endif %}
+    </section>
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const btn = document.getElementById('copy-btn');
+  btn && btn.addEventListener('click', async () => {
+    const ta = document.getElementById('letter-text');
+    try { await navigator.clipboard.writeText(ta.value); }
+    catch (e) { ta.select(); document.execCommand('copy'); }
+    btn.textContent = btn.dataset.done;
+    setTimeout(() => btn.textContent = btn.dataset.label, 1500);
+  });
+</script>
+{% endblock %}

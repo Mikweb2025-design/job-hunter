@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Atom Jobs</title>
+  <id>urn:example:atom-jobs</id>
+  <updated>2026-10-01T08:00:00Z</updated>
+  <entry>
+    <title>Technical Account Manager Cloud (m/w/d)</title>
+    <id>urn:example:job:1</id>
+    <link href="https://atom.example.org/job/1"/>
+    <updated>2026-10-01T08:00:00Z</updated>
+    <author><name>Wolkenwerk GmbH</name></author>
+    <content type="html">&lt;p&gt;Betreuung von Enterprise-Kunden, S3 Object Storage, Nextcloud.&lt;/p&gt;</content>
+  </entry>
+</feed>

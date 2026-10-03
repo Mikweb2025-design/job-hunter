@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% from "_send.html" import send_badge %}
+{% macro salary(j) -%}
+  {%- if j.salary_min or j.salary_max -%}
+    {{ '{:,.0f}'.format(j.salary_min or j.salary_max).replace(',', '.') }}{% if j.salary_max and j.salary_min and j.salary_max != j.salary_min %}–{{ '{:,.0f}'.format(j.salary_max).replace(',', '.') }}{% endif %} €{% if j.salary_predicted %}*{% endif %}
+  {%- else -%}<span class="muted">–</span>{%- endif -%}
+{%- endmacro %}
+{% block content %}
+{% if msg %}<div class="banner ok">{{ t(msg) }}</div>{% endif %}
+{% if err %}<div class="banner warn">{{ err }}</div>{% endif %}
+{% if f.view %}
+<div class="viewhead">
+  <h1>{{ VIEW_LABELS[f.view] }}</h1>
+  {% if f.view == 'auto' %}<p class="small muted">Stellen mit Bewerbungs-E-Mail-Adresse. Ob und wann gesendet wird, entscheiden die Regeln im <a href="{{ base }}/outbox">Postausgang</a> – versendet wird nur von der Mac-App.</p>
+  {% elif f.view == 'manual' %}<p class="small muted">Keine E-Mail-Adresse in der Anzeige: über das Portal / die Originalanzeige bewerben. Die besten 10 stehen unter <a href="{{ base }}/today">Heute zu tun</a>.</p>
+  {% elif f.view == 'applied' %}<p class="small muted">Status Beworben/Gespräch/Angebot oder echt per E-Mail gesendet.</p>
+  {% elif f.view == 'later' %}<p class="small muted">Status Absage – zurückgestellt oder abgelehnt.</p>{% endif %}
+</div>
+{% endif %}
+
+<section class="toolbar">
+  <div class="status-chips">
+    <a class="chip {% if not f.status %}active{% endif %}" href="{{ base }}/">{{ t('all') }}</a>
+    {% for s in STATUSES %}
+      <a class="chip st-{{ s }} {% if f.status == s %}active{% endif %}" href="{{ base }}/?status={{ s }}">{{ t('st_' ~ s) }} <span class="count">{{ counts.get(s, 0) }}</span></a>
+    {% endfor %}
+  </div>
+  <div class="actions">
+    <form method="post" action="{{ base }}/run">
+      <button type="submit" {% if running %}disabled{% endif %}>{{ t('run_running') if running else t('run_now') }}</button>
+    </form>
+    {% set k = ki() %}
+    <form method="post" action="{{ base }}/letters/write-all">
+      <input type="hidden" name="view" value="{{ f.view if f.view in ('auto', 'manual') else '' }}">
+      <button type="submit" class="ghost" {% if not k.enabled or k.busy %}disabled{% endif %}
+              title="{% if k.enabled %}{{ k.label }} – Stellen mit Vorlage oder ohne Anschreiben, beste zuerst, eins nach dem anderen{% else %}Keine KI konfiguriert (llm.provider opencode + OPENCODE_BIN){% endif %}">🤖 {{ t('write_all_ki') }} (max {{ k.max }})</button>
+    </form>
+    <a class="button ghost" href="{{ base }}/export.csv{% if qs %}?{{ qs }}{% endif %}">{{ t('export_csv') }}</a>
+    <a class="button ghost" href="{{ base }}/export.xlsx{% if qs %}?{{ qs }}{% endif %}">{{ t('export_xlsx') }}</a>
+  </div>
+</section>
+
+<form class="filters" method="get" action="{{ base }}/">
+  {% if f.view %}<input type="hidden" name="view" value="{{ f.view }}">{% endif %}
+  <label>{{ t('status') }}
+    <select name="status">
+      <option value="">{{ t('all') }}</option>
+      <option value="aktiv" {% if f.status == 'aktiv' %}selected{% endif %}>{{ t('active') }}</option>
+      {% for s in STATUSES %}<option value="{{ s }}" {% if f.status == s %}selected{% endif %}>{{ t('st_' ~ s) }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>{{ t('min_score') }}
+    <input type="number" name="min_score" min="0" max="100" step="5" value="{{ f.min_score }}" inputmode="numeric">
+  </label>
+  <label>{{ t('source') }}
+    <select name="source">
+      <option value="">{{ t('all') }}</option>
+      {% for s in sources %}<option value="{{ s }}" {% if f.source == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>{{ t('new_since') }}
+    <select name="since">
+      <option value="">{{ t('all') }}</option>
+      {% for d in ['1', '3', '7', '30'] %}<option value="{{ d }}" {% if f.since == d %}selected{% endif %}>{{ t('days_' ~ d) }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="grow">{{ t('search') }}
+    <input type="search" name="q" value="{{ f.q }}" placeholder="Nextcloud, Kubernetes …">
+  </label>
+  <div class="filter-buttons">
+    <button type="submit">{{ t('filter') }}</button>
+    <a class="button ghost" href="{{ base }}/{% if f.view %}?view={{ f.view }}{% endif %}">{{ t('reset') }}</a>
+  </div>
+</form>
+
+<p class="muted small">{{ jobs|length }} {{ t('count') }}</p>
+
+{% if jobs %}
+<div class="table-wrap">
+<table class="jobs">
+  <thead>
+    <tr><th>{{ t('score') }}</th><th>{{ t('title') }}</th><th>{{ t('location') }}</th><th>{{ t('salary') }}</th><th>{{ t('source') }}</th><th>{{ t('status') }}</th><th>{{ t('found') }}</th></tr>
+  </thead>
+  <tbody>
+  {% for j in jobs %}
+    <tr>
+      <td data-label="{{ t('score') }}"><span class="score s{{ (j.score // 20) * 20 }}" title="{{ t('rule_score') }} {{ j.rule_score }}{% if j.llm_score is not none %} · {{ t('llm_score') }} {{ j.llm_score }}{% endif %}">{{ j.score }}</span></td>
+      <td class="title-cell">
+        <a href="{{ base }}/jobs/{{ j.id }}">{{ j.title }}</a>
+        <div class="muted small">{{ j.company or '–' }}</div>
+        <div><span class="applylabel a-{{ j.view }}">{{ j.apply_label }}</span></div>
+        <div>{{ send_badge(j.send) }}</div>
+        {% if j.llm_reason %}<div class="reason small">{{ j.llm_reason }}</div>{% endif %}
+      </td>
+      <td data-label="{{ t('location') }}">{{ j.location or '–' }}{% if j.remote %} <span class="tag">remote</span>{% endif %}</td>
+      <td data-label="{{ t('salary') }}">{{ salary(j) }}</td>
+      <td data-label="{{ t('source') }}"><span class="tag">{{ j.source }}</span></td>
+      <td data-label="{{ t('status') }}"><span class="pill st-{{ j.status }}">{{ t('st_' ~ j.status) }}</span></td>
+      <td data-label="{{ t('found') }}" class="small muted">{{ j.fetched_at[:10] }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="empty">{{ t('no_jobs') }}</p>
+{% endif %}
+
+{% if runs %}
+<details class="runs">
+  <summary>{{ t('last_runs') }}</summary>
+  <ul>
+  {% for r in runs %}
+    <li><code>{{ r.started_at[:16].replace('T', ' ') }}</code> – neu: {{ r.new_jobs }}
+      {% if r.stats.fetched %}· {% for k, v in r.stats.fetched.items() %}{{ k }}: {{ v }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+      {% if r.stats.skipped %}· übersprungen: {{ r.stats.skipped|join(', ') }}{% endif %}
+      {% if r.errors %}<div class="err small">{{ r.errors|join(' | ') }}</div>{% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+</details>
+{% endif %}
+{% endblock %}

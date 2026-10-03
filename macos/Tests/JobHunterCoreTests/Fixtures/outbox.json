@@ -1,0 +1,29 @@
+{
+  "mode": "auto",
+  "dry_run": false,
+  "kill_switch": false,
+  "sent_today": 1,
+  "sent_total": 1,
+  "dry_run_total": 1,
+  "dry_run_today": 0,
+  "remaining_today": 4,
+  "count": 1,
+  "items": [
+    {
+      "job_id": 6,
+      "title": "Cloud Support Engineer (m/w/d)",
+      "company": "Acme GmbH",
+      "score": 85,
+      "reason": "auto",
+      "email": {
+        "to": "jobs@acme.de",
+        "from": "info@daniele-michelin.com",
+        "sender_name": "Daniele Michelin",
+        "sender": "Daniele Michelin <info@daniele-michelin.com>",
+        "subject": "Bewerbung als Cloud Support Engineer",
+        "body": "Sehr geehrte Damen und Herren,\n\nIch betreue seit Jahren Kunden einer Hosting-Plattform. Ihre Anzeige nennt Linux. In den ersten 90 Tagen würde ich Tickets auswerten. Ich freue mich auf ein Gespräch.\n\nMeinen Lebenslauf finden Sie im Anhang.\n\nMit freundlichen Grüßen\nDaniele Michelin\ninfo@daniele-michelin.com\n",
+        "attachment": "~/Bewerbung/Lebenslauf_Daniele_Michelin.pdf"
+      }
+    }
+  ]
+}

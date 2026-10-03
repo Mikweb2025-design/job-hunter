@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>de</string>
+	<key>CFBundleDisplayName</key>
+	<string>JobHunter</string>
+	<key>CFBundleExecutable</key>
+	<string>JobHunter</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>de.daniele.JobHunter</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>JobHunter</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>__VERSION__</string>
+	<key>CFBundleVersion</key>
+	<string>__BUILD__</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>15.0</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Client für den selbst gehosteten job-hunter-Server</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- HTTP only for localhost / LAN / .local; everything else must be HTTPS. -->
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>JobHunter erstellt und sendet deine E-Mail-Bewerbungen über Apple Mail (Konto info@daniele-michelin.com) und öffnet gesendete Bewerbungen in Mail.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>JobHunter verbindet sich mit deinem job-hunter-Server im lokalen Netzwerk.</string>
+</dict>
+</plist>

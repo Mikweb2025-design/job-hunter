@@ -1,0 +1,155 @@
+{
+ "ergebnisliste": [
+  {
+   "stellenangebotsart": "ARBEIT",
+   "stellenangebotsTitel": "Technical Support Engineer [m/w/d]",
+   "quereinstiegGeeignet": false,
+   "arbeitszeitSchichtNachtWochenende": false,
+   "arbeitszeitTeilzeitAbend": false,
+   "arbeitszeitTeilzeitNachmittag": false,
+   "arbeitszeitTeilzeitVormittag": false,
+   "arbeitszeitTeilzeitFlexibel": false,
+   "arbeitszeitVollzeit": false,
+   "eintrittszeitraum": {
+    "von": "2026-10-01"
+   },
+   "verguetungsangabe": "KEINE_ANGABEN",
+   "vertragsdauer": "KEINE_ANGABE",
+   "istGeringfuegigeBeschaeftigung": false,
+   "stellenlokationen": [
+    {
+     "adresse": {
+      "plz": "10178",
+      "ort": "Berlin",
+      "region": "BERLIN",
+      "land": "DEUTSCHLAND"
+     },
+     "breite": 52.5210906,
+     "laenge": 13.4099785
+    }
+   ],
+   "homeofficemoeglich": true,
+   "homeofficetyp": "NACH_VEREINBARUNG",
+   "chiffrenummer": "297443",
+   "veroeffentlichungszeitraum": {
+    "von": "2026-09-03"
+   },
+   "datumErsteVeroeffentlichung": "2026-09-03",
+   "aenderungsdatum": "2026-10-01T07:07:51.110",
+   "externeURL": "https://www.get-in-it.de/jobsuche/p297443?utm_source=arbeitsagentur&utm_medium=organic&utm_campaign=launch-premium",
+   "hauptberuf": "IT-Systemadministrator/in",
+   "firma": "Virtimo",
+   "referenznummer": "13644-297443-S",
+   "entfernung": 2,
+   "alleBerufe": [
+    "IT-Systemadministrator/in"
+   ]
+  },
+  {
+   "stellenangebotsart": "ARBEIT",
+   "stellenangebotsTitel": "Proxy Support Engineer (m/w/d)",
+   "quereinstiegGeeignet": false,
+   "arbeitszeitSchichtNachtWochenende": false,
+   "arbeitszeitTeilzeitAbend": false,
+   "arbeitszeitTeilzeitNachmittag": false,
+   "arbeitszeitTeilzeitVormittag": false,
+   "arbeitszeitTeilzeitFlexibel": false,
+   "arbeitszeitVollzeit": false,
+   "eintrittszeitraum": {
+    "von": "2026-09-18"
+   },
+   "verguetungsangabe": "KEINE_ANGABEN",
+   "vertragsdauer": "UNBEFRISTET",
+   "istGeringfuegigeBeschaeftigung": false,
+   "stellenlokationen": [
+    {
+     "adresse": {
+      "plz": "10117",
+      "ort": "Berlin",
+      "region": "BERLIN",
+      "land": "DEUTSCHLAND"
+     },
+     "breite": 52.5172722,
+     "laenge": 13.3882904
+    }
+   ],
+   "homeofficemoeglich": false,
+   "veroeffentlichungszeitraum": {
+    "von": "2026-09-18"
+   },
+   "datumErsteVeroeffentlichung": "2026-09-18",
+   "aenderungsdatum": "2026-09-18T17:04:27.432",
+   "externeURL": "https://www.europersonal.com/stelle/proxy-support-engineer-m-w-d-3c6a7100abc949b18d8fe32d7e077e9e",
+   "hauptberuf": "IT-Systemadministrator/in",
+   "firma": "Perso Plankontor GmbH",
+   "referenznummer": "14087-35JBRGNBXY3UWVFJ-S",
+   "entfernung": 3,
+   "alleBerufe": [
+    "IT-Systemadministrator/in"
+   ]
+  },
+  {
+   "stellenangebotsart": "ARBEIT",
+   "stellenangebotsTitel": "IT-Systemadministrator und Technical Support Engineer m/w/d",
+   "quereinstiegGeeignet": false,
+   "arbeitszeitSchichtNachtWochenende": false,
+   "arbeitszeitTeilzeitAbend": false,
+   "arbeitszeitTeilzeitNachmittag": false,
+   "arbeitszeitTeilzeitVormittag": false,
+   "arbeitszeitTeilzeitFlexibel": false,
+   "arbeitszeitVollzeit": true,
+   "eintrittszeitraum": {
+    "von": "2026-09-29"
+   },
+   "verguetungsangabe": "JAHRESGEHALT",
+   "vertragsdauer": "UNBEFRISTET",
+   "istGeringfuegigeBeschaeftigung": false,
+   "stellenlokationen": [
+    {
+     "adresse": {
+      "strasse": "Friedrichstr",
+      "plz": "10969",
+      "ort": "Berlin",
+      "region": "BERLIN",
+      "land": "DEUTSCHLAND"
+     },
+     "breite": 52.5075502,
+     "laenge": 13.3905899
+    }
+   ],
+   "veroeffentlichungszeitraum": {
+    "von": "2025-10-10"
+   },
+   "datumErsteVeroeffentlichung": "2025-10-10",
+   "aenderungsdatum": "2026-09-29T09:57:01.591",
+   "hauptberuf": "IT-Systemadministrator/in",
+   "alternativBeruf1": "IT-Kundenbetreuer/in",
+   "alternativBeruf2": "IT-Administrator/in",
+   "firma": "STAPEDIUS GmbH",
+   "arbeitgeberKundennummerHash": "C4y-AYX5LNM4cx_WEdKYgD_G2SEdvzcuZLqMQZL2mFk=",
+   "referenznummer": "10000-1204081759-S",
+   "entfernung": 2,
+   "alleBerufe": [
+    "IT-Systemadministrator/in",
+    "IT-Kundenbetreuer/in",
+    "IT-Administrator/in"
+   ],
+   "artDerVerguetung": "GEHALTSSPANNE",
+   "gehaltsspanneVon": 48000.0,
+   "gehaltsspanneBis": 55000.0
+  }
+ ],
+ "maxErgebnisse": 105,
+ "page": 1,
+ "size": 4,
+ "woOutput": {
+  "bereinigterOrt": "Berlin",
+  "suchmodus": "UMKREISSUCHE",
+  "koordinaten": [
+   {
+    "lat": 52.5112613,
+    "lon": 13.4255145
+   }
+  ]
+ }
+}

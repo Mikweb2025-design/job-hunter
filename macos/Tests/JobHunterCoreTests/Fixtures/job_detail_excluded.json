@@ -1,0 +1,50 @@
+{
+  "id": 5,
+  "title": "Werkstudent IT-Support (m/w/d)",
+  "company": "Irgendwer GmbH",
+  "location": "Potsdam, Brandenburg",
+  "url": "https://www.adzuna.de/land/ad/4711000003",
+  "source": "adzuna",
+  "published": "2026-09-28",
+  "fetched_at": "2026-10-03T10:01:26+00:00",
+  "score": 0,
+  "rule_score": 0,
+  "llm_score": null,
+  "status": "neu",
+  "status_updated_at": "2026-10-03T10:01:26+00:00",
+  "applied_date": null,
+  "salary_min": null,
+  "salary_max": null,
+  "letter_origin": "vorlage",
+  "apply_email": null,
+  "apply_method": "manual",
+  "send_approved": false,
+  "send_state": {
+    "state": "manual"
+  },
+  "remote": false,
+  "salary_predicted": false,
+  "also_seen_on": [],
+  "has_letter": true,
+  "description": "Studienbegleitende Tätigkeit im First Level Support.",
+  "score_breakdown": {
+    "keywords": 0.0,
+    "matched": [],
+    "title": 0.0,
+    "title_match": null,
+    "location": 0.0,
+    "location_reason": null,
+    "salary": 0.0,
+    "salary_reason": null,
+    "penalty": 0.0,
+    "excluded_in_text": [],
+    "excluded": [
+      "Werkstudent"
+    ]
+  },
+  "reason": null,
+  "letter": "Aus meiner Arbeit als Specialist Support Engineer bei IONOS/STRATO (seit 2008) passt besonders: Technischer Support für eine Nextcloud-Plattform mit rund 15.000 Instanzen. Die Stelle als Werkstudent IT-Support (m/w/d) bei Irgendwer GmbH interessiert mich, weil dort Support gefragt sind. [konkreten Bezug zur Anzeige ergänzen] In den ersten 90 Tagen würde ich mich in Ihre Produkte und Ihr Ticket-Setup einarbeiten, die häufigsten Anfragen auswerten und die ersten wiederkehrenden Abläufe dokumentieren und vereinfachen. Ich würde mich über ein Gespräch freuen.",
+  "letter_updated_at": "2026-10-03T10:01:26+00:00",
+  "notes": "",
+  "apply_email_source": null
+}

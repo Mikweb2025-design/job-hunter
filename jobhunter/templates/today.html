@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Heute zu tun – {{ t('app_title') }}{% endblock %}
+{% block content %}
+{% if msg %}<div class="banner ok">{{ t(msg) }}</div>{% endif %}
+{% if err %}<div class="banner warn">{{ err }}</div>{% endif %}
+{% set k = ki() %}
+<div class="viewhead">
+  <h1>Heute zu tun</h1>
+  <p class="small muted">Die {{ jobs|length }} besten Stellen ohne E-Mail-Adresse: <strong>manuell über das Portal bewerben</strong>.
+    Anschreiben kopieren, Bewerbung im Portal abschicken, dann „Als beworben markieren“.</p>
+  <form method="post" action="{{ base }}/letters/write-all" class="row">
+    <input type="hidden" name="view" value="today"><input type="hidden" name="back" value="today">
+    <button type="submit" class="ghost" {% if not k.enabled or k.busy %}disabled{% endif %}>🤖 {{ t('write_all_ki') }} (max {{ k.max }})</button>
+    <span class="small muted">{% if k.enabled %}{{ k.label }} · eins nach dem anderen{% else %}Keine KI konfiguriert (llm.provider opencode + OPENCODE_BIN){% endif %}</span>
+  </form>
+</div>
+
+{% if jobs %}
+<ol class="todo">
+{% for j in jobs %}
+  <li class="todo-item">
+    <div class="todo-head">
+      <span class="check" aria-hidden="true">☐</span>
+      <span class="score s{{ (j.score // 20) * 20 }}">{{ j.score }}</span>
+      <div class="todo-title">
+        <a href="{{ base }}/jobs/{{ j.id }}">{{ j.title }}</a>
+        <div class="muted small">{{ j.company or '–' }} · {{ j.location or '–' }}{% if j.remote %} · <span class="tag">remote</span>{% endif %}</div>
+        <span class="applylabel a-manual">{{ j.apply_label }}</span>
+        {% if j.letter_origin %}<span class="small muted"> · Anschreiben: {{ j.letter_origin }}</span>{% endif %}
+      </div>
+    </div>
+    <textarea class="letter-src" id="letter-{{ j.id }}" hidden readonly>{{ j.letter or '' }}</textarea>
+    <div class="todo-actions">
+      {% if j.url %}<a class="button primary" href="{{ j.url }}" target="_blank" rel="noopener noreferrer">Jetzt manuell bewerben ↗</a>{% endif %}
+      <button type="button" class="ghost copy-letter" data-src="letter-{{ j.id }}" {% if not j.letter %}disabled title="Noch kein Anschreiben"{% endif %}>📋 Anschreiben kopieren</button>
+      <form method="post" action="{{ base }}/jobs/{{ j.id }}/write-letter">
+        <input type="hidden" name="back" value="today">
+        <button type="submit" class="ghost" {% if not k.enabled or k.busy %}disabled{% endif %}>🤖 {{ t('write_letter_ki') }}</button>
+      </form>
+      <form method="post" action="{{ base }}/jobs/{{ j.id }}/mark-applied">
+        <input type="hidden" name="back" value="today">
+        <button type="submit">✅ Als beworben markieren</button>
+      </form>
+    </div>
+  </li>
+{% endfor %}
+</ol>
+{% else %}
+<p class="empty">Nichts mehr manuell zu tun. 🎉</p>
+{% endif %}
+
+{% if done %}
+<section class="card">
+  <h2>Heute erledigt ({{ done|length }})</h2>
+  <ul class="done-list">
+  {% for j in done %}<li>☑ <a href="{{ base }}/jobs/{{ j.id }}">{{ j.title }}</a> <span class="muted small">{{ j.company or '' }}</span></li>{% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  document.querySelectorAll('.copy-letter').forEach(btn => btn.addEventListener('click', async () => {
+    const ta = document.getElementById(btn.dataset.src);
+    const label = btn.textContent;
+    try { await navigator.clipboard.writeText(ta.value); }
+    catch (e) { ta.hidden = false; ta.select(); document.execCommand('copy'); ta.hidden = true; }
+    btn.textContent = 'Kopiert ✓';
+    setTimeout(() => btn.textContent = label, 1500);
+  }));
+</script>
+{% endblock %}
