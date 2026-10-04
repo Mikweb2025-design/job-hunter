@@ -309,3 +309,13 @@ struct JobLinksTests {
         #expect(JobLinks.slug("Systemadministrator (m/w/d) Öffentlicher Dienst") == "systemadministrator-oeffentlicher-dienst")
     }
 }
+
+@Suite("Auto-Score")
+struct AutoScoreTests {
+    @Test func decodesInfo() throws {
+        let json = #"{"auto_min_score":70,"config_value":80,"overridden":true,"min":50,"max":100}"#
+        let dec = JSONDecoder(); dec.keyDecodingStrategy = .convertFromSnakeCase
+        let i = try dec.decode(AutoMinScoreInfo.self, from: Data(json.utf8))
+        #expect(i.autoMinScore == 70 && i.configValue == 80 && i.overridden && i.min == 50 && i.max == 100)
+    }
+}

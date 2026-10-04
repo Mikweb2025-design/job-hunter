@@ -10,6 +10,8 @@ struct SettingsView: View {
     @State private var testOK = false
     @State private var testing = false
     @State private var pickCV = false
+    @State private var scoreDraft: Double = 80
+    @State private var scoreMessage: String?
     @State private var accountCheck: String?
     @State private var accountOK = false
     @State private var mailAccounts: [String] = []
@@ -120,6 +122,38 @@ struct SettingsView: View {
             Section("Automatisch senden") {
                 Toggle("Automatisch senden", isOn: $settings.autoSendEnabled)
                     .onChange(of: settings.autoSendEnabled) { Task { await model.refreshSendState() } }
+                if let info = model.sendSettings?.autoMinScoreInfo {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Mindest-Score für automatischen Versand")
+                            Spacer()
+                            Text("\(Int(scoreDraft))").font(.title3.monospacedDigit().weight(.semibold))
+                        }
+                        Slider(value: $scoreDraft, in: Double(info.min)...Double(info.max), step: 1)
+                        HStack {
+                            Button("Übernehmen") {
+                                Task { scoreMessage = await model.setAutoMinScore(Int(scoreDraft)) ?? "Gespeichert: ab Score \(Int(scoreDraft))." }
+                            }
+                            .disabled(Int(scoreDraft) == info.autoMinScore)
+                            if info.overridden {
+                                Button("Zurück auf config.yaml (\(info.configValue))") {
+                                    Task {
+                                        scoreMessage = await model.setAutoMinScore(nil) ?? "Zurückgesetzt."
+                                        scoreDraft = Double(model.sendSettings?.autoMinScore ?? info.configValue)
+                                    }
+                                }
+                            }
+                            if let scoreMessage { Text(scoreMessage).font(.caption).foregroundStyle(.secondary) }
+                        }
+                        Text("Nur Stellen mit mindestens diesem Score werden automatisch gesendet – weiterhin max. \(model.sendSettings?.dailyCap ?? 5) pro Tag, nie Vorlagen, 90 Tage pro Firma. Niedriger = mehr, aber weniger passende Bewerbungen.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    .onAppear { scoreDraft = Double(info.autoMinScore) }
+                    .onChange(of: info.autoMinScore) { _, v in scoreDraft = Double(v) }
+                } else {
+                    Text("Mindest-Score: Server-Update nötig, um ihn hier zu ändern (aktuell \(model.sendSettings?.autoMinScore ?? 80)).")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Text("Wirkt nur, wenn der Server send.mode = auto und dry_run = false hat. Dann sendet die App bei jeder Aktualisierung alle Stellen, die die Server-Regeln erlauben (Score, Tageslimit, Firmen-Sperrfrist, Sperrliste, kein Vorlagen-Anschreiben) – mit Mitteilung pro Bewerbung. Im Dashboard freigegebene Stellen werden (außer im Testmodus) auch ohne diesen Schalter gesendet.")
                     .font(.caption).foregroundStyle(.secondary)
             }

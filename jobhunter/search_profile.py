@@ -345,6 +345,40 @@ def _default_option(source: str, key: str) -> Any:
 _apply_lock = threading.Lock()
 
 
+KEY_SEND = "send_overrides"
+AUTO_SCORE_MIN, AUTO_SCORE_MAX = 50, 100
+_send_base: dict[int, int] = {}  # id(settings) -> auto_min_score from config.yaml
+
+
+def validate_auto_min_score(value: Any) -> int:
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        raise ProfileError({"auto_min_score": "Bitte eine ganze Zahl angeben."}) from None
+    if not AUTO_SCORE_MIN <= v <= AUTO_SCORE_MAX:
+        raise ProfileError({"auto_min_score": f"Erlaubt: {AUTO_SCORE_MIN}–{AUTO_SCORE_MAX}."})
+    return v
+
+
+def set_auto_min_score(settings: Settings, db: Database, value: Any | None) -> None:
+    """Minimum score for automatic e-mail sending (UI override; None = back to config.yaml).
+    Only this one value is editable – mode, dry_run, daily cap and blocklist stay in config.yaml."""
+    over = dict(db.get_setting(KEY_SEND) or {})
+    if value is None:
+        over.pop("auto_min_score", None)
+    else:
+        over["auto_min_score"] = validate_auto_min_score(value)
+    db.set_setting(KEY_SEND, over)
+    apply_overrides(settings, db)
+
+
+def auto_min_score_info(settings: Settings, db: Database) -> dict[str, Any]:
+    base = _send_base.get(id(settings), settings.send.auto_min_score)
+    over = (db.get_setting(KEY_SEND) or {}).get("auto_min_score")
+    return {"auto_min_score": settings.send.auto_min_score, "config_value": base,
+            "overridden": over is not None, "min": AUTO_SCORE_MIN, "max": AUTO_SCORE_MAX}
+
+
 def apply_overrides(settings: Settings, db: Database) -> None:
     """settings.profile/sources = config.yaml (kept in profile_base/sources_base) + DB override."""
     with _apply_lock:
@@ -361,6 +395,12 @@ def apply_overrides(settings: Settings, db: Database) -> None:
             override = {k: v for k, v in override.items() if k in EDITABLE and k not in exc.errors}
         settings.profile = merge_profile(settings.profile_base, override)
         settings.sources = merge_sources(settings.sources_base, src_override)
+        base_score = _send_base.setdefault(id(settings), settings.send.auto_min_score)
+        send_over = db.get_setting(KEY_SEND) or {}
+        try:
+            settings.send.auto_min_score = validate_auto_min_score(send_over.get("auto_min_score", base_score))
+        except ProfileError:
+            settings.send.auto_min_score = base_score
 
 
 def payload(settings: Settings, db: Database) -> dict[str, Any]:

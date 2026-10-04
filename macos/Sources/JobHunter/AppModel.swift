@@ -515,6 +515,18 @@ final class AppModel {
     private var appVersion: String? { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String }
 
     /// Server send settings + counters + outbox; also tells the server our "Automatisch senden" toggle.
+    /// Changes the minimum score for automatic sending on the server. Returns an error text or nil.
+    func setAutoMinScore(_ value: Int?) async -> String? {
+        guard let client else { return "Server nicht konfiguriert." }
+        do {
+            sendSettings = try await client.setAutoMinScore(value)
+            rebuildLists()
+            return nil
+        } catch {
+            return (error as? LocalizedError)?.errorDescription ?? "\(error)"
+        }
+    }
+
     func refreshSendState(_ client: APIClient? = nil) async {
         guard let client = client ?? self.client else { return }
         if let s = try? await client.sendSettings() { sendSettings = s }

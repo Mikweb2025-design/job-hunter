@@ -139,6 +139,12 @@ public struct APIClient: Sendable {
         try await send("GET", "send-settings")
     }
 
+    /// Minimum score for automatic sending (50–100); `nil` = back to the server's config.yaml.
+    public func setAutoMinScore(_ value: Int?) async throws -> SendSettings {
+        let body = try JSONSerialization.data(withJSONObject: ["auto_min_score": value.map { $0 as Any } ?? NSNull()])
+        return try await send("PUT", "send-settings/auto-min-score", body: body)
+    }
+
     public func outbox() async throws -> Outbox {
         try await send("GET", "outbox")
     }

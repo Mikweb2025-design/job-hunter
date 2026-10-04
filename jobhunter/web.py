@@ -336,7 +336,17 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
         gate = Gate(settings, db)
         return templates.TemplateResponse(request, "outbox.html", {
             "log": outbox_rows(gate, db), "cfg": settings.send, "active_view": "outbox",
+            "score_info": search_profile.auto_min_score_info(settings, db),
+            "msg": request.query_params.get("msg"), "err": request.query_params.get("err"),
         })
+
+    @app.post("/outbox/auto-min-score")
+    def set_auto_min_score(auto_min_score: str = Form(""), reset: str = Form("")):
+        try:
+            search_profile.set_auto_min_score(settings, db, None if reset else auto_min_score)
+        except search_profile.ProfileError as exc:
+            return RedirectResponse(f"{base}/outbox?" + urlencode({"err": "; ".join(exc.errors.values())}), status_code=303)
+        return RedirectResponse(f"{base}/outbox?msg=saved", status_code=303)
 
     @app.post("/run")
     def run_now():

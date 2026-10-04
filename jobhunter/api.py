@@ -148,6 +148,10 @@ class JobUpdate(BaseModel):
     apply_email: str | None = Field(default=None, max_length=320)
 
 
+class AutoScoreIn(BaseModel):
+    auto_min_score: int | None = None  # None = back to config.yaml
+
+
 class SentReport(BaseModel):
     """What the client reports after sending (or test-sending) through Apple Mail."""
     model_config = ConfigDict(extra="forbid")
@@ -503,7 +507,18 @@ def build_api_router(settings: Settings, db: Database, t) -> APIRouter:
 
     @router.get("/send-settings")
     def get_send_settings():
-        return send_settings_dict(settings, Gate(settings, db))
+        return {**send_settings_dict(settings, Gate(settings, db)),
+                "auto_min_score_info": search_profile.auto_min_score_info(settings, db)}
+
+    @router.put("/send-settings/auto-min-score")
+    def put_auto_min_score(body: AutoScoreIn):
+        """Minimum score for automatic sending (50–100). Mode/dry_run/cap stay in config.yaml."""
+        try:
+            search_profile.set_auto_min_score(settings, db, body.auto_min_score)
+        except search_profile.ProfileError as exc:
+            return _profile_error(exc)
+        return {**send_settings_dict(settings, Gate(settings, db)),
+                "auto_min_score_info": search_profile.auto_min_score_info(settings, db)}
 
     @router.get("/outbox")
     def outbox():

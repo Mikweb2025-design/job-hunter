@@ -35,6 +35,20 @@
   {% else %}<p class="muted small">Noch nichts – keine Stelle wartet, nichts gesendet, keine Testläufe.</p>{% endif %}
 </section>
 
+<section class="card" id="auto-score">
+  <h2>Mindest-Score für automatischen Versand</h2>
+  {% if msg == 'saved' %}<p class="ok small">Gespeichert.</p>{% endif %}
+  {% if err %}<p class="err small">{{ err }}</p>{% endif %}
+  <form method="post" action="{{ base }}/outbox/auto-min-score" class="row" style="align-items:center;gap:.75rem;flex-wrap:wrap">
+    <input type="range" name="auto_min_score" min="{{ score_info.min }}" max="{{ score_info.max }}" step="1"
+           value="{{ score_info.auto_min_score }}" oninput="this.nextElementSibling.textContent=this.value" style="flex:1;min-width:160px">
+    <strong style="min-width:2.5em">{{ score_info.auto_min_score }}</strong>
+    <button class="button primary" type="submit">Speichern</button>
+    {% if score_info.overridden %}<button class="button ghost" type="submit" name="reset" value="1">Zurück auf config.yaml ({{ score_info.config_value }})</button>{% endif %}
+  </form>
+  <p class="small">Nur Stellen mit mindestens diesem Score werden automatisch per E-Mail gesendet (weiterhin max. {{ cfg.daily_cap }} pro Tag, nie Vorlagen, 90 Tage pro Firma). Niedriger = mehr Bewerbungen, aber weniger passende.</p>
+</section>
+
 <section class="card">
   <h2>Regeln (config.yaml › send)</h2>
   <p class="small">
