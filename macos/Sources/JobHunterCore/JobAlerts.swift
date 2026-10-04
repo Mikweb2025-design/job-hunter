@@ -294,6 +294,9 @@ enum HTMLText {
 // MARK: - Parsers
 
 public enum JobAlertParser {
+    /// Bump when a parser changes so already processed mails are read again.
+    public static let version = 3
+
     /// Jobs in one alert e-mail (empty for other mails from the same sender, e.g. "Willkommen").
     public static func parse(_ message: AlertMailMessage) -> [AlertJob] {
         guard let source = AlertSource.from(sender: message.sender) else { return [] }
@@ -304,7 +307,8 @@ public enum JobAlertParser {
             let fromPlain = plain.map { linkedInPlain($0, receivedAt: message.receivedAt) } ?? []
             jobs = fromPlain.isEmpty ? (html.map { linkedInHTML($0, receivedAt: message.receivedAt) } ?? []) : fromPlain
         case .stepstone:
-            jobs = html.map { stepStoneHTML($0, receivedAt: message.receivedAt) } ?? []
+            let fromHTML = html.map { stepStoneHTML($0, receivedAt: message.receivedAt) } ?? []
+            jobs = fromHTML.isEmpty ? (plain.map { stepStonePlain($0, receivedAt: message.receivedAt) } ?? []) : fromHTML
         case .indeed:
             jobs = html.map { indeedHTML($0, receivedAt: message.receivedAt) } ?? []
         }
@@ -410,6 +414,83 @@ public enum JobAlertParser {
         return jobs
     }
 
+    /// Real StepStone mails (Jobagent / "guter Match"): each job is a text block that ends with
+    /// "Ich bin interessiert" followed by a click.stepstone.de tracking link (no job id in it).
+    /// Block: [labels like "Passt gut", "Beliebter Job"] · Titel · Firma · Ort · details… · "vor N Tagen".
+    static let stepStoneLabel = try! NSRegularExpression(
+        pattern: #"(?i)^(?:passt\s+(?:sehr\s+)?gut|beliebter\s+job|top[-\s]?job|neu|(?:sehr\s+)?gute?\s+übereinstimmung|läuft\s+bald\s+aus|schnelle\s+bewerbung|gerade\s+eben|heute|gestern|vor\s+\d+\s+(?:minuten?|stunden?|tagen?|wochen?))$"#)
+
+    static let stepStoneFooter = ["diesen job melden", "e-mail-einstellungen", "diese e-mail abbestellen",
+                                  "nutzungsbedingungen", "datenschutzerklärung", "weitere jobs", "alle jobs ansehen"]
+
+    static func normalizeLine(_ l: String) -> String {
+        let scalars = l.unicodeScalars.compactMap { u -> Unicode.Scalar? in
+            if u.value == 0x00A0 || u.value == 0x202F || u.value == 0x2007 { return " " }
+            return u.properties.isDefaultIgnorableCodePoint ? nil : u
+        }
+        return String(String.UnicodeScalarView(scalars)).replacingOccurrences(of: " {2,}", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+    }
+
+    static func stepStonePlain(_ plain: String, receivedAt: Date) -> [AlertJob] {
+        // Newsletters use NBSP and invisible characters (zero-width, soft hyphen): normalize them.
+        let lines = plain.replacingOccurrences(of: "\r", with: "").components(separatedBy: "\n")
+            .map { normalizeLine($0) }
+        var jobs: [AlertJob] = []
+        var blockStart = 0
+        for (i, line) in lines.enumerated() where line.lowercased().hasPrefix("ich bin interessiert") {
+            let link = lines[(i + 1)...].first { !$0.isEmpty } ?? ""
+            // Walk back to the start of this job block: stop at a URL, a sentence or the previous block.
+            var block: [String] = []
+            var j = i - 1
+            while j >= blockStart {
+                let l = lines[j]
+                if l.isEmpty { j -= 1; continue }
+                let lower = l.lowercased()
+                if lower.hasPrefix("http") || lower.hasPrefix("hallo") || lower.hasPrefix("ich bin interessiert") { break }
+                if l.count > 70 && (l.hasSuffix("!") || l.hasSuffix("?") || l.hasSuffix(".")) { break }
+                block.insert(l, at: 0)
+                j -= 1
+            }
+            blockStart = i + 1
+            let fields = block.filter { stepStoneLabel.firstMatch(in: $0, range: NSRange($0.startIndex..., in: $0)) == nil }
+            guard fields.count >= 2 else { continue }
+            let title = fields[0], company = fields[1]
+            let location = fields.count > 2 ? fields[2] : ""
+            let details = fields.count > 3 ? Array(fields[3...]) : []
+            let url = link.lowercased().hasPrefix("http") ? link : "https://www.stepstone.de"
+            // The posting text often follows the link ("Top-Fähigkeiten", "Ihre Aufgaben", "Ihr Profil" …)
+            // up to the footer or the next job block.
+            var posting: [String] = []
+            if let linkIdx = lines[(i + 1)...].firstIndex(where: { !$0.isEmpty }) {
+                for l in lines[(linkIdx + 1)...] {
+                    let lower = l.lowercased()
+                    if lower.hasPrefix("ich bin interessiert") || stepStoneFooter.contains(where: { lower.hasPrefix($0) }) { break }
+                    if lower.hasPrefix("http") { continue }
+                    posting.append(l)
+                }
+            }
+            // A following job block's header lines would end up here – only keep real posting text.
+            let postingText = posting.joined(separator: "\n").replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            var descParts: [String] = []
+            if !details.isEmpty { descParts.append("Aus dem StepStone-Job-Alert: " + details.joined(separator: " · ")) }
+            if postingText.count >= 200 { descParts.append(postingText) }
+            let desc = descParts.isEmpty ? nil : descParts.joined(separator: "\n\n")
+            jobs.append(AlertJob(source: .stepstone, externalId: stableID(title + "|" + company), title: title,
+                                 company: company, location: location, url: url, receivedAt: receivedAt,
+                                 description: desc))
+        }
+        return jobs
+    }
+
+    /// Stable id for jobs whose links carry no id (tracking redirects): FNV-1a of title|company.
+    static func stableID(_ s: String) -> String {
+        var h: UInt64 = 0xcbf29ce484222325
+        for b in s.lowercased().utf8 { h ^= UInt64(b); h = h &* 0x100000001b3 }
+        return "t" + String(h, radix: 16)
+    }
+
     // MARK: Indeed (layout of their job-alert e-mails; no real sample yet)
 
     static func indeedHTML(_ html: String, receivedAt: Date) -> [AlertJob] {
@@ -448,6 +529,8 @@ public struct JobAlertState: Codable, Sendable, Equatable {
     public var pending: [AlertJob] = []
     public var lastRun: Date?
     public var lastSummary: String?
+    /// Parser version that processed the messages; older → messages are read again.
+    public var parserVersion: Int?
 
     public init() {}
 }
@@ -496,6 +579,10 @@ public enum JobAlertImporter {
     public static func run(state: inout JobAlertState, reader: AlertMailReading, api: JobImportAPI?,
                            account: String, daysBack: Int, now: Date = .now) async -> JobAlertOutcome {
         var out = JobAlertOutcome()
+        if (state.parserVersion ?? 1) < JobAlertParser.version {
+            state.processed = [:]  // parser improved: read the alert mails in the window again (server dedups)
+            state.parserVersion = JobAlertParser.version
+        }
         do {
             let messages = try await reader.alertMessages(account: account, daysBack: daysBack,
                                                          skipIDs: Array(state.processed.keys))

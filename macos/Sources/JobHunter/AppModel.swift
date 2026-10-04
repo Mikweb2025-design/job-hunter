@@ -328,12 +328,12 @@ final class AppModel {
     // MARK: Job-Alerts (Apple Mail, read-only)
 
     /// Reads LinkedIn/StepStone/Indeed alert e-mails from Apple Mail, imports the jobs on the
-    /// server (queued while offline). Automatic: after a refresh, at most hourly, only while Mail
+    /// server (queued while offline). Automatic: after a refresh, at most every 15 minutes, only while Mail
     /// is running (never launches Mail by itself). `manual`: "Jetzt importieren".
     func importJobAlerts(manual: Bool = false) async {
         guard manual || settings.jobAlertsEnabled, !isImportingAlerts else { return }
         let mailRunning = NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == "com.apple.mail" }
-        let due = alertState.lastRun.map { Date.now.timeIntervalSince($0) >= 3600 } ?? true
+        let due = alertState.lastRun.map { Date.now.timeIntervalSince($0) >= 900 } ?? true
         isImportingAlerts = true
         defer { isImportingAlerts = false }
         var state = alertState

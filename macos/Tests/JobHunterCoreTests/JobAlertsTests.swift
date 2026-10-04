@@ -216,6 +216,7 @@ struct JobAlertImporterTests {
         let reader = FakeAlertReader([])
         var state = JobAlertState()
         state.processed = ["<old@x>": received.addingTimeInterval(-200 * 86_400), "<new@x>": received]
+        state.parserVersion = JobAlertParser.version
         _ = await JobAlertImporter.run(state: &state, reader: reader, api: nil, account: "a", daysBack: 14, now: received)
         #expect(Array(state.processed.keys) == ["<new@x>"])
     }
@@ -232,5 +233,43 @@ struct JobAlertImporterTests {
         s.lastRun = received
         try store.saveAlertState(s)
         #expect(store.loadAlertState() == s)
+    }
+}
+
+@Suite("StepStone-Alert (echte Mail)")
+struct StepStoneAlertTests {
+    @Test func parsesJobFromPlainTextBlock() throws {
+        let msg = AlertMailMessage(id: "<stepstone-test-1@example.com>", receivedAt: .now,
+                                   sender: "Lisa Stein von Stepstone <info@jobagent.stepstone.de>",
+                                   subject: "Du bist ein guter Match", source: try eml("stepstone_alert_match"))
+        let jobs = JobAlertParser.parse(msg)
+        #expect(jobs.count == 1)
+        let j = try #require(jobs.first)
+        #expect(j.source == "stepstone-alert")
+        #expect(j.title == "IT User Support Specialist")
+        #expect(j.company == "Greenberg Traurig Germany, LLP")
+        #expect(j.location == "Berlin")
+        #expect(j.url.hasPrefix("https://click.stepstone.de/"))
+        #expect(j.description?.contains("50.000 - 60.000") == true)
+        #expect(j.description?.contains("Ihre Aufgaben") == true)   // full posting text from the mail
+        #expect((j.description?.count ?? 0) > 300)
+        #expect(j.description?.contains("Diesen Job melden") == false)
+        #expect(j.externalId == JobAlertParser.stableID("IT User Support Specialist|Greenberg Traurig Germany, LLP"))
+    }
+
+    @Test func welcomeMailHasNoJobs() {
+        let src = "From: info@email.stepstone.de\nContent-Type: text/plain; charset=utf-8\n\nWillkommen bei Stepstone\n\nSuche starten\nhttps://click.stepstone.de/f/a/x"
+        let msg = AlertMailMessage(id: "w", receivedAt: .now, sender: "info@email.stepstone.de", subject: "Willkommen", source: src)
+        #expect(JobAlertParser.parse(msg).isEmpty)
+    }
+
+    @Test func olderParserVersionRereadsMails() async {
+        var state = JobAlertState()
+        state.processed = ["<old@x>": .now]
+        state.parserVersion = 1
+        struct NoMail: AlertMailReading { func alertMessages(account: String, daysBack: Int, skipIDs: [String]) async throws -> [AlertMailMessage] { [] } }
+        _ = await JobAlertImporter.run(state: &state, reader: NoMail(), api: nil, account: "a", daysBack: 14)
+        #expect(state.processed.isEmpty)
+        #expect(state.parserVersion == JobAlertParser.version)
     }
 }
