@@ -62,6 +62,13 @@ Jedes Anschreiben lässt sich als einseitiger A4-Geschäftsbrief exportieren (Ab
 ### Qualitätsprüfung der Anschreiben
 3–4 Absätze (180–260 Wörter), Ich-Form, nur Fakten aus Profil und Anzeige, keine Platzhalter, keine erfundenen Zahlen, keine englischen Füllwörter. Fehlgeschlagene Versuche werden wiederholt (`llm.retries`, optional `llm.fallback_model`). **Vorlagen werden nie per E-Mail gesendet** – nur KI- oder selbst bearbeitete Anschreiben. CLI: `python -m jobhunter letters [--all] [--ids 18] [--dry-run]`.
 
+### Suchprofil bearbeiten & mehr Plattformen
+Mac-App **„Suchprofil & Profil“** (⇧⌘P) und Dashboard **`/profile`**: Suchbegriffe, Ort/Radius, Remote, Mindestgehalt, Zieltitel, Ausschlüsse, Keyword-Gewichte und das CV-Profil bearbeiten (Backup bei jedem Speichern). **Vorschau** zeigt vor dem Speichern, wie viele Stellen jeder Suchbegriff findet; **Vorschläge** schlägt neue Suchbegriffe aus Profil und Bewerbungen vor. Die Einstellungen liegen in der Datenbank und überstehen Deploys.
+Quellen (jeweils ein-/ausschaltbar): Bundesagentur für Arbeit, Adzuna (eigener Key), **Arbeitnow**, **Remotive**, **Jobicy**, **Berlin Startup Jobs** (RSS) und **Karriereseiten von Firmen** über öffentliche ATS-Feeds (Greenhouse, Lever, Personio, SmartRecruiters – Firmen trägst du selbst ein). Stellen von Karriereseiten sind immer manuell.
+
+### Schwelle für den automatischen Versand
+Der Mindest-Score für automatische E-Mail-Bewerbungen (Standard 80) lässt sich zwischen 50 und 100 ändern – in der Mac-App (Einstellungen → E-Mail-Versand) oder im Dashboard (Postausgang). Tageslimit, 90-Tage-Regel pro Firma, Sperrliste und „nie Vorlagen“ gelten weiter.
+
 ---
 
 ## Aufbau des Repositorys

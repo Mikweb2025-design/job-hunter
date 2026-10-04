@@ -62,6 +62,13 @@ Every letter can be exported as a one-page A4 German business letter (sender, re
 ### Letter quality guards
 3–4 paragraphs (180–260 words), first person, only facts from profile + posting, no placeholders, no invented numbers, no English filler words. Failed generations are retried (`llm.retries`, optional `llm.fallback_model`). **Template letters are never e-mailed** – only AI or user-edited letters. CLI: `python -m jobhunter letters [--all] [--ids 18] [--dry-run]`.
 
+### Editable search profile & more platforms
+Mac app **„Suchprofil & Profil“** (⇧⌘P) and dashboard **`/profile`**: edit queries, location/radius, remote, minimum salary, target titles, exclusions, keyword weights and the CV profile (backup on every save). **Vorschau** shows how many jobs each query finds before saving; **Vorschläge** suggests new queries from your profile and applied jobs. Overrides are stored in the database and survive deploys.
+Sources (each can be switched on/off): Bundesagentur für Arbeit, Adzuna (own key), **Arbeitnow**, **Remotive**, **Jobicy**, **Berlin Startup Jobs** (RSS) and **company career pages** via public ATS feeds (Greenhouse, Lever, Personio, SmartRecruiters – you add the companies). Jobs from career pages are always manual.
+
+### Auto-send threshold
+The minimum score for automatic e-mail applications (default 80) can be changed between 50 and 100 in the Mac app (Settings → E-Mail-Versand) or on the dashboard (Postausgang). Daily cap, 90-day company rule, blocklist and "never templates" stay in force.
+
 ---
 
 ## Repository layout
