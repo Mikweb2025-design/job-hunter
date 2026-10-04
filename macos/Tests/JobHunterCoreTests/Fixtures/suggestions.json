@@ -1,0 +1,62 @@
+{
+ "queries": [
+  {
+   "value": "Second Level Support",
+   "kind": "query",
+   "weight": 5.5,
+   "reason": "1 Stelle als interessant/beworben markiert; CV-Keyword „Second Level“ (Gewicht 1.5)"
+  },
+  {
+   "value": "Associate Installer Support Engineer",
+   "kind": "query",
+   "weight": 4,
+   "reason": "1 Stelle als interessant/beworben markiert"
+  },
+  {
+   "value": "Cloud Support Engineer",
+   "kind": "query",
+   "weight": 4,
+   "reason": "Zielrolle im CV-Profil"
+  },
+  {
+   "value": "Nextcloud",
+   "kind": "query",
+   "weight": 4.0,
+   "reason": "CV-Keyword „Nextcloud“ (Gewicht 4)"
+  },
+  {
+   "value": "Power Platform Support Engineer",
+   "kind": "query",
+   "weight": 4,
+   "reason": "1 Stelle als interessant/beworben markiert"
+  },
+  {
+   "value": "Support Engineer Microsoft PowerPlatform",
+   "kind": "query",
+   "weight": 4,
+   "reason": "1 Stelle als interessant/beworben markiert"
+  }
+ ],
+ "titles": [
+  {
+   "value": "Associate Installer Support Engineer",
+   "kind": "title",
+   "weight": 4,
+   "reason": "1 Stelle als interessant/beworben markiert"
+  },
+  {
+   "value": "Power Platform Support Engineer",
+   "kind": "title",
+   "weight": 4,
+   "reason": "1 Stelle als interessant/beworben markiert"
+  },
+  {
+   "value": "Second Level Support",
+   "kind": "title",
+   "weight": 4,
+   "reason": "1 Stelle als interessant/beworben markiert"
+  }
+ ],
+ "liked_jobs": 4,
+ "llm": false
+}

@@ -15,6 +15,7 @@
     <nav>
       <a href="{{ base }}/">{{ t('jobs') }}</a>
       <a href="{{ base }}/outbox">{{ t('outbox') }}</a>
+      <a href="{{ base }}/profile" {% if active_view == 'profile' %}aria-current="page"{% endif %}>Suchprofil</a>
       <button type="button" class="ghost" id="theme-toggle" title="{{ t('theme') }}" aria-label="{{ t('theme') }}">◐</button>
     </nav>
   </header>
@@ -34,6 +35,7 @@
       <a class="vtab v-{{ v }} {% if active_view == v %}active{% endif %}" href="{{ base }}/{{ 'today' if v == 'today' else '?view=' ~ v }}">{{ VIEW_LABELS[v] }} <span class="count">{{ vc[v] }}</span></a>
     {% endfor %}
     <a class="vtab {% if active_view == 'outbox' %}active{% endif %}" href="{{ base }}/outbox">📤 {{ t('outbox') }}</a>
+    <a class="vtab {% if active_view == 'profile' %}active{% endif %}" href="{{ base }}/profile">⚙️ Suchprofil</a>
   </nav>
   {% set k = ki() %}
   <div class="kibar" id="kibar" {% if not k.busy %}hidden{% endif %} role="status" aria-live="polite">

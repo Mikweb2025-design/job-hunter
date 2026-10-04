@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SidebarView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         @Bindable var model = model
@@ -33,6 +34,13 @@ struct SidebarView: View {
                     .badge(model.sendSettings?.sentToday ?? 0)
                     .tag(SidebarItem.outbox)
                     .help("Gesendete, wartende und fehlgeschlagene Bewerbungen (Badge: heute gesendet)")
+                Button {
+                    openWindow(id: "searchProfile")
+                } label: {
+                    Label("Suchprofil & Profil …", systemImage: "slider.horizontal.3")
+                }
+                .buttonStyle(.plain)
+                .help("Suchbegriffe, Ort, Quellen, Bewertung und CV-Profil ändern (⇧⌘P) – nur online")
             }
 
             Section("Filter") {
@@ -181,6 +189,14 @@ func sourceLabel(_ source: String) -> String {
     case "arbeitsagentur": return "Arbeitsagentur"
     case "adzuna": return "Adzuna"
     case "rss": return "RSS"
+    case "arbeitnow": return "Arbeitnow"
+    case "remotive": return "Remotive"
+    case "jobicy": return "Jobicy"
+    case "berlinstartupjobs": return "Berlin Startup Jobs"
+    case "greenhouse": return "Karriereseite (Greenhouse)"
+    case "lever": return "Karriereseite (Lever)"
+    case "personio": return "Karriereseite (Personio)"
+    case "smartrecruiters": return "Karriereseite (SmartRecruiters)"
     default:
         if let alert = AlertSource(rawValue: source) { return alert.label }
         return source.prefix(1).uppercased() + source.dropFirst()

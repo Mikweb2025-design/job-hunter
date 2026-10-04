@@ -79,6 +79,24 @@ sources:
     country: de
     results_per_page: 50
     max_pages: 1
+  # Weitere öffentliche Quellen (aus, bis sie hier oder im Dashboard › Suchprofil aktiviert werden).
+  # Alle ohne Login/Scraping; lokal nach Suchbegriffen/Zieltiteln und Ort gefiltert.
+  arbeitnow:               # https://www.arbeitnow.com/api/job-board-api (1 Seite ≈ 325 Stellen)
+    enabled: false
+    max_pages: 1
+  remotive:                # Remote-Stellen (max. 1 Abruf pro Lauf, Quelle verlinken)
+    enabled: false
+    category: ""           # z. B. customer-support | devops | software-dev
+  jobicy:                  # Remote-Stellen offen für Deutschland/EMEA
+    enabled: false
+    geo: germany
+  berlinstartupjobs:       # RSS-Feeds berlinstartupjobs.com
+    enabled: false
+  ats:                     # Karriereseiten (Greenhouse/Lever/Personio/SmartRecruiters), 1 Abruf pro Firma
+    enabled: false
+    companies: []
+    #  - {ats: greenhouse, token: sumup, name: SumUp}
+    #  - {ats: smartrecruiters, token: DeliveryHero, name: Delivery Hero}
   rss:
     enabled: false
     feeds: []

@@ -31,8 +31,15 @@ struct JobHunterApp: App {
                 Button("Jetzt suchen") { model.triggerRun() }
                     .keyboardShortcut("r", modifiers: [.command, .shift])
                     .disabled(model.isRunActive)
+                OpenSearchProfileButton()
             }
         }
+
+        Window("Suchprofil & Profil", id: "searchProfile") {
+            SearchProfileView()
+                .environment(model)
+        }
+        .defaultSize(width: 1100, height: 760)
 
         Settings {
             SettingsView()
@@ -49,5 +56,15 @@ struct JobHunterApp: App {
                 .labelStyle(.titleAndIcon)
         }
         .menuBarExtraStyle(.menu)
+    }
+}
+
+/// Menu item "Suchprofil & Profil …" (⇧⌘P).
+struct OpenSearchProfileButton: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Suchprofil & Profil …") { openWindow(id: "searchProfile") }
+            .keyboardShortcut("p", modifiers: [.command, .shift])
     }
 }

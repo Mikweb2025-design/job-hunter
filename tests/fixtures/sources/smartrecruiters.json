@@ -1,0 +1,543 @@
+{
+ "offset": 0,
+ "limit": 5,
+ "totalFound": 971,
+ "content": [
+  {
+   "id": "744000153368008",
+   "name": "Account Manager SMB Italy - Milano",
+   "uuid": "d0a06862-f7ed-46b5-888b-0d21c5ec01a1",
+   "jobAdId": "9e77ebdc-6952-4488-9999-6749def4dcd7",
+   "defaultJobAd": false,
+   "refNumber": "JR0075763",
+   "company": {
+    "identifier": "DeliveryHero",
+    "name": "Delivery Hero"
+   },
+   "releasedDate": "2026-10-04T08:56:40.236Z",
+   "location": {
+    "city": "Milan",
+    "region": "Lombardy",
+    "country": "it",
+    "remote": false,
+    "hybrid": true,
+    "latitude": "45.468503",
+    "longitude": "9.182402699999999",
+    "fullLocation": "Milan, Lombardy, Italy"
+   },
+   "industry": {
+    "id": "internet",
+    "label": "Internet"
+   },
+   "department": {},
+   "function": {
+    "id": "sales",
+    "label": "Sales"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "associate",
+    "label": "Associate"
+   },
+   "customField": [
+    {
+     "fieldId": "6564ae9ddd552072c3a97453",
+     "fieldLabel": "Time Type",
+     "valueId": "421938a4e1d40118e396324490147300",
+     "valueLabel": "Full time"
+    },
+    {
+     "fieldId": "655ce69d695b8c5663cf1f55",
+     "fieldLabel": "Brands",
+     "valueId": "Glovo",
+     "valueLabel": "Glovo"
+    },
+    {
+     "fieldId": "6564ad6b1cf48c421e22419d",
+     "fieldLabel": "Job Family",
+     "valueId": "75439315e9751000915150c1ccdc0000",
+     "valueLabel": "Sales Account Management"
+    },
+    {
+     "fieldId": "6564ad3fee5f2f5b84045448",
+     "fieldLabel": "Job Family Group",
+     "valueId": "75439315e97510004b9c1be43b920000",
+     "valueLabel": "Sales"
+    },
+    {
+     "fieldId": "6564aa853d74d30a33089d2a",
+     "fieldLabel": "Supervisory Organization",
+     "valueId": "2446ff07ae4e1001e0410962448a0000",
+     "valueLabel": "Partners & Brands - SMB Sales & AM & Content - Italy - HIE97120"
+    },
+    {
+     "fieldId": "COUNTRY",
+     "fieldLabel": "Country/Region",
+     "valueId": "it",
+     "valueLabel": "Italy"
+    },
+    {
+     "fieldId": "6564ad09560ccd2ba9e90d24",
+     "fieldLabel": "Management Level",
+     "valueId": "ef2e8d3982de01acdf1d1c45d2163900",
+     "valueLabel": "IC1"
+    },
+    {
+     "fieldId": "6564ae71dd552072c3a97452",
+     "fieldLabel": "Worker Sub-Type",
+     "valueId": "ef2e8d3982de0123e1696445d2164400",
+     "valueLabel": "Permanent"
+    },
+    {
+     "fieldId": "6564abc0d641ff6fc90ebd6d",
+     "fieldLabel": "Primary Location",
+     "valueId": "121954fc96081001b7d1728dde400000",
+     "valueLabel": "Milan - Giovanni Battista Pirelli"
+    },
+    {
+     "fieldId": "6564ada8e5ee8c3d9bec3405",
+     "fieldLabel": "Job Profile",
+     "valueId": "6d17f809c7511000b34935d334d00000",
+     "valueLabel": "Long Tail Account Management - IC1"
+    }
+   ],
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/DeliveryHero/postings/744000153368008",
+   "language": {
+    "code": "en",
+    "label": "English",
+    "labelNative": "English (US)"
+   }
+  },
+  {
+   "id": "744000153272869",
+   "name": "Shift Supervisor",
+   "uuid": "220ddef9-54e8-4b23-af66-572cdabfb571",
+   "jobAdId": "da5fadcb-cfb0-4951-b4a1-3f29e2bf9c0d",
+   "defaultJobAd": true,
+   "refNumber": "JR0086498",
+   "company": {
+    "identifier": "DeliveryHero",
+    "name": "Delivery Hero"
+   },
+   "releasedDate": "2026-10-02T21:15:42.390Z",
+   "location": {
+    "city": "Santiago de Chile",
+    "country": "cl",
+    "remote": false,
+    "hybrid": false,
+    "fullLocation": "Santiago de Chile, , Chile"
+   },
+   "industry": {
+    "id": "internet",
+    "label": "Internet"
+   },
+   "department": {},
+   "function": {
+    "id": "general_business",
+    "label": "General Business"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "entry_level",
+    "label": "Entry Level"
+   },
+   "customField": [
+    {
+     "fieldId": "6564ae9ddd552072c3a97453",
+     "fieldLabel": "Time Type",
+     "valueId": "421938a4e1d40118e396324490147300",
+     "valueLabel": "Full time"
+    },
+    {
+     "fieldId": "655ce69d695b8c5663cf1f55",
+     "fieldLabel": "Brands",
+     "valueId": "PedidosYa",
+     "valueLabel": "PedidosYa"
+    },
+    {
+     "fieldId": "6564ad6b1cf48c421e22419d",
+     "fieldLabel": "Job Family",
+     "valueId": "b475b918a29901bba09158344e016205",
+     "valueLabel": "General Operations"
+    },
+    {
+     "fieldId": "6564ad3fee5f2f5b84045448",
+     "fieldLabel": "Job Family Group",
+     "valueId": "ef2e8d3982de01af01204cd9d1161100",
+     "valueLabel": "Operations"
+    },
+    {
+     "fieldId": "6564aa853d74d30a33089d2a",
+     "fieldLabel": "Supervisory Organization",
+     "valueId": "ef8c9a2e142201018eeeb266d4fb0000",
+     "valueLabel": "DHS - Stores - CHL - Manquehue - HIE07154"
+    },
+    {
+     "fieldId": "COUNTRY",
+     "fieldLabel": "Country/Region",
+     "valueId": "cl",
+     "valueLabel": "Chile"
+    },
+    {
+     "fieldId": "6564ad09560ccd2ba9e90d24",
+     "fieldLabel": "Management Level",
+     "valueId": "ef2e8d3982de012291a03645d2163d00",
+     "valueLabel": "S2"
+    },
+    {
+     "fieldId": "6564ae71dd552072c3a97452",
+     "fieldLabel": "Worker Sub-Type",
+     "valueId": "ef2e8d3982de0123e1696445d2164400",
+     "valueLabel": "Permanent"
+    },
+    {
+     "fieldId": "6564abc0d641ff6fc90ebd6d",
+     "fieldLabel": "Primary Location",
+     "valueId": "391a0b899e8f01018dd2d3c9f2b90000",
+     "valueLabel": "Manquehue"
+    },
+    {
+     "fieldId": "6564ada8e5ee8c3d9bec3405",
+     "fieldLabel": "Job Profile",
+     "valueId": "0b9bd6d5dac71000948c895048b00000",
+     "valueLabel": "Store Management - S2"
+    }
+   ],
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/DeliveryHero/postings/744000153272869",
+   "language": {
+    "code": "es-MX",
+    "label": "Spanish (LATAM)",
+    "labelNative": "español (LATAM)"
+   }
+  },
+  {
+   "id": "744000153252150",
+   "name": "Account Executive Sales Executive - Romania ",
+   "uuid": "79fbba2c-3c58-4154-894c-23c4662102ff",
+   "jobAdId": "b710e014-faee-4ee0-82d6-0466e2cc2b60",
+   "defaultJobAd": false,
+   "refNumber": "JR0075635",
+   "company": {
+    "identifier": "DeliveryHero",
+    "name": "Delivery Hero"
+   },
+   "releasedDate": "2026-10-02T18:25:02.011Z",
+   "location": {
+    "city": "Bucharest",
+    "country": "ro",
+    "remote": false,
+    "hybrid": true,
+    "fullLocation": "Bucharest, , Romania"
+   },
+   "industry": {
+    "id": "internet",
+    "label": "Internet"
+   },
+   "department": {},
+   "function": {
+    "id": "sales",
+    "label": "Sales"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "associate",
+    "label": "Associate"
+   },
+   "customField": [
+    {
+     "fieldId": "6564ae9ddd552072c3a97453",
+     "fieldLabel": "Time Type",
+     "valueId": "421938a4e1d40118e396324490147300",
+     "valueLabel": "Full time"
+    },
+    {
+     "fieldId": "655ce69d695b8c5663cf1f55",
+     "fieldLabel": "Brands",
+     "valueId": "Glovo",
+     "valueLabel": "Glovo"
+    },
+    {
+     "fieldId": "6564ad6b1cf48c421e22419d",
+     "fieldLabel": "Job Family",
+     "valueId": "75439315e9751000915150c1ccdc0000",
+     "valueLabel": "Sales Account Management"
+    },
+    {
+     "fieldId": "6564ad3fee5f2f5b84045448",
+     "fieldLabel": "Job Family Group",
+     "valueId": "75439315e97510004b9c1be43b920000",
+     "valueLabel": "Sales"
+    },
+    {
+     "fieldId": "6564aa853d74d30a33089d2a",
+     "fieldLabel": "Supervisory Organization",
+     "valueId": "e4e7a1a20d961000a5aad232ef190000",
+     "valueLabel": "Bucharest - Top Accounts - (Romania) Glovoapp - HIE13862"
+    },
+    {
+     "fieldId": "COUNTRY",
+     "fieldLabel": "Country/Region",
+     "valueId": "ro",
+     "valueLabel": "Romania"
+    },
+    {
+     "fieldId": "6564ad09560ccd2ba9e90d24",
+     "fieldLabel": "Management Level",
+     "valueId": "ef2e8d3982de01acdf1d1c45d2163900",
+     "valueLabel": "IC1"
+    },
+    {
+     "fieldId": "6564ae71dd552072c3a97452",
+     "fieldLabel": "Worker Sub-Type",
+     "valueId": "ef2e8d3982de0123e1696445d2164400",
+     "valueLabel": "Permanent"
+    },
+    {
+     "fieldId": "6564abc0d641ff6fc90ebd6d",
+     "fieldLabel": "Primary Location",
+     "valueId": "121954fc96081001a96ed1f2be3e0000",
+     "valueLabel": "Bucharest - Serban Voda 208-210"
+    },
+    {
+     "fieldId": "6564ada8e5ee8c3d9bec3405",
+     "fieldLabel": "Job Profile",
+     "valueId": "def96f76eb491000b2e6223c17b40000",
+     "valueLabel": "Key Account Management - IC1"
+    }
+   ],
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/DeliveryHero/postings/744000153252150",
+   "creator": {
+    "name": "Sofia Barrionuevo"
+   },
+   "language": {
+    "code": "en",
+    "label": "English",
+    "labelNative": "English (US)"
+   }
+  },
+  {
+   "id": "744000153251729",
+   "name": "Sales Executive Sr",
+   "uuid": "c5ea2dab-c70d-4112-87e9-3fa0be9d622a",
+   "jobAdId": "53cef374-47cf-4148-83a2-80e6555b1f04",
+   "defaultJobAd": true,
+   "refNumber": "JR0087039",
+   "company": {
+    "identifier": "DeliveryHero",
+    "name": "Delivery Hero"
+   },
+   "releasedDate": "2026-10-02T18:21:25.603Z",
+   "location": {
+    "city": "San Salvador",
+    "country": "sv",
+    "remote": false,
+    "hybrid": true,
+    "fullLocation": "San Salvador, , El Salvador"
+   },
+   "industry": {
+    "id": "internet",
+    "label": "Internet"
+   },
+   "department": {},
+   "function": {
+    "id": "sales",
+    "label": "Sales"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "mid_senior_level",
+    "label": "Mid-Senior Level"
+   },
+   "customField": [
+    {
+     "fieldId": "6564ae9ddd552072c3a97453",
+     "fieldLabel": "Time Type",
+     "valueId": "421938a4e1d40118e396324490147300",
+     "valueLabel": "Full time"
+    },
+    {
+     "fieldId": "655ce69d695b8c5663cf1f55",
+     "fieldLabel": "Brands",
+     "valueId": "PedidosYa",
+     "valueLabel": "PedidosYa"
+    },
+    {
+     "fieldId": "6564ad6b1cf48c421e22419d",
+     "fieldLabel": "Job Family",
+     "valueId": "75439315e9751000915150c1ccdc0000",
+     "valueLabel": "Sales Account Management"
+    },
+    {
+     "fieldId": "6564ad3fee5f2f5b84045448",
+     "fieldLabel": "Job Family Group",
+     "valueId": "75439315e97510004b9c1be43b920000",
+     "valueLabel": "Sales"
+    },
+    {
+     "fieldId": "6564aa853d74d30a33089d2a",
+     "fieldLabel": "Supervisory Organization",
+     "valueId": "835a90244f8d1000a1c43e3656f70000",
+     "valueLabel": "Commercial - Sales - SLV - Team D - HIE08263"
+    },
+    {
+     "fieldId": "COUNTRY",
+     "fieldLabel": "Country/Region",
+     "valueId": "sv",
+     "valueLabel": "El Salvador"
+    },
+    {
+     "fieldId": "6564ad09560ccd2ba9e90d24",
+     "fieldLabel": "Management Level",
+     "valueId": "ef2e8d3982de01df9ed10f45d2163700",
+     "valueLabel": "IC2"
+    },
+    {
+     "fieldId": "6564ae71dd552072c3a97452",
+     "fieldLabel": "Worker Sub-Type",
+     "valueId": "ef2e8d3982de0123e1696445d2164400",
+     "valueLabel": "Permanent"
+    },
+    {
+     "fieldId": "6564abc0d641ff6fc90ebd6d",
+     "fieldLabel": "Primary Location",
+     "valueId": "41de4932dc8b01172040f9c3dc01fe85",
+     "valueLabel": "San Salvador - Plaza Futura"
+    },
+    {
+     "fieldId": "6564ada8e5ee8c3d9bec3405",
+     "fieldLabel": "Job Profile",
+     "valueId": "a2e7316c822c1000949ee85ba0cc0000",
+     "valueLabel": "Mid-Size Account Management - IC2"
+    }
+   ],
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/DeliveryHero/postings/744000153251729",
+   "language": {
+    "code": "es-MX",
+    "label": "Spanish (LATAM)",
+    "labelNative": "español (LATAM)"
+   }
+  },
+  {
+   "id": "744000153250510",
+   "name": "Sales Executive",
+   "uuid": "49589ff7-539a-4dc0-90a3-37696c6fac64",
+   "jobAdId": "5a4094d7-9165-4495-ae81-9eb7b9e6efe2",
+   "defaultJobAd": true,
+   "refNumber": "JR0086888",
+   "company": {
+    "identifier": "DeliveryHero",
+    "name": "Delivery Hero"
+   },
+   "releasedDate": "2026-10-02T18:21:23.886Z",
+   "location": {
+    "city": "Tegucigalpa",
+    "country": "hn",
+    "remote": false,
+    "hybrid": true,
+    "fullLocation": "Tegucigalpa, , Honduras"
+   },
+   "industry": {
+    "id": "internet",
+    "label": "Internet"
+   },
+   "department": {},
+   "function": {
+    "id": "sales",
+    "label": "Sales"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "associate",
+    "label": "Associate"
+   },
+   "customField": [
+    {
+     "fieldId": "6564ae9ddd552072c3a97453",
+     "fieldLabel": "Time Type",
+     "valueId": "421938a4e1d40118e396324490147300",
+     "valueLabel": "Full time"
+    },
+    {
+     "fieldId": "655ce69d695b8c5663cf1f55",
+     "fieldLabel": "Brands",
+     "valueId": "PedidosYa",
+     "valueLabel": "PedidosYa"
+    },
+    {
+     "fieldId": "6564ad6b1cf48c421e22419d",
+     "fieldLabel": "Job Family",
+     "valueId": "75439315e9751000914c03e872460000",
+     "valueLabel": "Sales & Business Development"
+    },
+    {
+     "fieldId": "6564ad3fee5f2f5b84045448",
+     "fieldLabel": "Job Family Group",
+     "valueId": "75439315e97510004b9c1be43b920000",
+     "valueLabel": "Sales"
+    },
+    {
+     "fieldId": "6564aa853d74d30a33089d2a",
+     "fieldLabel": "Supervisory Organization",
+     "valueId": "41de4932dc8b0122c4b12227ef01f8b3",
+     "valueLabel": "Commercial - Sales - HND - HIE04075"
+    },
+    {
+     "fieldId": "COUNTRY",
+     "fieldLabel": "Country/Region",
+     "valueId": "hn",
+     "valueLabel": "Honduras"
+    },
+    {
+     "fieldId": "6564ad09560ccd2ba9e90d24",
+     "fieldLabel": "Management Level",
+     "valueId": "ef2e8d3982de01acdf1d1c45d2163900",
+     "valueLabel": "IC1"
+    },
+    {
+     "fieldId": "6564ae71dd552072c3a97452",
+     "fieldLabel": "Worker Sub-Type",
+     "valueId": "ef2e8d3982de0123e1696445d2164400",
+     "valueLabel": "Permanent"
+    },
+    {
+     "fieldId": "6564abc0d641ff6fc90ebd6d",
+     "fieldLabel": "Primary Location",
+     "valueId": "41de4932dc8b012acfca05c4dc010886",
+     "valueLabel": "Tegucigalpa - Torre Lafise"
+    },
+    {
+     "fieldId": "6564ada8e5ee8c3d9bec3405",
+     "fieldLabel": "Job Profile",
+     "valueId": "a2e7316c822c1000949d3f0414210000",
+     "valueLabel": "Sales Acquisition - IC1"
+    }
+   ],
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/DeliveryHero/postings/744000153250510",
+   "language": {
+    "code": "es-MX",
+    "label": "Spanish (LATAM)",
+    "labelNative": "español (LATAM)"
+   }
+  }
+ ]
+}

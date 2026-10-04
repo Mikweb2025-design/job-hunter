@@ -8,7 +8,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-from .apply_email import apply_fields
+from .apply_email import apply_fields as _apply_fields_text
+
+# Company career-site feeds (Greenhouse, Lever, Personio, SmartRecruiters): the application
+# channel is the portal form. Their texts contain contact addresses (accessibility, privacy,
+# recruiting team) that are NOT application addresses → always "apply manually".
+PORTAL_SOURCES = {"greenhouse", "lever", "personio", "smartrecruiters"}
+
+
+def apply_fields(description: str | None, source: str | None = None) -> dict:
+    if (source or "") in PORTAL_SOURCES:
+        return {"apply_email": None, "apply_method": "manual", "apply_email_source": None}
+    return _apply_fields_text(description)
 from .dedup import dedup_key, normalize_company
 from .models import JobPosting
 from .scoring import combined_score
@@ -72,6 +83,11 @@ CREATE TABLE IF NOT EXISTS sent_log (
 );
 CREATE INDEX IF NOT EXISTS idx_sent_job ON sent_log(job_id);
 CREATE INDEX IF NOT EXISTS idx_sent_company ON sent_log(company_norm, sent_at);
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS client_state (
     client TEXT PRIMARY KEY,
     state TEXT NOT NULL,
@@ -117,7 +133,7 @@ class Database:
                     continue
                 if (r["source"] or "").endswith("-alert"):
                     continue  # job-alert e-mails: always "apply manually" unless set by hand
-                f = apply_fields(r["description"])
+                f = apply_fields(r["description"], r["source"])
                 c.execute("UPDATE jobs SET apply_email=?, apply_method=?, apply_email_source=? WHERE id=?",
                           (f["apply_email"], f["apply_method"], f["apply_email_source"], r["id"]))
                 n += 1
@@ -169,7 +185,7 @@ class Database:
             if len(job.description or "") > len(row["description"] or ""):
                 updates["description"] = job.description
                 if row["apply_email_source"] != "manuell":
-                    updates.update(apply_fields(job.description))
+                    updates.update(apply_fields(job.description, row["source"]))
             sets = ", ".join(f"{k}=?" for k in updates)
             c.execute(f"UPDATE jobs SET {sets} WHERE id=?", (*updates.values(), row["id"]))
 
@@ -187,7 +203,7 @@ class Database:
                  int(job.salary_predicted), job.published, now_iso(), rule_score,
                  json.dumps(breakdown, ensure_ascii=False), rule_score, now_iso(),
                  ",".join(sorted(job.extra.get("also_seen", ()))) or None,
-                 *apply_fields(job.description).values()),
+                 *apply_fields(job.description, job.source).values()),
             )
             return cur.lastrowid if cur.rowcount else None
 
@@ -308,6 +324,32 @@ class Database:
         d = dict(r)
         d["dry_run"] = bool(d["dry_run"])
         return d
+
+    # ---- settings (key -> JSON; edited in the UI, survive deploys of config.yaml) ----
+    def get_setting(self, key: str, default: Any = None) -> Any:
+        with self.conn() as c:
+            row = c.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+        if not row:
+            return default
+        try:
+            return json.loads(row["value"])
+        except json.JSONDecodeError:
+            return default
+
+    def setting_updated_at(self, key: str) -> str | None:
+        with self.conn() as c:
+            row = c.execute("SELECT updated_at FROM settings WHERE key=?", (key,)).fetchone()
+        return row["updated_at"] if row else None
+
+    def set_setting(self, key: str, value: Any) -> None:
+        with self.conn() as c:
+            c.execute("INSERT INTO settings (key, value, updated_at) VALUES (?,?,?) "
+                      "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+                      (key, json.dumps(value, ensure_ascii=False), now_iso()))
+
+    def delete_setting(self, key: str) -> None:
+        with self.conn() as c:
+            c.execute("DELETE FROM settings WHERE key=?", (key,))
 
     # ---- client heartbeat (e.g. the macOS app's "Automatisch senden" toggle) ----
     def set_client_state(self, client: str, state: dict) -> None:

@@ -1,0 +1,216 @@
+{
+ "jobs": [
+  {
+   "absolute_url": "https://sumup.com/careers/positions/8785333002?gh_jid=8785333002",
+   "data_compliance": [
+    {
+     "type": "gdpr",
+     "requires_consent": false,
+     "requires_processing_consent": false,
+     "requires_retention_consent": false,
+     "retention_period": null,
+     "demographic_data_consent_applies": false
+    }
+   ],
+   "internal_job_id": 6514542002,
+   "location": {
+    "name": "Berlin, Germany"
+   },
+   "metadata": null,
+   "id": 8785333002,
+   "updated_at": "2026-09-22T08:18:21-04:00",
+   "requisition_id": "3374",
+   "title": "Backend Engineer (Golang) - Bank Balance",
+   "company_name": "SumUp",
+   "first_published": "2026-09-07T10:38:30-04:00",
+   "language": "en",
+   "application_deadline": null
+  },
+  {
+   "absolute_url": "https://sumup.com/careers/positions/8789067002?gh_jid=8789067002",
+   "data_compliance": [
+    {
+     "type": "gdpr",
+     "requires_consent": false,
+     "requires_processing_consent": false,
+     "requires_retention_consent": false,
+     "retention_period": null,
+     "demographic_data_consent_applies": false
+    }
+   ],
+   "internal_job_id": 6514542002,
+   "location": {
+    "name": "Berlin, Germany"
+   },
+   "metadata": null,
+   "id": 8789067002,
+   "updated_at": "2026-09-22T08:18:21-04:00",
+   "requisition_id": "3374",
+   "title": "Backend Engineer (Golang) - Transfers Europe",
+   "company_name": "SumUp",
+   "first_published": "2026-09-09T06:19:26-04:00",
+   "language": "en",
+   "application_deadline": null
+  },
+  {
+   "absolute_url": "https://sumup.com/careers/positions/8615894002?gh_jid=8615894002",
+   "data_compliance": [
+    {
+     "type": "gdpr",
+     "requires_consent": false,
+     "requires_processing_consent": false,
+     "requires_retention_consent": false,
+     "retention_period": null,
+     "demographic_data_consent_applies": false
+    }
+   ],
+   "internal_job_id": 6441086002,
+   "location": {
+    "name": "Berlin, Germany"
+   },
+   "metadata": null,
+   "id": 8615894002,
+   "updated_at": "2026-09-22T08:18:21-04:00",
+   "requisition_id": "R-013454",
+   "title": "Brand & Marketing Design Intern",
+   "company_name": "SumUp",
+   "first_published": "2026-07-23T04:20:02-04:00",
+   "language": "en",
+   "application_deadline": null
+  },
+  {
+   "absolute_url": "https://sumup.com/careers/positions/8573120002?gh_jid=8573120002",
+   "data_compliance": [
+    {
+     "type": "gdpr",
+     "requires_consent": false,
+     "requires_processing_consent": false,
+     "requires_retention_consent": false,
+     "retention_period": null,
+     "demographic_data_consent_applies": false
+    }
+   ],
+   "internal_job_id": 6424253002,
+   "location": {
+    "name": "Berlin, Germany"
+   },
+   "metadata": null,
+   "id": 8573120002,
+   "updated_at": "2026-09-23T06:30:55-04:00",
+   "requisition_id": "3343",
+   "title": "Customer Support Agent- DE",
+   "company_name": "SumUp",
+   "first_published": "2026-06-01T10:31:48-04:00",
+   "language": "en",
+   "application_deadline": null,
+   "content": "&lt;p&gt;Du hilfst unseren Kunden per Telefon und E-Mail. Bewerbung an jobs@sumup.example&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Deutsch und Englisch&lt;/li&gt;&lt;/ul&gt;"
+  },
+  {
+   "absolute_url": "https://sumup.com/careers/positions/8580040002?gh_jid=8580040002",
+   "data_compliance": [
+    {
+     "type": "gdpr",
+     "requires_consent": false,
+     "requires_processing_consent": false,
+     "requires_retention_consent": false,
+     "retention_period": null,
+     "demographic_data_consent_applies": false
+    }
+   ],
+   "internal_job_id": 6427073002,
+   "location": {
+    "name": "Amsterdam, Netherlands"
+   },
+   "metadata": null,
+   "id": 8580040002,
+   "updated_at": "2026-09-22T08:18:21-04:00",
+   "requisition_id": "3346",
+   "title": "Customer Support Agent",
+   "company_name": "SumUp",
+   "first_published": "2026-06-08T04:44:34-04:00",
+   "language": "en",
+   "application_deadline": null
+  },
+  {
+   "absolute_url": "https://sumup.com/careers/positions/8573120002?gh_jid=8573120002",
+   "data_compliance": [
+    {
+     "type": "gdpr",
+     "requires_consent": false,
+     "requires_processing_consent": false,
+     "requires_retention_consent": false,
+     "retention_period": null,
+     "demographic_data_consent_applies": false
+    }
+   ],
+   "internal_job_id": 6424253002,
+   "location": {
+    "name": "Berlin, Germany"
+   },
+   "metadata": null,
+   "id": 8573120002,
+   "updated_at": "2026-09-23T06:30:55-04:00",
+   "requisition_id": "3343",
+   "title": "Customer Support Agent- DE",
+   "company_name": "SumUp",
+   "first_published": "2026-06-01T10:31:48-04:00",
+   "language": "en",
+   "application_deadline": null
+  },
+  {
+   "absolute_url": "https://sumup.com/careers/positions/8340138002?gh_jid=8340138002",
+   "data_compliance": [
+    {
+     "type": "gdpr",
+     "requires_consent": false,
+     "requires_processing_consent": false,
+     "requires_retention_consent": false,
+     "retention_period": null,
+     "demographic_data_consent_applies": false
+    }
+   ],
+   "internal_job_id": 6330805002,
+   "location": {
+    "name": "Barcelona, Barcelona, Spain"
+   },
+   "metadata": null,
+   "id": 8340138002,
+   "updated_at": "2026-09-22T08:18:21-04:00",
+   "requisition_id": "3240",
+   "title": "Customer Support Agent- DE",
+   "company_name": "SumUp",
+   "first_published": "2026-01-07T05:52:43-05:00",
+   "language": "en",
+   "application_deadline": null
+  },
+  {
+   "absolute_url": "https://sumup.com/careers/positions/7303394002?gh_jid=7303394002",
+   "data_compliance": [
+    {
+     "type": "gdpr",
+     "requires_consent": false,
+     "requires_processing_consent": false,
+     "requires_retention_consent": false,
+     "retention_period": null,
+     "demographic_data_consent_applies": false
+    }
+   ],
+   "internal_job_id": 5866226002,
+   "location": {
+    "name": "Santiago, Chile"
+   },
+   "metadata": null,
+   "id": 7303394002,
+   "updated_at": "2026-09-25T05:37:58-04:00",
+   "requisition_id": "2824",
+   "title": "Customer Support Agent (Horario Rotativo)",
+   "company_name": "SumUp",
+   "first_published": "2024-04-17T16:06:32-04:00",
+   "language": "es",
+   "application_deadline": null
+  }
+ ],
+ "meta": {
+  "total": 8
+ }
+}

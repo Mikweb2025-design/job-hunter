@@ -144,6 +144,10 @@ class Settings:
     ui_lang: str = "de"
     send: SendConfig = field(default_factory=SendConfig)
     applicant: ApplicantConfig = field(default_factory=ApplicantConfig)
+    # config.yaml values before the UI overrides (DB table `settings`) were applied;
+    # set by search_profile.apply_overrides (None = no overrides applied yet).
+    profile_base: SearchProfile | None = None
+    sources_base: dict[str, Any] | None = None
 
     @property
     def db_path(self) -> Path:

@@ -19,6 +19,7 @@ log = logging.getLogger(__name__)
 BASE = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service"
 SEARCH_PATHS = ["/pc/v6/jobs", "/pc/v4/app/jobs", "/pc/v4/jobs"]
 DETAIL_PATHS = ["/pc/v4/jobdetails/{code}", "/pc/v3/jobdetails/{code}"]
+REMOTE_ONLY = "_remote_only"
 HOURS_PER_YEAR = 1720  # conservative full-time estimate for hourly wages
 
 
@@ -125,15 +126,20 @@ class ArbeitsagenturSource(Source):
         for q in profile.queries:
             searches.append({"was": q, "wo": profile.location, "umkreis": profile.radius_km})
             if profile.remote_ok and self.options.get("remote_search", True):
-                searches.append({"was": q, "arbeitszeit": "ho"})  # home office, Germany-wide
+                # Home office, Germany-wide. The v6 API ignores/zeroes the old `arbeitszeit=ho`
+                # filter (always 0 hits, checked 04.10.2026) → search nationwide and keep only
+                # postings with homeofficemoeglich=true.
+                searches.append({"was": q, REMOTE_ONLY: True})
         out: list[JobPosting] = []
         for base_params in searches:
+            remote_only = bool(base_params.get(REMOTE_ONLY))
+            base_params = {k: v for k, v in base_params.items() if k != REMOTE_ONLY}
             for page in range(1, max_pages + 1):
                 params = {**base_params, "angebotsart": 1, "veroeffentlichtseit": profile.days_back,
                           "size": size, "page": page, "pav": "false"}
                 data = self._search(params)
                 batch = parse_search_response(data)
-                out.extend(batch)
+                out.extend(p for p in batch if p.remote or not remote_only)
                 total = int(data.get("maxErgebnisse") or 0)
                 if len(batch) < size or page * size >= total:
                     break

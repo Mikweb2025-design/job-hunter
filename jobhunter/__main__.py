@@ -32,6 +32,11 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"),
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     settings = load_settings(args.config)
+    from .db import Database
+    from .search_profile import apply_overrides, sync_cv_on_start
+    _db = Database(settings.db_path)
+    sync_cv_on_start(settings, _db)
+    apply_overrides(settings, _db)   # Suchprofil/Quellen aus der UI (DB) über config.yaml
 
     if args.cmd == "run":
         from .pipeline import run_cycle

@@ -31,6 +31,14 @@ SOURCE_LABELS = {
     "arbeitsagentur": "Arbeitsagentur",
     "adzuna": "Adzuna",
     "rss": "RSS",
+    "arbeitnow": "Arbeitnow",
+    "remotive": "Remotive",
+    "jobicy": "Jobicy",
+    "berlinstartupjobs": "Berlin Startup Jobs",
+    "greenhouse": "Karriereseite (Greenhouse)",
+    "lever": "Karriereseite (Lever)",
+    "personio": "Karriereseite (Personio)",
+    "smartrecruiters": "Karriereseite (SmartRecruiters)",
     **ALERT_SOURCES,
 }
 # Below this many characters of posting text no KI letter is written automatically.

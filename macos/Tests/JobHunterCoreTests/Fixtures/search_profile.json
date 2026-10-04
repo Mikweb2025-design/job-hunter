@@ -1,0 +1,376 @@
+{
+    "profile": {
+        "queries": [
+            "Support Engineer",
+            "Technical Support",
+            "Cloud Support",
+            "Technical Account Manager",
+            "Application Support",
+            "Platform Engineer"
+        ],
+        "location": "Berlin",
+        "radius_km": 30,
+        "remote_ok": true,
+        "days_back": 7,
+        "min_salary": 44000,
+        "target_titles": [
+            "Support Engineer",
+            "Technical Support Engineer",
+            "Technical Support Specialist",
+            "Cloud Support Engineer",
+            "Technical Account Manager",
+            "Application Support",
+            "Customer Success Engineer",
+            "Solutions Engineer",
+            "DevOps Engineer",
+            "Platform Engineer",
+            "Site Reliability Engineer",
+            "IT Support Specialist",
+            "AI Engineer"
+        ],
+        "excluded_title_keywords": [
+            "Praktikum",
+            "Praktikant",
+            "Werkstudent",
+            "Ausbildung",
+            "Azubi",
+            "Junior",
+            "Minijob",
+            "Elektriker",
+            "Mechatroniker",
+            "Vertriebsmitarbeiter"
+        ],
+        "excluded_keywords": [
+            "Schichtdienst",
+            "Zeitarbeit",
+            "Arbeitnehmer\u00fcberlassung"
+        ],
+        "keyword_weights": {
+            "Nextcloud": 4.0,
+            "Support": 2.0,
+            "Linux": 2.0,
+            "Python": 2.0,
+            "Docker": 2.0,
+            "S3": 2.0,
+            "Ticket": 1.5,
+            "LLM": 2.0,
+            "MCP": 2.0
+        },
+        "keyword_saturation": 15.0,
+        "extra_locations": []
+    },
+    "base": {
+        "queries": [
+            "Support Engineer",
+            "Technical Support",
+            "Cloud Support",
+            "Technical Account Manager",
+            "Application Support",
+            "Platform Engineer"
+        ],
+        "location": "Berlin",
+        "radius_km": 30,
+        "remote_ok": true,
+        "days_back": 7,
+        "min_salary": 44000,
+        "target_titles": [
+            "Support Engineer",
+            "Technical Support Engineer",
+            "Technical Support Specialist",
+            "Cloud Support Engineer",
+            "Technical Account Manager",
+            "Application Support",
+            "Customer Success Engineer",
+            "Solutions Engineer",
+            "DevOps Engineer",
+            "Platform Engineer",
+            "Site Reliability Engineer",
+            "IT Support Specialist",
+            "AI Engineer"
+        ],
+        "excluded_title_keywords": [
+            "Praktikum",
+            "Praktikant",
+            "Werkstudent",
+            "Ausbildung",
+            "Azubi",
+            "Junior",
+            "Minijob",
+            "Elektriker",
+            "Mechatroniker",
+            "Vertriebsmitarbeiter"
+        ],
+        "excluded_keywords": [
+            "Schichtdienst",
+            "Zeitarbeit",
+            "Arbeitnehmer\u00fcberlassung"
+        ],
+        "keyword_weights": {
+            "Nextcloud": 4.0,
+            "Support": 2.0,
+            "Linux": 2.0,
+            "Python": 2.0,
+            "Docker": 2.0,
+            "S3": 2.0,
+            "Ticket": 1.5,
+            "LLM": 2.0,
+            "MCP": 2.0
+        },
+        "keyword_saturation": 15.0,
+        "extra_locations": []
+    },
+    "override": {},
+    "overridden": [],
+    "sources": [
+        {
+            "id": "arbeitsagentur",
+            "label": "Arbeitsagentur (Jobb\u00f6rse der BA)",
+            "kind": "Suche",
+            "info": "Offizielle, \u00f6ffentliche Such-API der Bundesagentur f\u00fcr Arbeit.",
+            "url": null,
+            "enabled": true,
+            "configured": true,
+            "reason": null,
+            "options": {
+                "max_pages": 2,
+                "remote_search": true
+            },
+            "option_types": {
+                "max_pages": [
+                    "int",
+                    1,
+                    5
+                ],
+                "remote_search": [
+                    "bool"
+                ]
+            }
+        },
+        {
+            "id": "adzuna",
+            "label": "Adzuna",
+            "kind": "Suche",
+            "info": "Braucht kostenlose Schl\u00fcssel ADZUNA_APP_ID / ADZUNA_APP_KEY in der .env des Servers (selbst eintragen, nie hier).",
+            "url": "https://developer.adzuna.com/signup",
+            "enabled": true,
+            "configured": false,
+            "reason": "ADZUNA_APP_ID/ADZUNA_APP_KEY fehlen",
+            "options": {
+                "max_pages": 1
+            },
+            "option_types": {
+                "max_pages": [
+                    "int",
+                    1,
+                    3
+                ]
+            }
+        },
+        {
+            "id": "arbeitnow",
+            "label": "Arbeitnow",
+            "kind": "Feed",
+            "info": "Freie Job-API (viele Berliner Tech-Firmen). Lokal nach Titel und Ort gefiltert.",
+            "url": "https://www.arbeitnow.com/blog/job-board-api",
+            "enabled": false,
+            "configured": true,
+            "reason": null,
+            "options": {
+                "max_pages": 1
+            },
+            "option_types": {
+                "max_pages": [
+                    "int",
+                    1,
+                    3
+                ]
+            }
+        },
+        {
+            "id": "remotive",
+            "label": "Remotive (Remote)",
+            "kind": "Feed",
+            "info": "Remote-Stellen, die f\u00fcr Deutschland/Europa offen sind. Max. 1 Abruf pro Lauf.",
+            "url": "https://remotive.com/api-documentation",
+            "enabled": false,
+            "configured": true,
+            "reason": null,
+            "options": {
+                "category": ""
+            },
+            "option_types": {
+                "category": [
+                    "choice",
+                    "",
+                    "customer-support",
+                    "devops",
+                    "software-dev",
+                    "all-others"
+                ]
+            }
+        },
+        {
+            "id": "jobicy",
+            "label": "Jobicy (Remote)",
+            "kind": "Feed",
+            "info": "Remote-Stellen mit Region Deutschland/EMEA/Europa/weltweit.",
+            "url": "https://jobicy.com/jobs-rss-feed",
+            "enabled": false,
+            "configured": true,
+            "reason": null,
+            "options": {
+                "geo": "germany"
+            },
+            "option_types": {
+                "geo": [
+                    "choice",
+                    "germany",
+                    "emea",
+                    "europe"
+                ]
+            }
+        },
+        {
+            "id": "berlinstartupjobs",
+            "label": "Berlin Startup Jobs",
+            "kind": "Feed",
+            "info": "\u00d6ffentliche RSS-Feeds (Engineering + alle). Nur Berlin.",
+            "url": "https://berlinstartupjobs.com/",
+            "enabled": false,
+            "configured": true,
+            "reason": null,
+            "options": {},
+            "option_types": {}
+        },
+        {
+            "id": "ats",
+            "label": "Karriereseiten von Firmen",
+            "kind": "Firmen",
+            "info": "\u00d6ffentliche Job-Feeds der Bewerbermanagement-Systeme (Greenhouse, Lever, Personio, SmartRecruiters) \u2013 ein Abruf pro Firma. K\u00fcrzel = Teil der Karriere-URL, z. B. boards.greenhouse.io/<k\u00fcrzel>.",
+            "url": null,
+            "enabled": false,
+            "configured": false,
+            "reason": "keine Firmen eingetragen",
+            "options": {
+                "companies": []
+            },
+            "option_types": {
+                "companies": [
+                    "companies"
+                ]
+            }
+        },
+        {
+            "id": "rss",
+            "label": "Eigene RSS-Feeds",
+            "kind": "Feed",
+            "info": "Beliebige RSS/Atom-Job-Feeds.",
+            "url": null,
+            "enabled": false,
+            "configured": false,
+            "reason": "keine Feeds konfiguriert",
+            "options": {
+                "feeds": []
+            },
+            "option_types": {
+                "feeds": [
+                    "feeds"
+                ]
+            }
+        }
+    ],
+    "sources_override": {},
+    "ats_examples": [
+        {
+            "ats": "greenhouse",
+            "token": "sumup",
+            "name": "SumUp"
+        },
+        {
+            "ats": "greenhouse",
+            "token": "n26",
+            "name": "N26"
+        },
+        {
+            "ats": "greenhouse",
+            "token": "getyourguide",
+            "name": "GetYourGuide"
+        },
+        {
+            "ats": "greenhouse",
+            "token": "contentful",
+            "name": "Contentful"
+        },
+        {
+            "ats": "greenhouse",
+            "token": "hellofresh",
+            "name": "HelloFresh"
+        },
+        {
+            "ats": "smartrecruiters",
+            "token": "DeliveryHero",
+            "name": "Delivery Hero"
+        }
+    ],
+    "ats_types": {
+        "greenhouse": "Greenhouse",
+        "lever": "Lever",
+        "personio": "Personio",
+        "smartrecruiters": "SmartRecruiters"
+    },
+    "limits": {
+        "queries": {
+            "min_items": 1,
+            "max_items": 30,
+            "max_len": 80
+        },
+        "target_titles": {
+            "max_items": 60,
+            "max_len": 80
+        },
+        "excluded_title_keywords": {
+            "max_items": 100,
+            "max_len": 60
+        },
+        "excluded_keywords": {
+            "max_items": 100,
+            "max_len": 60
+        },
+        "extra_locations": {
+            "max_items": 10,
+            "max_len": 60
+        },
+        "location": {
+            "max_len": 80
+        },
+        "radius_km": {
+            "min": 0,
+            "max": 200
+        },
+        "days_back": {
+            "min": 1,
+            "max": 100
+        },
+        "min_salary": {
+            "min": 0,
+            "max": 300000
+        },
+        "keyword_weights": {
+            "max_items": 200,
+            "min": 0,
+            "max": 10,
+            "max_len": 60
+        },
+        "keyword_saturation": {
+            "min": 1,
+            "max": 100
+        }
+    },
+    "updated_at": null,
+    "rescore": {
+        "busy": false,
+        "done": null,
+        "finished_at": null,
+        "error": null
+    }
+}

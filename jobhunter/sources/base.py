@@ -68,3 +68,58 @@ class Source(ABC):
     def enrich(self, job: JobPosting) -> JobPosting:
         """Optionally fetch full details for a *new* posting. Default: nothing."""
         return job
+
+
+# ---- local filtering for sources without a usable server-side search -----------------------
+# (Arbeitnow, Remotive, Jobicy, company ATS feeds deliver many unrelated postings; we keep only
+# those whose title fits a search query / target title and whose place fits the profile.)
+_STOP = {"m", "w", "d", "f", "x", "in", "und", "and", "the", "der", "die", "das", "for", "of", "mit", "with"}
+
+
+def _tokens(text: str) -> list[str]:
+    from ..dedup import normalize_title
+    return [t for t in normalize_title(text).replace("-", " ").split() if t not in _STOP]
+
+
+def title_matches(title: str, phrases: list[str]) -> str | None:
+    """The first phrase whose words all appear in the title (word prefix match, so "Support"
+    also matches "Supporter"/"Support-Engineer"), else None."""
+    words = _tokens(title)
+    if not words:
+        return None
+    for phrase in phrases:
+        want = _tokens(phrase)
+        # prefix match allows plural/inflection ("Engineers", "Supporter"), not other words
+        # ("Engineering" ≠ "Engineer")
+        if want and all(any(w.startswith(t) and len(w) - len(t) <= 2 for w in words) for t in want):
+            return phrase
+    return None
+
+
+def profile_phrases(profile: SearchProfile) -> list[str]:
+    return list(dict.fromkeys([*profile.queries, *profile.target_titles]))
+
+
+REMOTE_GEO_OK = ("worldwide", "anywhere", "europe", "emea", "germany", "deutschland", "dach", "eu ",
+                 "european union", "cet", "remote")
+
+
+def remote_geo_ok(geo: str) -> bool:
+    """Remote job open to someone living in Germany? Empty = unknown = yes."""
+    g = f" {(geo or '').lower()} "
+    if not g.strip():
+        return True
+    return any(k in g for k in REMOTE_GEO_OK) or " eu," in g or g.strip() == "eu"
+
+
+def place_ok(location: str, remote: bool, profile: SearchProfile) -> bool:
+    loc = (location or "").lower()
+    places = [p.lower() for p in (profile.location, *profile.extra_locations) if p]
+    if any(p in loc for p in places):
+        return True
+    return bool(remote and profile.remote_ok)
+
+
+def keep(job: JobPosting, profile: SearchProfile, phrases: list[str] | None = None) -> bool:
+    return bool(title_matches(job.title, phrases or profile_phrases(profile))) and place_ok(
+        job.location, job.remote, profile)

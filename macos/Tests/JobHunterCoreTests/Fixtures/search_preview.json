@@ -1,0 +1,267 @@
+{
+ "queries": [
+  {
+   "query": "Support Engineer",
+   "arbeitsagentur": {
+    "local": 20,
+    "remote": 7,
+    "new_in_page": 5,
+    "page_size": 25,
+    "remote_scanned": 100
+   },
+   "feeds": {
+    "arbeitnow": 0,
+    "remotive": 0,
+    "jobicy": 0,
+    "berlinstartupjobs": 0,
+    "ats": 0
+   },
+   "samples": [
+    {
+     "title": "Professional IT Support Engineer (all genders)",
+     "company": "]init[ AG",
+     "location": "10243 Berlin"
+    },
+    {
+     "title": "SoftwareOne Deutschland GmbH: Power Platform Support Engineer (gn)",
+     "company": "SoftwareOne Deutschland GmbH",
+     "location": "12489 Berlin"
+    },
+    {
+     "title": "SHD System-Haus-Dresden GmbH: System Engineer (m/w/d) - Support",
+     "company": "SHD System-Haus-Dresden GmbH",
+     "location": "12435 Berlin"
+    }
+   ],
+   "total": 27
+  },
+  {
+   "query": "Technical Support",
+   "arbeitsagentur": {
+    "local": 12,
+    "remote": 14,
+    "new_in_page": 11,
+    "page_size": 25,
+    "remote_scanned": 100
+   },
+   "feeds": {
+    "arbeitnow": 0,
+    "remotive": 0,
+    "jobicy": 0,
+    "berlinstartupjobs": 0,
+    "ats": 0
+   },
+   "samples": [
+    {
+     "title": "NTT DATA Deutschland SE: (Senior) Technical Consultant Identity & Access Management (w/m/x)",
+     "company": "NTT DATA Deutschland SE",
+     "location": "10117 Berlin"
+    },
+    {
+     "title": "Software Engineer (all genders)",
+     "company": "Zalando SE",
+     "location": "10243 Berlin"
+    },
+    {
+     "title": "Data Engineer: Sales&Revenue Data (all genders)",
+     "company": "Zalando SE",
+     "location": "10243 Berlin"
+    }
+   ],
+   "total": 26
+  },
+  {
+   "query": "Cloud Support",
+   "arbeitsagentur": {
+    "local": 18,
+    "remote": 10,
+    "new_in_page": 10,
+    "page_size": 25,
+    "remote_scanned": 100
+   },
+   "feeds": {
+    "arbeitnow": 0,
+    "remotive": 0,
+    "jobicy": 0,
+    "berlinstartupjobs": 0,
+    "ats": 0
+   },
+   "samples": [
+    {
+     "title": "Support 2nd Level (m/w/d)",
+     "company": "ANG GmbH",
+     "location": "Berlin"
+    },
+    {
+     "title": "Second Level Support  -Rechenzentrum (w/m/d)",
+     "company": "digatus personal GmbH",
+     "location": "10317 Berlin"
+    },
+    {
+     "title": "IT Onsite Support (w/m/d)",
+     "company": "digatus personal GmbH",
+     "location": "16761 Hennigsdorf"
+    }
+   ],
+   "total": 28
+  },
+  {
+   "query": "Technical Account Manager",
+   "arbeitsagentur": {
+    "local": 2,
+    "remote": 1,
+    "new_in_page": 0,
+    "page_size": 25,
+    "remote_scanned": 100
+   },
+   "feeds": {
+    "arbeitnow": 0,
+    "remotive": 0,
+    "jobicy": 0,
+    "berlinstartupjobs": 0,
+    "ats": 0
+   },
+   "samples": [
+    {
+     "title": "Technical Manager:in UAS",
+     "company": "Deutsche Bahn AG",
+     "location": "10789 Berlin"
+    },
+    {
+     "title": "SoftwareOne Deutschland GmbH: Presales Solutions Architect (gn) Microsoft Azure",
+     "company": "SoftwareOne Deutschland GmbH",
+     "location": "12489 Berlin"
+    }
+   ],
+   "total": 3
+  },
+  {
+   "query": "Platform Engineer",
+   "arbeitsagentur": {
+    "local": 12,
+    "remote": 8,
+    "new_in_page": 5,
+    "page_size": 25,
+    "remote_scanned": 100
+   },
+   "feeds": {
+    "arbeitnow": 0,
+    "remotive": 0,
+    "jobicy": 2,
+    "berlinstartupjobs": 0,
+    "ats": 5
+   },
+   "samples": [
+    {
+     "title": "Senior CI/CD Platform Engineer / Architect (m/w/d)",
+     "company": "BWI GmbH",
+     "location": "10115 Berlin"
+    },
+    {
+     "title": "Platform Engineer (m/w/d) Docker / Kubernetes / OKD, BNotK Berlin",
+     "company": "Bundesnotarkammer KdöR",
+     "location": "10117 Berlin"
+    },
+    {
+     "title": "SoftwareOne Deutschland GmbH: Power Platform Support Engineer (gn)",
+     "company": "SoftwareOne Deutschland GmbH",
+     "location": "12489 Berlin"
+    }
+   ],
+   "total": 27
+  }
+ ],
+ "sources": [
+  {
+   "id": "arbeitnow",
+   "label": "Arbeitnow",
+   "fetched": 325,
+   "matching": 0,
+   "new": 0,
+   "samples": []
+  },
+  {
+   "id": "remotive",
+   "label": "Remotive (Remote)",
+   "fetched": 16,
+   "matching": 2,
+   "new": 2,
+   "samples": [
+    {
+     "title": "Senior AI Engineer",
+     "company": "Lemon.io",
+     "location": "Remote (Northern America, LATAM, Europe, APAC)"
+    },
+    {
+     "title": "Senior Independent AI Engineer / Architect",
+     "company": "A.Team",
+     "location": "Remote (Americas, Europe, Israel)"
+    }
+   ]
+  },
+  {
+   "id": "jobicy",
+   "label": "Jobicy (Remote)",
+   "fetched": 100,
+   "matching": 5,
+   "new": 5,
+   "samples": [
+    {
+     "title": "Engineering Manager, EMEA (Platform)",
+     "company": "Testlio",
+     "location": "Remote (EMEA)"
+    },
+    {
+     "title": "Site Reliability Engineering Manager",
+     "company": "Canonical",
+     "location": "Remote (APAC,  EMEA)"
+    },
+    {
+     "title": "Senior Software Engineer (AI CICD)",
+     "company": "Chainguard",
+     "location": "Remote (Europe,  UK,  USA)"
+    }
+   ]
+  },
+  {
+   "id": "berlinstartupjobs",
+   "label": "Berlin Startup Jobs",
+   "fetched": 24,
+   "matching": 1,
+   "new": 1,
+   "samples": [
+    {
+     "title": "Cloud & DevOps Engineer – Kubernetes, Edge & Cloud",
+     "company": "DATATRONiQ",
+     "location": "Berlin"
+    }
+   ]
+  },
+  {
+   "id": "ats",
+   "label": "Karriereseiten von Firmen",
+   "fetched": 925,
+   "matching": 8,
+   "new": 8,
+   "samples": [
+    {
+     "title": "Data Platform Engineer",
+     "company": "SumUp",
+     "location": "Berlin, Germany"
+    },
+    {
+     "title": "Senior DevOps Engineer",
+     "company": "SumUp",
+     "location": "Berlin, Germany"
+    },
+    {
+     "title": "Senior Machine Learning Engineer - Platform Team",
+     "company": "SumUp",
+     "location": "Berlin, Germany"
+    }
+   ]
+  }
+ ],
+ "cached": false,
+ "generated_at": "2026-10-04T09:13:05+00:00"
+}

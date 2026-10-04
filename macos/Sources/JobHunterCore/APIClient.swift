@@ -195,7 +195,7 @@ public struct APIClient: Sendable {
         return e
     }()
 
-    public static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+    public static func decode<T: Decodable>(_ type: T.Type, from data: Data, using decoder: JSONDecoder = decoder) throws -> T {
         do {
             return try decoder.decode(T.self, from: data)
         } catch let DecodingError.keyNotFound(key, ctx) {
@@ -226,8 +226,8 @@ public struct APIClient: Sendable {
         return req
     }
 
-    private func send<T: Decodable>(_ method: String, _ path: String, query: [URLQueryItem] = [],
-                                    body: Data? = nil) async throws -> T {
+    func send<T: Decodable>(_ method: String, _ path: String, query: [URLQueryItem] = [],
+                            body: Data? = nil, decoder: JSONDecoder = APIClient.decoder) async throws -> T {
         let req = makeRequest(method, path, query: query, body: body)
         let data: Data
         let response: URLResponse
@@ -241,7 +241,7 @@ public struct APIClient: Sendable {
         guard let http = response as? HTTPURLResponse else { throw APIError.transport("keine HTTP-Antwort") }
         switch http.statusCode {
         case 200..<300:
-            return try Self.decode(T.self, from: data)
+            return try Self.decode(T.self, from: data, using: decoder)
         case 401, 403:
             if http.statusCode == 403, let detail = Self.detail(from: data) {
                 throw APIError.server(status: 403, detail: detail)
@@ -249,6 +249,8 @@ public struct APIClient: Sendable {
             throw APIError.unauthorized
         case 404:
             throw APIError.notFound
+        case 429:
+            throw APIError.server(status: 429, detail: Self.detail(from: data) ?? "Bitte kurz warten.")
         default:
             throw APIError.server(status: http.statusCode, detail: Self.detail(from: data))
         }

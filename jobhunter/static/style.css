@@ -170,3 +170,39 @@ ol.todo { list-style: none; padding: 0; margin: 0; display: flex; flex-direction
   .todo-actions .button { justify-content: center; }
   .topbar nav a { display: none; }
 }
+/* ---- Suchprofil & Profil ---- */
+.profile-grid { grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); }
+.field { margin-bottom: 14px; }
+.field .lbl { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 14px; align-items: end; }
+label.check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
+label.inline { flex-direction: row; align-items: center; gap: 6px; }
+.chips-edit { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.chips-edit .chip-input { border: 0; flex: 1 1 160px; min-width: 120px; padding: 4px; background: transparent; }
+.chips-edit .chip-input:focus { outline: none; }
+.chips-edit:focus-within { border-color: var(--accent); }
+.editchip { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; overflow-wrap: anywhere; }
+.profile-grid > div { min-width: 0; }
+.form-grid input[type=range] { width: 100%; }
+button.x { background: transparent; color: var(--muted); border: 0; padding: 0 4px; min-height: 0; font-size: 1rem; line-height: 1; }
+button.x:hover { color: var(--err); }
+table.kwtable { border-collapse: collapse; margin-bottom: 6px; }
+table.kwtable td, table.kwtable th { padding: 2px 8px 2px 0; text-align: left; font-size: .9rem; }
+table.kwtable input { width: 5rem; }
+.savebar { position: sticky; bottom: 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 0;
+  background: var(--bg); border-top: 1px solid var(--border); z-index: 3; }
+.srcrow { border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+.srcrow:last-child { border-bottom: 0; }
+.srchead { font-size: .95rem; }
+ul.plain { list-style: none; padding: 0; margin: 4px 0; }
+ul.plain li { padding: 3px 0; }
+ul.sugg li.added { opacity: .5; }
+table.preview { width: 100%; border-collapse: collapse; }
+table.preview th, table.preview td { border-bottom: 1px solid var(--border); padding: 4px; vertical-align: top; text-align: left; }
+table.preview td.num, table.preview th:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+#preview-out { overflow-x: auto; }
+.companies { width: 100%; }
+@media (max-width: 860px) {
+  .profile-grid { grid-template-columns: minmax(0, 1fr); }
+  .company-add input { flex: 1 1 120px; }
+}

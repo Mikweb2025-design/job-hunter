@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import actions, alerts, letter_doc, letters, links, pipeline
+from . import actions, alerts, letter_doc, letters, links, pipeline, search_profile
 from .api import build_api_router
 from .config import Settings, load_settings
 from .db import Database
@@ -59,6 +59,8 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
                start_scheduler: bool = False) -> FastAPI:
     settings = settings or load_settings()
     db = db or Database(settings.db_path)
+    search_profile.sync_cv_on_start(settings, db)
+    search_profile.apply_overrides(settings, db)
     t = translator(settings.ui_lang)
     auth_enabled = bool(settings.dashboard_user and settings.dashboard_password)
     if not auth_enabled:
@@ -323,6 +325,11 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
             raise HTTPException(404)
         actions.unapprove(db, job_id)
         return RedirectResponse(f"{base}/jobs/{job_id}?msg=unapproved#mail", status_code=303)
+
+    @app.get("/profile", response_class=HTMLResponse)
+    def profile_page(request: Request):
+        """"Suchprofil & Profil": the page talks to /api/v1/search-profile, /cv-profile, … via fetch."""
+        return templates.TemplateResponse(request, "profile.html", {"active_view": "profile"})
 
     @app.get("/outbox", response_class=HTMLResponse)
     def outbox_page(request: Request):

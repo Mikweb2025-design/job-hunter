@@ -7,3 +7,5 @@ data/*.db
 data/*.db-*
 data/exports/
 .env.local
+data/cv_profile.backup-*.md
+data/cv_profile.ui-*.md

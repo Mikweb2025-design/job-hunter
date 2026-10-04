@@ -16,7 +16,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import actions, alerts, letter_doc, letters, pipeline
+from . import actions, alerts, letter_doc, letters, pipeline, search_profile
 from .config import Settings
 from .db import Database
 from .llm import LLMError, generation_busy
@@ -205,6 +205,34 @@ class WriteAll(BaseModel):
     model_config = ConfigDict(extra="forbid")
     view: str | None = None          # auto | manual | today (default: all open jobs)
     limit: int | None = Field(default=None, ge=1, le=100)  # capped at llm.max_per_run
+
+
+class SearchProfileUpdate(BaseModel):
+    """Partial update of the search profile and/or the source settings (validated in
+    jobhunter.search_profile). run_now starts a search afterwards, rescore re-scores stored jobs."""
+    model_config = ConfigDict(extra="forbid")
+    profile: dict[str, Any] | None = None
+    sources: dict[str, Any] | None = None
+    run_now: bool = False
+    rescore: bool = True
+
+
+class SearchProfilePreview(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    profile: dict[str, Any] | None = None
+    sources: dict[str, Any] | None = None
+
+
+class ResetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    what: str = "all"          # all | profile | sources
+    rescore: bool = True
+
+
+class CVUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str = Field(max_length=search_profile.CV_MAX)
+    rescore: bool = True
 
 
 def _require_json(request: Request) -> None:
@@ -402,6 +430,69 @@ def build_api_router(settings: Settings, db: Database, t) -> APIRouter:
     def run():
         started = actions.start_run(settings)
         return {"started": started, "running": True}
+
+    # ---- search profile / sources / CV profile ("Suchprofil & Profil") ------------------------
+    def _profile_error(exc: search_profile.ProfileError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc), "errors": exc.errors}, status_code=422)
+
+    @router.get("/search-profile")
+    def get_search_profile():
+        return search_profile.payload(settings, db)
+
+    @router.put("/search-profile", dependencies=write)
+    def put_search_profile(body: SearchProfileUpdate):
+        try:
+            search_profile.save(settings, db, body.profile, body.sources)
+        except search_profile.ProfileError as exc:
+            return _profile_error(exc)
+        rescore = search_profile.start_rescore(settings, db) if body.rescore else False
+        run = actions.start_run(settings) if body.run_now else False
+        return {**search_profile.payload(settings, db), "rescore_started": rescore, "run_started": run}
+
+    @router.post("/search-profile/reset", dependencies=write)
+    def reset_search_profile(body: ResetRequest | None = None):
+        body = body or ResetRequest()
+        if body.what not in ("all", "profile", "sources"):
+            raise HTTPException(422, "what: all | profile | sources")
+        search_profile.reset(settings, db, body.what)
+        rescore = search_profile.start_rescore(settings, db) if body.rescore else False
+        return {**search_profile.payload(settings, db), "rescore_started": rescore}
+
+    @router.post("/search-profile/preview", dependencies=write)
+    def preview_search_profile(body: SearchProfilePreview | None = None):
+        body = body or SearchProfilePreview()
+        try:
+            return search_profile.preview(settings, db, body.profile, body.sources)
+        except search_profile.ProfileError as exc:
+            return _profile_error(exc)
+        except search_profile.PreviewBusy as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=429, headers={"Retry-After": "10"})
+
+    @router.get("/search-profile/suggestions")
+    def search_profile_suggestions():
+        return search_profile.suggestions(settings, db)
+
+    @router.post("/rescore", status_code=202, dependencies=write)
+    def rescore():
+        started = search_profile.start_rescore(settings, db)
+        return {"started": started, **search_profile.rescore_status()}
+
+    @router.get("/rescore")
+    def rescore_status():
+        return search_profile.rescore_status()
+
+    @router.get("/cv-profile")
+    def get_cv_profile():
+        return search_profile.cv_payload(settings, db)
+
+    @router.put("/cv-profile", dependencies=write)
+    def put_cv_profile(body: CVUpdate):
+        try:
+            backup = search_profile.save_cv(settings, db, body.text)
+        except search_profile.ProfileError as exc:
+            return _profile_error(exc)
+        rescore = search_profile.start_rescore(settings, db) if body.rescore else False
+        return {**search_profile.cv_payload(settings, db), "backup": backup, "rescore_started": rescore}
 
     # ---- e-mail applications ---------------------------------------------------
     @router.get("/jobs/{job_id}/letter-document")

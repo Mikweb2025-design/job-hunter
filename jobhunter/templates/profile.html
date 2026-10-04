@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+{% block title %}Suchprofil & Profil – {{ t('app_title') }}{% endblock %}
+{% block content %}
+<h1>Suchprofil &amp; Profil</h1>
+<p class="muted small">Was gesucht wird, wo, und wie Stellen bewertet werden. Änderungen gelten sofort für Suche,
+  Bewertung und KI-Anschreiben. Die <code>config.yaml</code> bleibt unverändert (Grundwerte); „Zurücksetzen“ stellt sie wieder her.</p>
+<div id="msg" class="banner ok" hidden role="status"></div>
+<div id="err" class="banner warn" hidden role="alert"></div>
+
+<div class="grid profile-grid">
+<div class="col-main">
+  <section class="card" id="search">
+    <h2>Suche</h2>
+    <div class="field">
+      <span class="lbl">Suchbegriffe <span class="muted small">(max. 30 – je Begriff eine Suche bei der Arbeitsagentur)</span></span>
+      <div class="chips-edit" data-field="queries"></div>
+    </div>
+    <div class="form-grid">
+      <label>Ort <input id="location" type="text" maxlength="80"></label>
+      <label>Umkreis: <output id="radius_out"></output> km <input id="radius_km" type="range" min="0" max="200" step="5"></label>
+      <label>Zeitraum (Tage) <input id="days_back" type="number" min="1" max="100"></label>
+      <label>Mindestgehalt (€/Jahr) <input id="min_salary" type="number" min="0" max="300000" step="1000"></label>
+      <label class="check"><input id="remote_ok" type="checkbox"> Remote/Homeoffice deutschlandweit</label>
+    </div>
+    <div class="field">
+      <span class="lbl">Weitere Orte <span class="muted small">(zählen bei der Bewertung wie der Ort)</span></span>
+      <div class="chips-edit" data-field="extra_locations"></div>
+    </div>
+  </section>
+
+  <section class="card" id="sources">
+    <h2>Quellen</h2>
+    <p class="muted small">Nur offizielle/öffentliche Schnittstellen und Feeds – keine Bots auf Jobbörsen.
+      LinkedIn/StepStone/Indeed kommen über die Job-Alert-Mails (Mac-App).</p>
+    <div id="sources-list" class="stack"></div>
+  </section>
+
+  <section class="card" id="scoring">
+    <h2>Bewertung</h2>
+    <div class="field"><span class="lbl">Zieltitel <span class="muted small">(volle Titelpunkte bei Treffer)</span></span>
+      <div class="chips-edit" data-field="target_titles"></div></div>
+    <div class="field"><span class="lbl">Ausschluss im Titel <span class="muted small">(→ Score 0)</span></span>
+      <div class="chips-edit" data-field="excluded_title_keywords"></div></div>
+    <div class="field"><span class="lbl">Ausschluss-Wörter <span class="muted small">(im Text −10 Punkte, im Titel Score 0)</span></span>
+      <div class="chips-edit" data-field="excluded_keywords"></div></div>
+    <div class="field">
+      <span class="lbl">Keyword-Gewichte <span class="muted small">(ergänzen/überschreiben die Keywords aus dem CV-Profil, 0–10)</span></span>
+      <table class="kwtable"><thead><tr><th>Keyword</th><th>Gewicht</th><th></th></tr></thead><tbody id="kw-body"></tbody></table>
+      <div class="row"><input id="kw-new" placeholder="neues Keyword" maxlength="60"><input id="kw-new-w" type="number" value="1" min="0" max="10" step="0.5" style="width:6rem"><button type="button" class="ghost" id="kw-add">+ Hinzufügen</button></div>
+      <label style="max-width:16rem">Sättigung (Summe für volle 40 Punkte) <input id="keyword_saturation" type="number" min="1" max="100" step="1"></label>
+    </div>
+  </section>
+
+  <div class="savebar">
+    <button type="button" id="save">Speichern</button>
+    <button type="button" id="save-run">Speichern + Jetzt suchen</button>
+    <button type="button" class="ghost" id="reset">Zurücksetzen auf config.yaml</button>
+    <span id="dirty" class="small warn-text" hidden>Ungespeicherte Änderungen</span>
+  </div>
+</div>
+
+<div class="col-side">
+  <section class="card" id="preview">
+    <h2>Vorschau</h2>
+    <p class="muted small">Sucht jetzt mit den Werten im Formular (ohne zu speichern, nichts wird übernommen). Ergebnisse 10 Minuten zwischengespeichert.</p>
+    <button type="button" id="preview-btn">Vorschau</button>
+    <div id="preview-out" class="small" aria-live="polite"></div>
+  </section>
+  <section class="card" id="suggest">
+    <h2>Vorschläge</h2>
+    <p class="muted small">Aus deinem CV-Profil und den Stellen, die du als interessant/beworben markiert hast. Mit „+“ übernehmen, dann speichern.</p>
+    <div id="suggest-out" class="small">Lade …</div>
+  </section>
+</div>
+</div>
+
+<section class="card" id="cv">
+  <h2>CV-Profil (<code>cv_profile.md</code>)</h2>
+  <div class="banner warn small">⚠️ <span id="cv-warning">Nur wahre Angaben eintragen: Die KI schreibt die Anschreiben ausschließlich aus diesem Profil.</span></div>
+  <p class="muted small" id="cv-meta"></p>
+  <textarea id="cv-text" rows="24" spellcheck="true" style="width:100%;font-family:ui-monospace,Menlo,monospace;font-size:.85rem"></textarea>
+  <div class="row">
+    <button type="button" id="cv-save">CV-Profil speichern</button>
+    <span class="small muted">Vor jedem Speichern wird die alte Version als <code>data/cv_profile.backup-…md</code> gesichert. Danach werden alle Stellen neu bewertet.</span>
+  </div>
+</section>
+
+<script>
+(function () {
+  const API = '{{ base }}/api/v1';
+  const LIST_FIELDS = ['queries', 'extra_locations', 'target_titles', 'excluded_title_keywords', 'excluded_keywords'];
+  let state = null, weights = {}, sources = [], dirty = false;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+
+  async function api(path, method = 'GET', body) {
+    const r = await fetch(API + path, {method, credentials: 'same-origin',
+      headers: body !== undefined ? {'Content-Type': 'application/json'} : {},
+      body: body !== undefined ? JSON.stringify(body) : undefined});
+    let data = null; try { data = await r.json(); } catch (e) {}
+    if (!r.ok) {
+      const errs = data && data.errors ? Object.entries(data.errors).map(([k, v]) => k + ': ' + v).join(' · ') : null;
+      throw new Error(errs || (data && data.detail) || ('HTTP ' + r.status));
+    }
+    return data;
+  }
+  function show(kind, text) {
+    $('msg').hidden = kind !== 'ok'; $('err').hidden = kind !== 'err';
+    $(kind === 'ok' ? 'msg' : 'err').textContent = text;
+    if (text) window.scrollTo({top: 0, behavior: 'smooth'});
+  }
+  function markDirty() { dirty = true; $('dirty').hidden = false; }
+
+  // ---- chip lists -------------------------------------------------------------------
+  const lists = {};
+  function renderChips(field) {
+    const box = document.querySelector(`.chips-edit[data-field="${field}"]`);
+    box.innerHTML = lists[field].map((v, i) =>
+      `<span class="chip editchip">${esc(v)} <button type="button" class="x" data-i="${i}" aria-label="${esc(v)} entfernen">×</button></span>`).join('')
+      + `<input class="chip-input" placeholder="+ hinzufügen (Enter)" maxlength="80" aria-label="Eintrag hinzufügen">`;
+    box.querySelectorAll('.x').forEach((b) => b.onclick = () => { lists[field].splice(+b.dataset.i, 1); renderChips(field); markDirty(); });
+    const inp = box.querySelector('.chip-input');
+    inp.onkeydown = (e) => {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        addTo(field, inp.value); inp.value = '';
+        box.querySelector('.chip-input').focus();
+      } else if (e.key === 'Backspace' && !inp.value && lists[field].length) {
+        lists[field].pop(); renderChips(field); markDirty(); box.querySelector('.chip-input').focus();
+      }
+    };
+    inp.onblur = () => { if (inp.value.trim()) { addTo(field, inp.value); } };
+  }
+  function addTo(field, value) {
+    value = (value || '').trim().replace(/\s+/g, ' ');
+    if (!value) return false;
+    if (lists[field].some((v) => v.toLowerCase() === value.toLowerCase())) return false;
+    lists[field].push(value); renderChips(field); markDirty(); return true;
+  }
+
+  // ---- keyword weights ------------------------------------------------------------------
+  function renderWeights() {
+    $('kw-body').innerHTML = Object.entries(weights).map(([k, w]) =>
+      `<tr><td>${esc(k)}</td><td><input type="number" min="0" max="10" step="0.5" value="${w}" data-k="${esc(k)}" aria-label="Gewicht ${esc(k)}"></td>
+       <td><button type="button" class="ghost x" data-k="${esc(k)}" aria-label="${esc(k)} entfernen">×</button></td></tr>`).join('')
+      || '<tr><td colspan="3" class="muted">keine</td></tr>';
+    $('kw-body').querySelectorAll('input').forEach((i) => i.oninput = () => { weights[i.dataset.k] = parseFloat(i.value || '0'); markDirty(); });
+    $('kw-body').querySelectorAll('button').forEach((b) => b.onclick = () => { delete weights[b.dataset.k]; renderWeights(); markDirty(); });
+  }
+  $('kw-add').onclick = () => {
+    const k = $('kw-new').value.trim(); if (!k) return;
+    weights[k] = parseFloat($('kw-new-w').value || '1'); $('kw-new').value = ''; renderWeights(); markDirty();
+  };
+
+  // ---- sources ----------------------------------------------------------------------------
+  function renderSources() {
+    $('sources-list').innerHTML = sources.map((s, si) => {
+      let opts = '';
+      for (const [k, t] of Object.entries(s.option_types)) {
+        const v = s.options[k];
+        if (t[0] === 'int') opts += `<label class="inline">${k === 'max_pages' ? 'Seiten pro Abruf' : k} <input type="number" min="${t[1]}" max="${t[2]}" value="${v}" data-si="${si}" data-k="${k}" data-t="int" style="width:5rem"></label>`;
+        if (t[0] === 'bool') opts += `<label class="inline check"><input type="checkbox" ${v ? 'checked' : ''} data-si="${si}" data-k="${k}" data-t="bool"> ${k === 'remote_search' ? 'zusätzlich bundesweit Homeoffice' : k}</label>`;
+        if (t[0] === 'choice') opts += `<label class="inline">${k === 'category' ? 'Kategorie' : 'Region'} <select data-si="${si}" data-k="${k}" data-t="choice">${t.slice(1).map((c) => `<option value="${esc(c)}" ${c === v ? 'selected' : ''}>${esc(c || 'alle')}</option>`).join('')}</select></label>`;
+        if (t[0] === 'companies') opts += companiesEditor(si, v || []);
+        if (t[0] === 'feeds') opts += `<label>Feed-URLs (eine pro Zeile)<textarea rows="2" data-si="${si}" data-k="feeds" data-t="feeds">${esc((v || []).map((f) => f.url).join('\n'))}</textarea></label>`;
+      }
+      const warn = s.enabled && !s.configured ? `<div class="small warn-text">Nicht aktiv: ${esc(s.reason)}</div>` : '';
+      return `<div class="srcrow"><label class="check srchead"><input type="checkbox" ${s.enabled ? 'checked' : ''} data-si="${si}" data-k="enabled" data-t="bool">
+        <strong>${esc(s.label)}</strong> <span class="tag">${esc(s.kind)}</span></label>
+        <div class="small muted">${esc(s.info)} ${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Info ↗</a>` : ''}</div>${warn}
+        <div class="row">${opts}</div></div>`;
+    }).join('');
+    $('sources-list').querySelectorAll('[data-si]').forEach((el) => {
+      el.onchange = () => {
+        const s = sources[+el.dataset.si], k = el.dataset.k, t = el.dataset.t;
+        const v = t === 'bool' ? el.checked : t === 'int' ? parseInt(el.value, 10)
+          : t === 'feeds' ? el.value.split('\n').map((u) => u.trim()).filter(Boolean).map((url) => ({url})) : el.value;
+        if (k === 'enabled') s.enabled = v; else s.options[k] = v;
+        s.changed = true; markDirty();
+      };
+    });
+    $('sources-list').querySelectorAll('[data-company-del]').forEach((b) => b.onclick = () => {
+      const s = sources[+b.dataset.si]; s.options.companies.splice(+b.dataset.companyDel, 1); s.changed = true; markDirty(); renderSources();
+    });
+    $('sources-list').querySelectorAll('[data-company-add]').forEach((b) => b.onclick = () => {
+      const si = +b.dataset.si, s = sources[si], row = b.closest('.company-add');
+      const ats = row.querySelector('select').value, token = row.querySelector('.tok').value.trim(), name = row.querySelector('.nam').value.trim();
+      if (!token) return;
+      s.options.companies = [...(s.options.companies || []), {ats, token, name: name || token, enabled: true}];
+      s.changed = true; markDirty(); renderSources();
+    });
+    $('sources-list').querySelectorAll('[data-example]').forEach((b) => b.onclick = () => {
+      const s = sources.find((x) => x.id === 'ats'); const ex = state.ats_examples[+b.dataset.example];
+      if (!(s.options.companies || []).some((c) => c.ats === ex.ats && c.token.toLowerCase() === ex.token.toLowerCase())) {
+        s.options.companies = [...(s.options.companies || []), {...ex, enabled: true}];
+        s.enabled = true; s.changed = true; markDirty(); renderSources();
+      }
+    });
+  }
+  function companiesEditor(si, companies) {
+    const types = state.ats_types;
+    const rows = companies.map((c, i) => `<li>${esc(c.name)} <span class="muted">(${esc(types[c.ats] || c.ats)}: ${esc(c.token)})</span>
+      <button type="button" class="ghost x" data-si="${si}" data-company-del="${i}" aria-label="${esc(c.name)} entfernen">×</button></li>`).join('');
+    const examples = state.ats_examples.map((e, i) => `<button type="button" class="chip" data-example="${i}">+ ${esc(e.name)}</button>`).join(' ');
+    return `<div class="companies"><ul class="plain">${rows || '<li class="muted">noch keine Firmen</li>'}</ul>
+      <div class="company-add row"><select aria-label="System">${Object.entries(types).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+      <input class="tok" placeholder="Kürzel, z. B. sumup" maxlength="80" aria-label="Kürzel"><input class="nam" placeholder="Name (optional)" maxlength="80" aria-label="Name">
+      <button type="button" class="ghost" data-si="${si}" data-company-add="1">+ Firma</button></div>
+      <div class="small muted">Geprüfte Beispiele (Berlin): ${examples}</div></div>`;
+  }
+
+  // ---- load / collect ------------------------------------------------------------------------
+  function fill(data) {
+    state = data;
+    const p = data.profile;
+    LIST_FIELDS.forEach((f) => { lists[f] = [...(p[f] || [])]; renderChips(f); });
+    $('location').value = p.location; $('radius_km').value = p.radius_km; $('radius_out').textContent = p.radius_km;
+    $('days_back').value = p.days_back; $('min_salary').value = p.min_salary; $('remote_ok').checked = p.remote_ok;
+    $('keyword_saturation').value = p.keyword_saturation;
+    weights = {...p.keyword_weights}; renderWeights();
+    sources = data.sources.map((s) => ({...s, options: JSON.parse(JSON.stringify(s.options)), changed: false}));
+    renderSources();
+    dirty = false; $('dirty').hidden = true;
+  }
+  function collectProfile() {
+    const p = {};
+    LIST_FIELDS.forEach((f) => { p[f] = lists[f]; });
+    p.location = $('location').value; p.radius_km = parseInt($('radius_km').value, 10);
+    p.days_back = parseInt($('days_back').value, 10); p.min_salary = parseInt($('min_salary').value, 10);
+    p.remote_ok = $('remote_ok').checked; p.keyword_weights = weights;
+    p.keyword_saturation = parseFloat($('keyword_saturation').value);
+    return p;
+  }
+  function collectSources() {
+    const out = {};
+    sources.filter((s) => s.changed).forEach((s) => {
+      const o = {enabled: s.enabled};
+      Object.keys(s.option_types).forEach((k) => { if (s.options[k] !== null && s.options[k] !== undefined) o[k] = s.options[k]; });
+      out[s.id] = o;
+    });
+    return out;
+  }
+  ['location', 'days_back', 'min_salary', 'remote_ok', 'keyword_saturation'].forEach((id) => $(id).addEventListener('change', markDirty));
+  $('radius_km').addEventListener('input', () => { $('radius_out').textContent = $('radius_km').value; markDirty(); });
+
+  async function save(runNow) {
+    const btns = [$('save'), $('save-run')]; btns.forEach((b) => b.disabled = true);
+    try {
+      const r = await api('/search-profile', 'PUT', {profile: collectProfile(), sources: collectSources(), run_now: runNow, rescore: true});
+      fill(r);
+      show('ok', 'Gespeichert.' + (r.rescore_started ? ' Stellen werden neu bewertet.' : '') + (r.run_started ? ' Suche läuft im Hintergrund (Ergebnis in der Stellenliste).' : runNow ? ' Eine Suche läuft bereits.' : ''));
+      loadSuggestions();
+    } catch (e) { show('err', 'Nicht gespeichert: ' + e.message); }
+    btns.forEach((b) => b.disabled = false);
+  }
+  $('save').onclick = () => save(false);
+  $('save-run').onclick = () => save(true);
+  $('reset').onclick = async () => {
+    if (!confirm('Suchprofil und Quellen auf die Werte aus config.yaml zurücksetzen?')) return;
+    try { fill(await api('/search-profile/reset', 'POST', {what: 'all'})); show('ok', 'Auf config.yaml zurückgesetzt.'); loadSuggestions(); }
+    catch (e) { show('err', e.message); }
+  };
+  window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+  // ---- preview -----------------------------------------------------------------------------------
+  $('preview-btn').onclick = async () => {
+    const b = $('preview-btn'); b.disabled = true; $('preview-out').innerHTML = '<p><span class="spinner"></span> Suche läuft …</p>';
+    try {
+      const r = await api('/search-profile/preview', 'POST', {profile: collectProfile(), sources: collectSources()});
+      const feedNames = r.sources.filter((s) => !s.error).map((s) => s.id);
+      const label = Object.fromEntries(r.sources.map((s) => [s.id, s.label]));
+      let h = `<table class="preview"><thead><tr><th>Suchbegriff</th><th title="Arbeitsagentur: Ort + Umkreis">BA Ort</th><th title="Arbeitsagentur: Homeoffice bundesweit">BA Remote</th>${feedNames.map((n) => `<th>${esc(label[n])}</th>`).join('')}</tr></thead><tbody>`;
+      for (const q of r.queries) {
+        const ba = q.arbeitsagentur;
+        h += `<tr><td><strong>${esc(q.query)}</strong>${q.error ? `<div class="warn-text">${esc(q.error)}</div>` : ''}
+          ${(q.samples || []).map((s) => `<div class="muted">· ${esc(s.title)}${s.company ? ' – ' + esc(s.company) : ''}</div>`).join('')}
+          ${ba ? `<div class="muted">neu auf Seite 1: ${ba.new_in_page}</div>` : ''}</td>
+          <td class="num">${ba ? ba.local : '–'}</td><td class="num">${ba ? ba.remote : '–'}</td>${feedNames.map((n) => `<td class="num">${q.feeds[n] ?? 0}</td>`).join('')}</tr>`;
+      }
+      h += '</tbody></table>';
+      h += '<h3 class="small">Quellen insgesamt</h3><ul class="plain">' + r.sources.map((s) => s.error
+        ? `<li>${esc(s.label)}: <span class="warn-text">${esc(s.error)}</span></li>`
+        : `<li>${esc(s.label)}: ${s.matching} passend von ${s.fetched} (neu: ${s.new})${s.samples.length ? '<br><span class="muted">' + s.samples.map((x) => esc(x.title)).join(' · ') + '</span>' : ''}</li>`).join('') + '</ul>';
+      h += `<p class="muted">${r.cached ? 'aus dem Zwischenspeicher · ' : ''}${esc(r.generated_at.replace('T', ' ').slice(0, 16))} UTC</p>`;
+      $('preview-out').innerHTML = h;
+    } catch (e) { $('preview-out').innerHTML = `<p class="warn-text">${esc(e.message)}</p>`; }
+    b.disabled = false;
+  };
+
+  // ---- suggestions ------------------------------------------------------------------------------
+  async function loadSuggestions() {
+    try {
+      const r = await api('/search-profile/suggestions');
+      const block = (items, field, title) => items.length ? `<h3 class="small">${title}</h3><ul class="plain sugg">` + items.map((s) =>
+        `<li><button type="button" class="ghost add" data-field="${field}" data-v="${esc(s.value)}" aria-label="${esc(s.value)} übernehmen">+</button> ${esc(s.value)}<div class="muted">${esc(s.reason)}</div></li>`).join('') + '</ul>' : '';
+      $('suggest-out').innerHTML = (block(r.queries.slice(0, 12), 'queries', 'Suchbegriffe') + block(r.titles.slice(0, 8), 'target_titles', 'Zieltitel'))
+        || '<p class="muted">Keine neuen Vorschläge.</p>';
+      $('suggest-out').querySelectorAll('.add').forEach((b) => b.onclick = () => {
+        if (addTo(b.dataset.field, b.dataset.v)) { b.closest('li').classList.add('added'); b.disabled = true; }
+      });
+    } catch (e) { $('suggest-out').textContent = e.message; }
+  }
+
+  // ---- CV profile -------------------------------------------------------------------------------
+  function fillCV(c) {
+    $('cv-text').value = c.text; $('cv-warning').textContent = c.warning;
+    $('cv-meta').textContent = `${c.keywords} Keywords · ${c.results} Kernergebnisse` + (c.saved_at ? ` · zuletzt in der App gespeichert ${c.saved_at.replace('T', ' ').slice(0, 16)} UTC` : '')
+      + (c.backups.length ? ` · ${c.backups.length} Sicherung(en), neueste ${c.backups[0]}` : '');
+  }
+  $('cv-save').onclick = async () => {
+    if (!confirm('CV-Profil speichern? Nur wahre Angaben – die KI nutzt sie für Anschreiben.')) return;
+    $('cv-save').disabled = true;
+    try { const r = await api('/cv-profile', 'PUT', {text: $('cv-text').value, rescore: true}); fillCV(r);
+      show('ok', 'CV-Profil gespeichert' + (r.backup ? ` (alte Version: ${r.backup})` : '') + '. Stellen werden neu bewertet.'); loadSuggestions(); }
+    catch (e) { show('err', 'CV-Profil nicht gespeichert: ' + e.message); }
+    $('cv-save').disabled = false;
+  };
+
+  api('/search-profile').then(fill).catch((e) => show('err', e.message));
+  api('/cv-profile').then(fillCV).catch((e) => show('err', e.message));
+  loadSuggestions();
+})();
+</script>
+{% endblock %}
