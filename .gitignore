@@ -7,11 +7,3 @@ data/*.db
 data/*.db-*
 data/exports/
 .env.local
-
-# persönliche Daten bleiben lokal / personal data stays local
-data/cv_profile.md
-.env.local
-data/*.log
-.DS_Store
-macos/build/
-macos/.build/

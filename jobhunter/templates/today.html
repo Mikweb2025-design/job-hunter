@@ -31,7 +31,7 @@
     </div>
     <textarea class="letter-src" id="letter-{{ j.id }}" hidden readonly>{{ j.letter or '' }}</textarea>
     <div class="todo-actions">
-      {% if j.url %}<a class="button primary" href="{{ j.url }}" target="_blank" rel="noopener noreferrer">Jetzt manuell bewerben ↗</a>{% endif %}
+      {% set _al = apply_link(j) %}{% if _al %}<a class="button primary" href="{{ _al }}" target="_blank" rel="noopener noreferrer">Jetzt manuell bewerben ↗</a>{% endif %}
       <button type="button" class="ghost copy-letter" data-src="letter-{{ j.id }}" {% if not j.letter %}disabled title="Noch kein Anschreiben"{% endif %}>📋 Anschreiben kopieren</button>
       {% if j.letter %}<a class="button ghost" href="{{ base }}/jobs/{{ j.id }}/anschreiben?back=today" target="_blank" rel="noopener">📄 Anschreiben als PDF</a>{% endif %}
       {% if (j.description or '')|trim|length < 300 %}

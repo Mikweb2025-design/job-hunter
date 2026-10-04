@@ -24,7 +24,8 @@
 </header>
 
 <div class="cta">
-  {% if job.url %}<a class="button primary" href="{{ job.url }}" target="_blank" rel="noopener noreferrer">{% if job.view == 'manual' %}Jetzt manuell bewerben{% else %}{{ t('open_application') }}{% endif %} ↗</a>{% endif %}
+  {% set _al = apply_link(job) %}{% if _al %}<a class="button primary" href="{{ _al }}" target="_blank" rel="noopener noreferrer">{% if job.view == 'manual' %}Jetzt manuell bewerben{% else %}{{ t('open_application') }}{% endif %} ↗</a>{% endif %}
+  <details class="more-links" style="display:inline-block;margin-left:.5rem"><summary>Weitere Links</summary>{% for l in link_alternatives(job) %}<div><a href="{{ l.url }}" target="_blank" rel="noopener noreferrer">{{ l.title }} ↗</a></div>{% endfor %}</details>
   {% if job.view in ('auto', 'manual') %}
   <form method="post" action="{{ base }}/jobs/{{ job.id }}/mark-applied"><button type="submit" class="ghost">✅ Als beworben markieren</button></form>
   {% endif %}

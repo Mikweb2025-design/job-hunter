@@ -219,13 +219,14 @@ struct JobDetailView: View {
 
                 HStack {
                     Button {
-                        if let link = s.link { openURL(link) }
+                        if let link = JobLinks.applyLink(for: s) { openURL(link) }
                     } label: {
                         Label("Bewerbung öffnen", systemImage: "arrow.up.right.square")
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(s.link == nil)
-                    .help(s.link?.absoluteString ?? "Kein Link vorhanden")
+                    .disabled(JobLinks.applyLink(for: s) == nil)
+                    .help(JobLinks.applyLink(for: s)?.absoluteString ?? "Kein Link vorhanden")
+                    moreLinksMenu(s)
                     Text("Öffnet die Originalanzeige im Browser.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -251,7 +252,7 @@ struct JobDetailView: View {
                         .font(.callout)
                     HStack(spacing: 10) {
                         Button {
-                            if let link = s.link { openURL(link) }
+                            if let link = JobLinks.applyLink(for: s) { openURL(link) }
                             if !letter.isEmpty {
                                 copyToPasteboard(letter)
                                 info = "Portal geöffnet, Anschreiben in die Zwischenablage kopiert."
@@ -266,8 +267,9 @@ struct JobDetailView: View {
                         .controlSize(.large)
                         .tint(.orange)
                         .fixedSize()
-                        .disabled(s.link == nil)
-                        .help(s.link?.absoluteString ?? "Kein Link vorhanden")
+                        .disabled(JobLinks.applyLink(for: s) == nil)
+                        .help(JobLinks.applyLink(for: s)?.absoluteString ?? "Kein Link vorhanden")
+                        moreLinksMenu(s)
 
                         Button {
                             copyToPasteboard(letter)
@@ -798,6 +800,24 @@ struct JobDetailView: View {
         default: "Quelle: \(origin)"
         }
     }
+
+    /// Alternative links (StepStone search, web search, careers page, original mail link).
+    @ViewBuilder
+    private func moreLinksMenu(_ s: JobSummary) -> some View {
+        let links = JobLinks.alternatives(for: s)
+        if !links.isEmpty {
+            Menu {
+                ForEach(links) { l in
+                    Button { openURL(l.url) } label: { Label(l.title, systemImage: l.symbol) }
+                }
+            } label: {
+                Label("Weitere Links", systemImage: "link")
+            }
+            .fixedSize()
+            .help("Falls der Link nicht funktioniert: Stelle auf StepStone / im Web / auf der Karriereseite suchen")
+        }
+    }
+
 }
 
 private struct ScoreBar: View {

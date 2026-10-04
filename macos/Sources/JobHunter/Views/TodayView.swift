@@ -74,7 +74,7 @@ struct TodayView: View {
                 if !checked {
                     HStack(spacing: 8) {
                         Button {
-                            if let link = job.link { openURL(link) }
+                            if let link = JobLinks.applyLink(for: job) { openURL(link) }
                             Task { await copyLetter(job, quiet: true) }
                         } label: {
                             Label("Jetzt bewerben", systemImage: "arrow.up.right.square")
@@ -83,7 +83,7 @@ struct TodayView: View {
                         .tint(.orange)
                         .controlSize(.small)
                         .fixedSize()
-                        .disabled(job.link == nil)
+                        .disabled(JobLinks.applyLink(for: job) == nil)
                         .help("Portal öffnen (Anschreiben wird in die Zwischenablage kopiert)")
                         Button {
                             Task { await copyLetter(job) }

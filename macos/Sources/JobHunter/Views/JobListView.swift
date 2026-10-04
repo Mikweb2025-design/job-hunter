@@ -12,7 +12,7 @@ struct JobListView: View {
             JobRow(job: job, category: model.category(of: job), pending: !model.pendingChanges(for: job.id).isEmpty)
                 .tag(job.id)
                 .contextMenu {
-                    if let link = job.link {
+                    if let link = JobLinks.applyLink(for: job) {
                         Link("Bewerbung öffnen", destination: link)
                         Button("Link kopieren") { copyToPasteboard(link.absoluteString) }
                     }

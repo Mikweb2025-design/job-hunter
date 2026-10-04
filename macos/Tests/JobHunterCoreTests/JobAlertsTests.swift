@@ -273,3 +273,39 @@ struct StepStoneAlertTests {
         #expect(state.parserVersion == JobAlertParser.version)
     }
 }
+
+@Suite("Links für Alert-Stellen")
+struct JobLinksTests {
+    private func job(source: String, url: String?, title: String = "IT User Support Specialist",
+                     company: String? = "Greenberg Traurig Germany, LLP", location: String? = "Berlin") throws -> JobSummary {
+        var dict: [String: Any] = ["id": 61, "title": title, "source": source, "fetched_at": "2026-10-04T08:26:47+00:00",
+                                   "score": 60, "status": "neu", "remote": false, "salary_predicted": false,
+                                   "also_seen_on": [String](), "has_letter": true]
+        if let company { dict["company"] = company }
+        if let location { dict["location"] = location }
+        if let url { dict["url"] = url }
+        let data = try JSONSerialization.data(withJSONObject: dict)
+        let dec = JSONDecoder(); dec.keyDecodingStrategy = .convertFromSnakeCase
+        return try dec.decode(JobSummary.self, from: data)
+    }
+
+    @Test func stepStoneTrackingLinkIsReplacedBySearch() throws {
+        let j = try job(source: "stepstone-alert", url: "https://click.stepstone.de/f/a/abc~~/AAAmIhA~/xyz")
+        #expect(JobLinks.isTracking(j.link))
+        let apply = try #require(JobLinks.applyLink(for: j))
+        #expect(apply.absoluteString == "https://www.stepstone.de/jobs/it-user-support-specialist-greenberg-traurig-germany-llp/in-berlin")
+        let titles = JobLinks.alternatives(for: j).map(\.title)
+        #expect(titles.contains("Auf StepStone suchen"))
+        #expect(titles.contains { $0.hasPrefix("Link aus der E-Mail") })
+    }
+
+    @Test func normalLinksStay() throws {
+        let j = try job(source: "linkedin-alert", url: "https://www.linkedin.com/jobs/view/4300000001/")
+        #expect(JobLinks.applyLink(for: j)?.absoluteString == "https://www.linkedin.com/jobs/view/4300000001/")
+        #expect(!JobLinks.alternatives(for: j).map(\.title).contains("Auf StepStone suchen"))
+    }
+
+    @Test func slugHandlesUmlautsAndGender() {
+        #expect(JobLinks.slug("Systemadministrator (m/w/d) Öffentlicher Dienst") == "systemadministrator-oeffentlicher-dienst")
+    }
+}

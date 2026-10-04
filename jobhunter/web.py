@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import actions, alerts, letter_doc, letters, pipeline
+from . import actions, alerts, letter_doc, letters, links, pipeline
 from .api import build_api_router
 from .config import Settings, load_settings
 from .db import Database
@@ -78,7 +78,7 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
     base = "/" + os.environ.get("BASE_PATH", "").strip().strip("/")
     base = "" if base == "/" else base
     templates = Jinja2Templates(directory=HERE / "templates")
-    templates.env.globals.update(base=base, t=t, STATUSES=STATUSES, auth_enabled=auth_enabled, lang=settings.ui_lang,
+    templates.env.globals.update(apply_link=links.apply_link, link_alternatives=links.alternatives, base=base, t=t, STATUSES=STATUSES, auth_enabled=auth_enabled, lang=settings.ui_lang,
                                  BLOCKER_TEXT=BLOCKER_TEXT)
     # Evaluated on every page render: the send banner must always show the live state.
     templates.env.globals["send_status"] = lambda: status_summary(settings, Gate(settings, db), db.client_states())
