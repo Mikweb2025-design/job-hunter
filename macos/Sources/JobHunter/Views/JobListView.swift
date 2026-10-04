@@ -42,13 +42,14 @@ struct JobListView: View {
     }
 
     private var title: String {
-        item.category?.title ?? "Alle Stellen"
+        item.category?.title ?? (item == .recent ? "Neu – letzte \(AppModel.recentDays) Tage" : "Alle Stellen")
     }
 
     private var emptyText: String {
         switch item {
         case .manual: "Keine offenen Stellen ohne E-Mail-Adresse."
         case .automatic: "Keine offenen Stellen mit Bewerbungs-Adresse."
+        case .recent: "In den letzten \(AppModel.recentDays) Tagen wurden keine neuen Stellen gefunden."
         default: "Starte einen Suchlauf oder lockere die Filter."
         }
     }
@@ -62,6 +63,9 @@ struct JobListView: View {
         case .automatic:
             ListHint(icon: "envelope.fill", tint: .blue,
                      text: "Diese Stellen haben eine Bewerbungs-Adresse. Die App sendet per Apple Mail – nur nach den Regeln des Servers (Testmodus, Freigabe, Tageslimit) und nie offline.")
+        case .recent:
+            ListHint(icon: "sparkles", tint: .purple,
+                     text: "Neueste zuerst – auch Stellen aus deinen Job-Alerts (LinkedIn, StepStone, Indeed). Bei Alerts ohne Anzeigentext: „Anzeigentext einfügen“, dann schreibt die KI das Anschreiben.")
         default:
             EmptyView()
         }

@@ -4,7 +4,7 @@ import Observation
 import SwiftUI
 
 enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
-    case today, automatic, manual, applied, later, jobs, tracker, outbox
+    case today, recent, automatic, manual, applied, later, jobs, tracker, outbox
     var id: String { rawValue }
 
     var category: ApplyCategory? {
@@ -228,9 +228,29 @@ final class AppModel {
 
     var todayJobs: [JobSummary] { ApplyCategory.todayManual(allJobs, blocklist: blocklist, limit: 10) }
 
+    /// Days shown in "Neu" (newly found / imported jobs, newest first).
+    static let recentDays = 3
+
+    /// Open jobs found or imported in the last `recentDays` days – newest first, so new job-alert
+    /// imports (LinkedIn, StepStone, Indeed) are visible right away instead of deep in the score list.
+    var recentJobs: [JobSummary] {
+        let cutoff = Date.now.addingTimeInterval(-Double(Self.recentDays) * 86_400)
+        return allJobs
+            .filter { j in
+                guard let d = j.fetchedDate, d >= cutoff else { return false }
+                let c = category(of: j)
+                return c != .applied && c != .later
+            }
+            .sorted { ($0.fetchedDate ?? .distantPast, $0.score) > ($1.fetchedDate ?? .distantPast, $1.score) }
+    }
+
     func list(for item: SidebarItem) -> [JobSummary] {
         if let c = item.category { return jobs(in: c) }
-        return item == .today ? todayJobs : jobs
+        switch item {
+        case .today: return todayJobs
+        case .recent: return recentJobs
+        default: return jobs
+        }
     }
 
     // MARK: Lifecycle
