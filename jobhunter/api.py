@@ -99,6 +99,7 @@ def send_settings_dict(settings: Settings, gate: Gate) -> dict:
         "company_cooldown_days": cfg.company_cooldown_days, "blocklist": list(cfg.blocklist),
         "require_letter": cfg.require_letter, "from_address": cfg.from_address,
         "sender_name": cfg.sender_name, "subject_template": cfg.subject_template,
+        "location_filter": cfg.location_filter,
         "cv_attachment": cfg.cv_attachment, **counters_dict(gate),
         "applicant": applicant_dict(settings),
     }

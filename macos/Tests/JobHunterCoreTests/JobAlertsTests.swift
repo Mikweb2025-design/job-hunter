@@ -319,3 +319,38 @@ struct AutoScoreTests {
         #expect(i.autoMinScore == 70 && i.configValue == 80 && i.overridden && i.min == 50 && i.max == 100)
     }
 }
+
+@Suite("Alerts: echte Formate Okt. 2026")
+struct AlertFormatsOct {
+    @Test func linkedInFirstJobNotTheHeaderLine() throws {
+        let msg = AlertMailMessage(id: "<li-1>", receivedAt: .now, sender: "LinkedIn Jobbenachrichtigungen <jobalerts-noreply@linkedin.com>",
+                                   subject: "Customer Support Specialist bei AMBOSS", source: try eml("linkedin_alert_single_first"))
+        let jobs = JobAlertParser.parse(msg)
+        #expect(jobs.count == 6)
+        let first = try #require(jobs.first)
+        #expect(first.title == "Customer Support Specialist")
+        #expect(first.company == "AMBOSS")
+        #expect(first.externalId == "4474093733")
+        #expect(!jobs.contains { $0.title.lowercased().contains("neue jobs entsprechen") })
+        #expect(!jobs.contains { $0.company.contains("ehemalige") })
+    }
+
+    @Test func stepStoneRecommendationMail() throws {
+        let msg = AlertMailMessage(id: "<ss-r>", receivedAt: .now, sender: "\"Lisa Stein von Stepstone\" <info@jobagent.stepstone.de>",
+                                   subject: "Empfehlung", source: try eml("stepstone_recommendation"))
+        let jobs = JobAlertParser.parse(msg)
+        let j = try #require(jobs.first)
+        #expect(jobs.count == 1)
+        #expect(j.title == "Cloud Administrator / Cloud Engineer (m/w/d)")
+        #expect(j.company == "Amadeus Fire AG")
+        #expect(j.location.hasPrefix("Berlin"))
+        #expect(j.description?.contains("Ihre Aufgaben") == true)
+    }
+
+    @Test func passtLabelsAreNotTitles() {
+        let src = "From: info@jobagent.stepstone.de\nContent-Type: text/plain; charset=utf-8\n\nHallo Max,\ndieser Job hat bereits viele Bewerbungen - warum deine nicht auch? Bewirb dich noch heute!\n\nPasst hervorragend\n\nDevOps Engineer (w/m/d)\nBeispiel GmbH\nBerlin\nvor 2 Tagen\n\nIch bin interessiert\nhttps://click.stepstone.de/f/a/x\n"
+        let jobs = JobAlertParser.parse(AlertMailMessage(id: "p", receivedAt: .now, sender: "info@jobagent.stepstone.de", subject: "x", source: src))
+        #expect(jobs.first?.title == "DevOps Engineer (w/m/d)")
+        #expect(jobs.first?.company == "Beispiel GmbH")
+    }
+}

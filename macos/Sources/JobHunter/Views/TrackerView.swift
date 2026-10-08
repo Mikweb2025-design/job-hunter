@@ -6,7 +6,7 @@ import SwiftUI
 struct TrackerView: View {
     @Environment(AppModel.self) private var model
 
-    private let pipeline: [JobStatus] = [.interessant, .beworben, .gespraech, .angebot, .absage]
+    private let pipeline: [JobStatus] = [.interessant, .beworben, .gespraech, .angebot, .absage, .zuWeit]
 
     var body: some View {
         ScrollView {

@@ -17,10 +17,7 @@ struct SidebarView: View {
                     .badge(model.recentJobs.count)
                     .tag(SidebarItem.recent)
                     .help("Neu gefundene und aus Job-Alerts (LinkedIn, StepStone, Indeed) importierte Stellen – neueste zuerst")
-                categoryRow(.automatic, help: "Hat eine Bewerbungs-Adresse – die App kann per E-Mail senden (Server-Regeln)")
-                categoryRow(.manual, help: "Keine E-Mail-Adresse – hier musst DU dich über das Portal bewerben")
-                categoryRow(.applied, help: "Beworben, Gespräch, Angebot oder E-Mail gesendet")
-                categoryRow(.later, help: "Abgesagt / zurückgestellt")
+                bewerbenRows
             }
 
             Section("Ansicht") {
@@ -101,8 +98,45 @@ struct SidebarView: View {
         .navigationTitle("JobHunter")
     }
 
-    private func categoryRow(_ c: ApplyCategory, help: String) -> some View {
-        Text(c.title)
+    /// "Bewerben" rows: dynamic from `GET /api/v1/views` when the server knows
+    /// `far` (newest servers), otherwise the static four. The far row never has
+    /// any send affordance (neither here nor in its list/detail).
+    @ViewBuilder
+    private var bewerbenRows: some View {
+        if let views = model.serverViews, views.order.contains("far") {
+            ForEach(views.order, id: \.self) { key in
+                switch key {
+                case "auto":
+                    categoryRow(.automatic, title: views.labels["auto"],
+                                help: "Hat eine Bewerbungs-Adresse – die App kann per E-Mail senden (Server-Regeln)")
+                case "manual":
+                    categoryRow(.manual, title: views.labels["manual"],
+                                help: "Keine E-Mail-Adresse – hier musst DU dich über das Portal bewerben")
+                case "applied":
+                    categoryRow(.applied, title: views.labels["applied"],
+                                help: "Beworben, Gespräch, Angebot oder E-Mail gesendet")
+                case "later":
+                    categoryRow(.later, title: views.labels["later"],
+                                help: "Abgesagt / zurückgestellt")
+                case "far":
+                    Label(views.labels["far"] ?? "Zu weit", systemImage: "mappin.slash")
+                        .badge(model.farJobs.count)
+                        .tag(SidebarItem.far)
+                        .help("Zu weit entfernt – weder E-Mail noch Portal")
+                default:
+                    EmptyView()  // today (own row above) and unknown future views
+                }
+            }
+        } else {
+            categoryRow(.automatic, help: "Hat eine Bewerbungs-Adresse – die App kann per E-Mail senden (Server-Regeln)")
+            categoryRow(.manual, help: "Keine E-Mail-Adresse – hier musst DU dich über das Portal bewerben")
+            categoryRow(.applied, help: "Beworben, Gespräch, Angebot oder E-Mail gesendet")
+            categoryRow(.later, help: "Abgesagt / zurückgestellt")
+        }
+    }
+
+    private func categoryRow(_ c: ApplyCategory, title: String? = nil, help: String) -> some View {
+        Text(title ?? c.title)
             .fontWeight(c == .manual && model.count(.manual) > 0 ? .semibold : .regular)
             .badge(model.count(c))
             .tag(SidebarItem(rawValue: c.rawValue)!)

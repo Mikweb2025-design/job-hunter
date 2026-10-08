@@ -61,6 +61,7 @@ L'indirizzo si può correggere a mano (dashboard o app; `apply_email_source = ma
 | `company_cooldown_days` | `90` | mai due candidature alla stessa azienda (nome normalizzato) in 90 giorni – contano anche le candidature segnate a mano come „beworben“ |
 | `blocklist` | IONOS, STRATO, 1&1, United Internet, … | azienda (sottostringa, maiuscole indifferenti) o dominio del destinatario → mai |
 | `require_letter` | `true` | senza lettera niente invio; lettere con segnaposto `[...]` **mai**; la bozza da modello („Vorlage“) **mai in automatico** |
+| `location_filter` | `true` | **filtro anti-trasloco**: invio automatico **solo** per Berlino/Brandeburgo o 100% remote esplicito. „Homeoffice möglich“ a Köln/Kiel/Norimberga è ibrido → non conta. Approvazione manuale resta possibile; i nuovi annunci fuori zona vanno in „🗺️ Zu weit weg“ |
 | `kill_switch` | `false` | `true` = stop immediato di tutto, anche delle offerte approvate (anche via ENV `SEND_KILL_SWITCH=1`) |
 | `from_address` / `sender_name` | `info@daniele-michelin.com` / `Daniele Michelin` | mittente |
 | `subject_template` | `Bewerbung als {title}` | `{title}` senza „(m/w/d)“, `{company}` |
@@ -95,6 +96,7 @@ Regole in `jobhunter/views.py` (le stesse di `ApplyCategory.swift` nell'app):
 | **🖐 Manuell bewerben** (`manual`) | stato `neu`/`interessant`, nessun indirizzo (o azienda in blocklist) → candidatura dal portale. Etichetta: „MANUELL – über Portal bewerben“ |
 | **✅ Beworben** (`applied`) | stato `beworben`/`gespraech`/`angebot` oppure un invio reale registrato |
 | **⏸ Später/Abgelehnt** (`later`) | stato `absage` |
+| **🗺️ Zu weit weg** (`far`) | stato `zu_weit`, oppure ancora `neu` ma fuori Berlino/Brandeburgo senza 100% remote esplicito. Mai invio automatico; segnando „interessant“ passa a manuale |
 | **Heute zu tun** (`today`) | le 10 migliori `manual` per punteggio, come checklist: „Jetzt manuell bewerben ↗“ (apre l'annuncio), „Anschreiben kopieren“, „Anschreiben mit KI schreiben“, „Als beworben markieren“ (solo stato + data, le note restano; non invia nulla). Sotto: „Heute erledigt“. |
 
 URL: `/today`, `/?view=auto|manual|applied|later` (gli altri filtri restano combinabili). Layout utilizzabile da telefono (barra delle viste scorrevole, pulsanti a tutta larghezza).

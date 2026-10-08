@@ -395,3 +395,74 @@ struct SendStubbedTests {
         #expect(UserDefaultsLedger(defaults: d).pending().isEmpty && UserDefaultsLedger(defaults: d).wasSent(5))
     }
 }
+
+// MARK: - HAG-119 P4 auto guard (defense in depth: never auto-send far jobs)
+// Same serialized suite (shared SendStub statics): extension, not a new suite.
+extension SendStubbedTests {
+    @Test func skipsZuWeitEvenWhenOutboxListsIt() async throws {
+        SendStub.reset()
+        SendStub.routes = ["GET /outbox": .init(status: 200, body: try fixture("outbox")),
+                           "GET /jobs/6": .init(status: 200, body: try fixture("job_detail", patch: ["status": "zu_weit"])),
+                           "POST /sent": try sentOK()]
+        let sender = FakeSender()
+        let r = await coordinator(sender).processOutbox(autoSendEnabled: true)
+        #expect(sender.sendCalls == 0 && SendStub.sentPosts.isEmpty)
+        #expect(r.outcomes == [.skipped(jobID: 6, reason: "Zu weit – kein automatischer Versand")])
+    }
+
+    @Test func skipsServerViewFar() async throws {
+        SendStub.reset()
+        SendStub.routes = ["GET /outbox": .init(status: 200, body: try fixture("outbox")),
+                           "GET /jobs/6": .init(status: 200, body: try fixture("job_detail", patch: ["view": "far"])),
+                           "POST /sent": try sentOK()]
+        let sender = FakeSender()
+        let r = await coordinator(sender).processOutbox(autoSendEnabled: true)
+        #expect(sender.sendCalls == 0 && SendStub.sentPosts.isEmpty)
+        #expect(r.outcomes == [.skipped(jobID: 6, reason: "Zu weit (far) – kein automatischer Versand")])
+    }
+
+    @Test func skipsLocationBlocker() async throws {
+        SendStub.reset()
+        SendStub.routes = ["GET /outbox": .init(status: 200, body: try fixture("outbox")),
+                           "GET /jobs/6": .init(status: 200, body: try fixture("job_detail")),
+                           "GET /email-preview": .init(status: 200, body: try fixture("email_preview", patch: [
+                               "can_send": false, "auto_blockers": ["location"],
+                               "blocker_texts": ["Zu weit entfernt – kein automatischer Versand"]])),
+                           "POST /sent": try sentOK()]
+        let sender = FakeSender()
+        let r = await coordinator(sender).processOutbox(autoSendEnabled: true)
+        #expect(sender.sendCalls == 0 && SendStub.sentPosts.isEmpty)
+        #expect(r.outcomes == [.skipped(jobID: 6, reason: "Zu weit entfernt – kein automatischer Versand")])
+    }
+
+    @Test func normalAutoItemStillSends() async throws {
+        SendStub.reset()
+        SendStub.routes = ["GET /outbox": .init(status: 200, body: try fixture("outbox")),
+                           "GET /jobs/6": .init(status: 200, body: try fixture("job_detail")),
+                           "GET /email-preview": .init(status: 200, body: try fixture("email_preview")),
+                           "POST /sent": try sentOK()]
+        let sender = FakeSender()
+        let r = await coordinator(sender).processOutbox(autoSendEnabled: true)
+        #expect(sender.sendCalls == 1)
+        #expect(r.outcomes == [.sent(jobID: 6, to: "jobs@acme.de",
+                                     subject: "Bewerbung als Cloud Support Engineer", recorded: true)])
+    }
+
+    @Test func approvedItemsKeepServerVerdictOnly() async throws {
+        SendStub.reset()
+        var box = try #require(try JSONSerialization.jsonObject(with: fixture("outbox")) as? [String: Any])
+        var items = try #require(box["items"] as? [[String: Any]])
+        items[0]["reason"] = "approved"
+        box["items"] = items
+        let body = try JSONSerialization.data(withJSONObject: box)
+        // Even a zu_weit job detail must NOT stop an explicitly approved send
+        // (user clicked Freigabe; the server already vetted it).
+        SendStub.routes = ["GET /outbox": .init(status: 200, body: body),
+                           "GET /jobs/6": .init(status: 200, body: try fixture("job_detail", patch: ["status": "zu_weit"])),
+                           "POST /sent": try sentOK()]
+        let sender = FakeSender()
+        let r = await coordinator(sender).processOutbox(autoSendEnabled: true)
+        #expect(sender.sendCalls == 1)
+        #expect(r.sentCount == 1)
+    }
+}

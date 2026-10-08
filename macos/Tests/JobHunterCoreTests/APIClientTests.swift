@@ -60,7 +60,9 @@ struct DecodingTests {
         #expect(s.count(.beworben) == 1)
         #expect(s.count(.neu) == 4)
         #expect(s.count(.angebot) == 0)
-        #expect(Set(s.byStatus.keys) == Set(JobStatus.allCases.map(\.rawValue)))
+        // Older servers do not know every status (e.g. zu_weit): keys must be known,
+        // not exhaustive.
+        #expect(Set(s.byStatus.keys).isSubset(of: Set(JobStatus.allCases.map(\.rawValue))))
         #expect(s.sources == ["adzuna", "arbeitsagentur"])
         #expect(s.newSinceLastRun == 5)
         #expect(s.threshold == 70)

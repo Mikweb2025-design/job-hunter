@@ -64,10 +64,10 @@ def env(settings):
 
 
 def add_job(db, title="Support Engineer (m/w/d)", company="Acme GmbH", email="jobs@acme.de", score=85,
-            letter=LETTER, origin="anthropic", status="neu", **extra):
+            letter=LETTER, origin="anthropic", status="neu", location="10115 Berlin", **extra):
     desc = f"Bewerbung an {email}" if email else "Bewerbung über das Portal."
     jid = db.insert_job(JobPosting(source="test", source_id=title + company, title=title, company=company,
-                                   description=desc), score, {})
+                                   location=location, description=desc), score, {})
     db.update_job(jid, score=score, letter=letter, letter_origin=origin, status=status, **extra)
     return db.get_job(jid)
 

@@ -114,6 +114,11 @@ struct SettingsView: View {
                     LabeledContent("Absender", value: "\(s.senderName) <\(s.fromAddress)>")
                     LabeledContent("Regeln", value: "Auto ab Score \(s.autoMinScore) · max. \(s.dailyCap)/Tag · Firma \(s.companyCooldownDays) Tage gesperrt")
                     LabeledContent("Heute gesendet", value: "\(s.sentToday) von \(s.dailyCap) · insgesamt \(s.sentTotal) · Test \(s.dryRunTotal)")
+                    // Newest servers only (tolerant: absent on older ones).
+                    if let lf = s.locationFilter {
+                        LabeledContent("Umzugsfilter", value: lf.summary)
+                            .help("Stellen außerhalb des Umzugsfilters markiert der Server als zu weit (kein automatischer Versand)")
+                    }
                 } else {
                     Text("Server nicht erreichbar oder zu alt – es wird nichts gesendet.").foregroundStyle(.secondary)
                 }

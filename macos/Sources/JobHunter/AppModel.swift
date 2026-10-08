@@ -4,7 +4,7 @@ import Observation
 import SwiftUI
 
 enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
-    case today, recent, automatic, manual, applied, later, jobs, tracker, outbox
+    case today, recent, automatic, manual, applied, later, far, jobs, tracker, outbox
     var id: String { rawValue }
 
     var category: ApplyCategory? {
@@ -219,15 +219,31 @@ final class AppModel {
 
     /// Jobs of a sidebar category; the sidebar filters (except status) apply too.
     func jobs(in category: ApplyCategory) -> [JobSummary] {
-        var f = filter
-        f.status = .all
-        return allJobs.filter { self.category(of: $0) == category && f.matches($0, description: details[$0.id]?.description) }
+        allJobs.filter { self.category(of: $0) == category && matchesListFilter($0) }
     }
 
-    func count(_ category: ApplyCategory) -> Int { allJobs.filter { self.category(of: $0) == category }.count }
+    func count(_ category: ApplyCategory) -> Int { allJobs.filter { self.category(of: $0) == category && matchesListFilter($0) }.count }
 
-    var todayJobs: [JobSummary] { ApplyCategory.todayManual(allJobs, blocklist: blocklist, limit: 10) }
+    /// Sidebar filters (source, min score, "neu seit", search) – without the status filter, which
+    /// only applies to "Alle Stellen". Used by every list so the filters work everywhere.
+    func matchesListFilter(_ job: JobSummary) -> Bool {
+        var f = filter
+        f.status = .all
+        return f.matches(job, description: details[job.id]?.description)
+    }
 
+    var todayJobs: [JobSummary] {
+        ApplyCategory.todayManual(allJobs.filter(matchesListFilter), blocklist: blocklist, limit: 10)
+    }
+    /// Server views (`GET /api/v1/views`); nil when offline or on older servers
+    /// (the sidebar then falls back to static tabs).
+    private(set) var serverViews: ServerViews?
+    /// "Zu weit": user-marked (`zu_weit`) or server-classified (`view == far`).
+    /// Never auto-sent, never portal-pushed (no send button anywhere on this list).
+    var farJobs: [JobSummary] {
+        allJobs.filter { ApplyCategory.isFar($0) && matchesListFilter($0) }
+            .sorted { ($0.score, $0.fetchedAt) > ($1.score, $1.fetchedAt) }
+    }
     /// Days shown in "Neu" (newly found / imported jobs, newest first).
     static let recentDays = 3
 
@@ -237,7 +253,7 @@ final class AppModel {
         let cutoff = Date.now.addingTimeInterval(-Double(Self.recentDays) * 86_400)
         return allJobs
             .filter { j in
-                guard let d = j.fetchedDate, d >= cutoff else { return false }
+                guard let d = j.fetchedDate, d >= cutoff, matchesListFilter(j) else { return false }
                 let c = category(of: j)
                 return c != .applied && c != .later
             }
@@ -249,6 +265,7 @@ final class AppModel {
         switch item {
         case .today: return todayJobs
         case .recent: return recentJobs
+        case .far: return farJobs
         default: return jobs
         }
     }
@@ -313,9 +330,11 @@ final class AppModel {
         do {
             async let statsReq = client.stats(minScore: settings.notifyThreshold)
             async let allReq = client.jobs(JobFilter(status: .all), limit: 5000)
+            async let viewsReq: ServerViews? = try? await client.views()
             let (s, all) = try await (statsReq, allReq)
             stats = s
             sources = Self.withAlertSources(s.sources)
+            serverViews = await viewsReq  // nil on older servers → static sidebar tabs
             serverJobs = all
             isRunActive = s.running
             connection = .ok

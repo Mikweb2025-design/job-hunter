@@ -1,27 +1,33 @@
 """Workflow views shared by the dashboard and the API (same rules as the macOS app's ApplyCategory).
 
 * auto     – "✉ Automatisch per E-Mail": status neu/interessant, application address known and the
-             company is not on the send blocklist. (Whether it goes out *now* is decided by the
-             outbox rules in jobhunter.outbox – this view does not change them.)
+              company is not on the send blocklist. (Whether it goes out *now* is decided by the
+              outbox rules in jobhunter.outbox – this view does not change them.)
 * manual   – "🖐 Manuell bewerben": status neu/interessant, no address (or blocked company):
-             apply by hand through the posting / portal.
+              apply by hand through the posting / portal.
 * applied  – "✅ Beworben": status beworben/gespraech/angebot, or a real send was logged.
 * later    – "⏸ Später/Abgelehnt": status absage.
+* far      – "🗺️ Zu weit weg": status zu_weit, or still-open jobs outside
+              Berlin/Brandenburg without explicit 100% remote (see jobhunter.location).
+              Explicitly marking such a job "interessant" moves it to manual –
+              the outbox still never sends it automatically.
 * today    – "Heute zu tun": the top 10 manual jobs by score (then newest).
 """
 from __future__ import annotations
 
 from .db import Database
+from .location import location_ok
 from .outbox import BLOCKER_TEXT, Gate, is_blocked_company, render_email
 
-VIEWS = ("today", "auto", "manual", "applied", "later")
-CATEGORIES = ("auto", "manual", "applied", "later")
+VIEWS = ("today", "auto", "manual", "applied", "later", "far")
+CATEGORIES = ("auto", "manual", "applied", "later", "far")
 VIEW_LABELS = {
     "today": "Heute zu tun",
     "auto": "✉ Automatisch per E-Mail",
     "manual": "🖐 Manuell bewerben",
     "applied": "✅ Beworben",
     "later": "⏸ Später/Abgelehnt",
+    "far": "🗺️ Zu weit weg",
 }
 TODAY_LIMIT = 10
 APPLIED = ("beworben", "gespraech", "angebot")
@@ -37,6 +43,10 @@ def classify(job: dict, sent_ids: set[int], blocklist: list[str]) -> str:
         return "applied"
     if job.get("status") == "absage":
         return "later"
+    if job.get("status") == "zu_weit":
+        return "far"
+    if job.get("status") == "neu" and not location_ok(job)[0]:
+        return "far"
     email = (job.get("apply_email") or "").strip()
     if email and not is_blocked_company(job.get("company"), email, blocklist):
         return "auto"
@@ -45,12 +55,20 @@ def classify(job: dict, sent_ids: set[int], blocklist: list[str]) -> str:
 
 def apply_label(job: dict, category: str) -> str:
     if category == "auto":
-        return f"Automatisch (E-Mail an {job.get('apply_email')})"
-    if category == "manual":
-        return "MANUELL – über Portal bewerben"
-    if category == "applied":
+        label = f"Automatisch (E-Mail an {job.get('apply_email')})"
+    elif category == "manual":
+        label = "MANUELL – über Portal bewerben"
+    elif category == "applied":
         return "Beworben" + (f" am {job['applied_date']}" if job.get("applied_date") else "")
-    return "Später/Abgelehnt"
+    elif category == "far":
+        return "Zu weit weg – kein Umzug (nur manuell prüfen)"
+    else:
+        return "Später/Abgelehnt"
+    if category in ("auto", "manual") and not location_ok(job)[0]:
+        # Explicitly rescued (status "interessant") but still outside the home
+        # region: the outbox will never send it automatically.
+        label += " – ⚠️ zu weit weg, kein Auto-Versand"
+    return label
 
 
 def annotate(jobs: list[dict], sent_ids: set[int], blocklist: list[str]) -> list[dict]:

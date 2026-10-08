@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-STATUSES = ["neu", "interessant", "beworben", "gespraech", "absage", "angebot"]
+STATUSES = ["neu", "interessant", "beworben", "gespraech", "absage", "angebot", "zu_weit"]
 
 
 @dataclass

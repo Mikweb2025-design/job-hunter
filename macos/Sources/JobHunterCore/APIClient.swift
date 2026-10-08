@@ -133,6 +133,12 @@ public struct APIClient: Sendable {
         try await send("GET", "stats", query: minScore.map { [URLQueryItem(name: "min_score", value: String($0))] } ?? [])
     }
 
+    /// Workflow views (`labels`/`order`/`counts`; newest servers include `far`).
+    /// Older servers answer 404 → the caller falls back to static tabs.
+    public func views() async throws -> ServerViews {
+        try await send("GET", "views")
+    }
+
     // MARK: E-mail applications
 
     public func sendSettings() async throws -> SendSettings {

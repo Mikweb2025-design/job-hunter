@@ -14,6 +14,7 @@ from .config import Settings
 from .db import Database
 from .dedup import dedup_key, dedupe
 from .llm import get_llm, template_letter
+from .location import location_ok, location_label
 from .models import JobPosting
 from .notify import format_message, send_telegram
 from .scoring import CVProfile, find_keywords, score_job
@@ -108,6 +109,14 @@ def _run(settings: Settings, db: Database, sources: list[Source] | None, notify:
         job_id = db.insert_job(p, res.score, res.breakdown)
         if job_id:
             rep.new_ids.append(job_id)
+            # No relocation: jobs outside Berlin/Brandenburg without explicit
+            # 100% remote are filed as "zu weit weg" right away – they never
+            # enter the automatic outbox.
+            stored = db.get_job(job_id)
+            if stored and stored.get("status") == "neu" and not location_ok(stored)[0]:
+                db.update_job(job_id, status="zu_weit",
+                              notes=((stored.get("notes") or "") + "\n" if stored.get("notes") else "")
+                              + f"Automatisch als „Zu weit weg“ markiert ({location_label(stored)}).")
 
     # 4) letters. a) every new job (score > 0) gets the complete no-LLM template at once, so no
     #    job is ever without a letter; old "[...]" templates are replaced the same way.
@@ -149,7 +158,8 @@ def _public_url() -> str | None:
 
 def rescore_all(settings: Settings, db: Database | None = None) -> int:
     """Recompute rule scores after editing config.yaml or cv_profile.md; re-detect
-    application e-mail addresses (manual entries are kept)."""
+    application e-mail addresses (manual entries are kept). Also files still-open
+    jobs outside the home region as "zu_weit" (the relocation filter)."""
     db = db or Database(settings.db_path)
     db.backfill_apply_email()
     cv = CVProfile.load(settings.cv_path, settings.profile.keyword_weights)
@@ -162,5 +172,9 @@ def rescore_all(settings: Settings, db: Database | None = None) -> int:
                        salary_predicted=bool(j["salary_predicted"]))
         res = score_job(p, settings.profile, cv)
         db.set_rule_score(j["id"], res.score, res.breakdown)
+        if j.get("status") == "neu" and not location_ok(j)[0]:
+            db.update_job(j["id"], status="zu_weit",
+                          notes=((j.get("notes") or "") + "\n" if j.get("notes") else "")
+                          + f"Als „Zu weit weg“ markiert ({location_label(j)}).")
         n += 1
     return n

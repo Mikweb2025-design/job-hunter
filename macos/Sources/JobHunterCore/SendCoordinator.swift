@@ -247,6 +247,23 @@ public struct SendCoordinator: Sendable {
         return try await deliverAndRecord(jobID: jobID, msg: msg, trigger: "manual")
     }
 
+    /// Defense in depth (anti-trasloco): reason to skip an AUTOMATIC send, or nil
+    /// to proceed. Refuses jobs marked too far (status `zu_weit`, server view `far`,
+    /// or `location` in the preview's `auto_blockers`) even if the server's outbox
+    /// still lists them. No positive evidence (both fetches failed) means "proceed
+    /// as before" — the guard only ever blocks, never newly allows.
+    private func autoGuardReason(jobID: Int) async -> String? {
+        if let detail = try? await api.job(id: jobID) {
+            if detail.summary.status == .zuWeit { return "Zu weit – kein automatischer Versand" }
+            if detail.summary.view == "far" { return "Zu weit (far) – kein automatischer Versand" }
+        }
+        if let preview = try? await api.emailPreview(id: jobID),
+           preview.autoBlockers.contains("location") {
+            return "Zu weit entfernt – kein automatischer Versand"
+        }
+        return nil
+    }
+
     /// Called after every refresh. Sends what the server's outbox allows right now.
     public func processOutbox(autoSendEnabled: Bool) async -> BatchResult {
         var result = BatchResult()
@@ -268,6 +285,13 @@ public struct SendCoordinator: Sendable {
             }
             if ledger.wasSent(item.jobId) {
                 result.outcomes.append(.skipped(jobID: item.jobId, reason: "bereits gesendet"))
+                continue
+            }
+            // Defense in depth (anti-trasloco): never AUTO-send a job marked too far,
+            // even if the server's outbox still lists it. Approved (user-clicked) items
+            // keep the server's verdict only.
+            if !item.isApproved, let guardReason = await autoGuardReason(jobID: item.jobId) {
+                result.outcomes.append(.skipped(jobID: item.jobId, reason: guardReason))
                 continue
             }
             do {

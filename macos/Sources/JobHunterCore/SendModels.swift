@@ -25,6 +25,8 @@ public struct SendSettings: Codable, Sendable, Hashable {
     public var applicant: Applicant?
     /// Editable auto-send score (newer servers): current value, config.yaml value, allowed range.
     public var autoMinScoreInfo: AutoMinScoreInfo?
+    /// Relocation filter (newest servers; nil on older ones = no info, not "off").
+    public var locationFilter: LocationFilter?
 }
 
 public struct AutoMinScoreInfo: Codable, Sendable, Hashable {
@@ -33,6 +35,67 @@ public struct AutoMinScoreInfo: Codable, Sendable, Hashable {
     public var overridden: Bool
     public var min: Int
     public var max: Int
+}
+
+/// Umzugsfilter from `GET /api/v1/send-settings` (newest servers).
+/// Any shape decodes: unknown keys are ignored, wrong types and non-objects
+/// become "present but empty" so old/new servers never break the settings load.
+public struct LocationFilter: Codable, Sendable, Hashable {
+    public var maxDistanceKm: Int?
+    public var mode: String?
+
+    public init(maxDistanceKm: Int? = nil, mode: String? = nil) {
+        self.maxDistanceKm = maxDistanceKm
+        self.mode = mode
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case maxDistanceKm, mode
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try? decoder.container(keyedBy: CodingKeys.self)
+        maxDistanceKm = (try? c?.decodeIfPresent(Int.self, forKey: .maxDistanceKm)) ?? nil
+        mode = (try? c?.decodeIfPresent(String.self, forKey: .mode)) ?? nil
+    }
+
+    /// One-line German summary for the settings row.
+    public var summary: String {
+        var parts: [String] = []
+        if let mode, !mode.isEmpty { parts.append(mode) }
+        if let km = maxDistanceKm { parts.append("max. \(km) km") }
+        return parts.isEmpty ? "aktiv" : parts.joined(separator: " · ")
+    }
+}
+
+/// `GET /api/v1/views`: labels, order and counts of the server-computed workflow
+/// views (`jobhunter.views`; newest servers add `far`). Missing keys mean an older
+/// server — the app then falls back to its static sidebar.
+public struct ServerViews: Codable, Sendable, Hashable {
+    public var counts: [String: Int]
+    public var labels: [String: String]
+    public var order: [String]
+    public var todayLimit: Int?
+
+    public init(counts: [String: Int] = [:], labels: [String: String] = [:],
+                order: [String] = [], todayLimit: Int? = nil) {
+        self.counts = counts
+        self.labels = labels
+        self.order = order
+        self.todayLimit = todayLimit
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case counts, labels, order, todayLimit
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        counts = (try? c.decodeIfPresent([String: Int].self, forKey: .counts)) ?? [:]
+        labels = (try? c.decodeIfPresent([String: String].self, forKey: .labels)) ?? [:]
+        order = (try? c.decodeIfPresent([String].self, forKey: .order)) ?? []
+        todayLimit = (try? c.decodeIfPresent(Int.self, forKey: .todayLimit)) ?? nil
+    }
 }
 
 /// Rendered e-mail as the server would send it.

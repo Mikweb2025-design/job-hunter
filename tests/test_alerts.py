@@ -168,3 +168,26 @@ def test_dashboard_paste_form(ctx):
     index = client.get("/").text
     assert '<option value="linkedin-alert"' in index and "LinkedIn (Job-Alert)" in index
     assert "Anzeigentext einfügen, dann KI-Anschreiben" not in client.get("/today").text
+
+
+def test_reimport_corrects_wrongly_parsed_alert_job(settings):
+    from jobhunter.alerts import AlertItem, import_alert_jobs
+    from jobhunter.db import Database
+    db = Database(settings.db_path)
+    bad = AlertItem(source="linkedin-alert", external_id="4474093733", title="Neue Jobs entsprechen Ihren Einstellungen.",
+                    company="Customer Support Specialist", location="AMBOSS",
+                    url="https://www.linkedin.com/jobs/view/4474093733/", received_at="2026-10-08T07:35:00Z")
+    r1 = import_alert_jobs(settings, db, [bad])
+    jid = r1.imported[0]
+    good = AlertItem(source="linkedin-alert", external_id="4474093733", title="Customer Support Specialist",
+                     company="AMBOSS", location="Berlin, Deutschland",
+                     url="https://www.linkedin.com/jobs/view/4474093733/", received_at="2026-10-08T11:35:00Z")
+    r2 = import_alert_jobs(settings, db, [good])
+    assert r2.corrected == [jid] and r2.imported == []
+    job = db.get_job(jid)
+    assert job["title"] == "Customer Support Specialist" and job["company"] == "AMBOSS"
+    # user-touched jobs are never changed
+    db.update_job(jid, status="interessant")
+    again = AlertItem(**{**good.__dict__, "title": "Other"}) if hasattr(good, "__dict__") else good
+    r3 = import_alert_jobs(settings, db, [again])
+    assert r3.corrected == []

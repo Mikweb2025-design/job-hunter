@@ -295,7 +295,7 @@ enum HTMLText {
 
 public enum JobAlertParser {
     /// Bump when a parser changes so already processed mails are read again.
-    public static let version = 3
+    public static let version = 4
 
     /// Jobs in one alert e-mail (empty for other mails from the same sender, e.g. "Willkommen").
     public static func parse(_ message: AlertMailMessage) -> [AlertJob] {
@@ -332,6 +332,8 @@ public enum JobAlertParser {
     static let linkedInNoise = try! NSRegularExpression(pattern: """
         (?ix)^(?:
           .*jobbenachrichtigung.* | .*benachrichtigen\\s+sie.* | .*job\\s*alert.* | \\d+\\+?\\s+neue\\s+jobs.* |
+          neue\\s+jobs\\s+entsprechen.* | (?:new\\s+)?jobs?\\s+(?:that\\s+)?match(?:es)?\\s+your.* | sie\\s+könnten\\s+für.* |
+          .*ehemalige\\s+kolleg.* | \\d+\\s+(?:frühere|former)\\s+.* | aktives\\s+recruiting | top[-\\s]?bewerber.* |
           \\d+\\+?\\s+new\\s+jobs.* | ihre\\s+aktuellen\\s+jobempfehlungen.* | alle\\s+jobs\\s+anzeigen.* | see\\s+all\\s+jobs.* |
           dieses\\s+unternehmen\\s+ist\\s+aktiv.* | aktiv\\s+auf\\s+personalsuche | actively\\s+(?:hiring|recruiting).* |
           schnellbewerbung | easy\\s+apply | mit\\s+lebenslauf.*bewerben | apply\\s+with\\s+.* | einfach\\s+bewerben | gesponsert | promoted | neu | new |
@@ -418,7 +420,7 @@ public enum JobAlertParser {
     /// "Ich bin interessiert" followed by a click.stepstone.de tracking link (no job id in it).
     /// Block: [labels like "Passt gut", "Beliebter Job"] · Titel · Firma · Ort · details… · "vor N Tagen".
     static let stepStoneLabel = try! NSRegularExpression(
-        pattern: #"(?i)^(?:passt\s+(?:sehr\s+)?gut|beliebter\s+job|top[-\s]?job|neu|(?:sehr\s+)?gute?\s+übereinstimmung|läuft\s+bald\s+aus|schnelle\s+bewerbung|gerade\s+eben|heute|gestern|vor\s+\d+\s+(?:minuten?|stunden?|tagen?|wochen?))$"#)
+        pattern: #"(?i)^(?:passt(?:\s+\S+){0,2}|gute?\s+chancen.*|deine\s+chancen.*|dein\s+profil\s+sticht.*|top[-\s]?match|empfehlung|nur\s+wenige\s+bewerber.*|beliebter\s+job|top[-\s]?job|neu|(?:sehr\s+)?gute?\s+übereinstimmung|läuft\s+bald\s+aus|schnelle\s+bewerbung|gerade\s+eben|heute|gestern|vor\s+\d+\s+(?:minuten?|stunden?|tagen?|wochen?))$"#)
 
     static let stepStoneFooter = ["diesen job melden", "e-mail-einstellungen", "diese e-mail abbestellen",
                                   "nutzungsbedingungen", "datenschutzerklärung", "weitere jobs", "alle jobs ansehen"]
@@ -481,7 +483,53 @@ public enum JobAlertParser {
                                  company: company, location: location, url: url, receivedAt: receivedAt,
                                  description: desc))
         }
+        if jobs.isEmpty, let single = stepStoneRecommendation(lines, receivedAt: receivedAt) { jobs.append(single) }
         return jobs
+    }
+
+    /// "Unsere Empfehlung" mails: greeting sentence · Titel · Firma · "Orte … Anstellung … €/Jahr … vor N Tagen" · link · posting text.
+    static func stepStoneRecommendation(_ lines: [String], receivedAt: Date) -> AlertJob? {
+        guard let linkIdx = lines.firstIndex(where: { $0.lowercased().hasPrefix("https://click.stepstone.de") }) else { return nil }
+        var block: [String] = []
+        var j = linkIdx - 1
+        while j >= 0 {
+            let l = lines[j]
+            if l.isEmpty { if !block.isEmpty { break }; j -= 1; continue }
+            if l.count > 70 && (l.hasSuffix("!") || l.hasSuffix("?") || l.hasSuffix(".")) { break }
+            if l.lowercased().hasPrefix("hallo") { break }
+            block.insert(l, at: 0)
+            j -= 1
+        }
+        let fields = block.filter { stepStoneLabel.firstMatch(in: $0, range: NSRange($0.startIndex..., in: $0)) == nil }
+        guard fields.count >= 2 else { return nil }
+        let title = fields[0], company = fields[1]
+        var location = "", details: [String] = []
+        if fields.count > 2 {
+            let info = fields[2]
+            // "Berlin, Hamburg … Feste Anstellung …": the places come before the first contract keyword.
+            if let r = info.range(of: #"\s(Feste Anstellung|Befristet|Teilzeit|Vollzeit|Homeoffice|Arbeitnehmerüberlassung|Freie Mitarbeit)"#, options: .regularExpression) {
+                location = String(info[..<r.lowerBound]).trimmingCharacters(in: .whitespaces)
+                details.append(String(info[r.lowerBound...]).trimmingCharacters(in: .whitespaces))
+            } else {
+                location = info
+            }
+            details += fields.dropFirst(3)
+        }
+        var posting: [String] = []
+        for l in lines[(linkIdx + 1)...] {
+            let lower = l.lowercased()
+            if stepStoneFooter.contains(where: { lower.hasPrefix($0) }) || lower.hasPrefix("ich bin interessiert") { break }
+            if lower.hasPrefix("http") { continue }
+            posting.append(l)
+        }
+        let text = posting.joined(separator: "\n").replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        var parts: [String] = []
+        if !details.isEmpty { parts.append("Aus dem StepStone-Job-Alert: " + details.joined(separator: " · ")) }
+        if text.count >= 200 { parts.append(text) }
+        return AlertJob(source: .stepstone, externalId: stableID(title + "|" + company), title: title, company: company,
+                        location: location, url: lines[linkIdx], receivedAt: receivedAt,
+                        description: parts.isEmpty ? nil : parts.joined(separator: "\n\n"))
     }
 
     /// Stable id for jobs whose links carry no id (tracking redirects): FNV-1a of title|company.

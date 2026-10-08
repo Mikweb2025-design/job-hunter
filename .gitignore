@@ -2,10 +2,12 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+.DS_Store
 .env
 data/*.db
 data/*.db-*
 data/exports/
+data/server.log
 .env.local
 data/cv_profile.backup-*.md
 data/cv_profile.ui-*.md

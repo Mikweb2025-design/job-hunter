@@ -74,11 +74,11 @@ def oc_cfg(binary, **kw):
 
 
 def add_job(db, title="Cloud Support Engineer", company="Acme GmbH", email="jobs@acme.de", score=70,
-            letter=None, origin=None, status="neu"):
+            letter=None, origin=None, status="neu", location="10115 Berlin"):
     desc = (f"Bewerbung an {email}. " if email else "Bewerbung nur über das Portal. ") + "Linux, Python, Nextcloud."
     desc += " Wir suchen Verstärkung für unser Support-Team in Berlin." * 6  # >= 300 chars: KI letters allowed
     jid = db.insert_job(JobPosting(source="test", source_id=title + company, title=title, company=company,
-                                   description=desc, url="https://example.org/job"), score, {})
+                                   location=location, description=desc, url="https://example.org/job"), score, {})
     db.update_job(jid, score=score, letter=letter, letter_origin=origin, status=status)
     return db.get_job(jid)
 
@@ -181,8 +181,10 @@ def test_config_opencode(tmp_path, monkeypatch, fake_oc):
 
 
 def test_repo_config_send_values_unchanged():
+    # Deployment choice (operator-managed): automatic sending is ON for real,
+    # but ONLY for the home region / 100% remote – the relocation filter must stay on.
     s = load_settings("config.yaml")
-    assert (s.send.mode, s.send.dry_run) == ("approve", True)
+    assert (s.send.mode, s.send.dry_run, s.send.location_filter) == ("auto", False, True)
 
 
 # ---- client + actions --------------------------------------------------------

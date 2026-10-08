@@ -55,16 +55,11 @@ search:
     MCP: 2
 
 llm:
-  provider: opencode       # none | anthropic | openai | opencode (oder per ENV: LLM_PROVIDER)
-  model: opencode/big-pickle  # opencode: kostenloses Modell, läuft remote (keine lokale CPU-Last)
-                           # anthropic: claude-sonnet-5-5 · openai: Modellname des Endpoints
-                           # Ollama (openai) auf dem CPU-Server NUR kleine Modelle, z.B. llama3.2:3b
-  # opencode_bin: ~/.opencode/bin/opencode   # sonst OPENCODE_BIN oder `opencode` im PATH
-  timeout_s: 180           # pro Anschreiben; danach wird opencode abgebrochen
+  provider: none           # none | anthropic | openai (oder per ENV: LLM_PROVIDER)
+  model: claude-sonnet-5-5 # bei openai: Modellname des Endpoints (z.B. llama3.1, mistral-small)
   # base_url: https://openai.inference.de-txl.ionos.com/v1   # nur bei provider=openai (oder OPENAI_BASE_URL)
-  threshold: 55            # (nicht mehr benutzt: die KI schreibt für ALLE offenen Stellen ohne echtes Anschreiben, beste zuerst)
-  max_per_run: 20          # max. KI-Anschreiben pro Lauf / „Alle Vorlagen schreiben“ (beste Stellen zuerst);
-                           # immer nur 1 gleichzeitig
+  threshold: 55            # LLM nur für Stellen mit Regel-Score >= threshold
+  max_per_run: 15          # Kostenbremse pro Lauf
   anthropic_fallbacks: true  # serverseitiger Fallback bei Ablehnung (refusal)
   # effort: medium         # optional: low | medium | high
 
@@ -79,24 +74,6 @@ sources:
     country: de
     results_per_page: 50
     max_pages: 1
-  # Weitere öffentliche Quellen (aus, bis sie hier oder im Dashboard › Suchprofil aktiviert werden).
-  # Alle ohne Login/Scraping; lokal nach Suchbegriffen/Zieltiteln und Ort gefiltert.
-  arbeitnow:               # https://www.arbeitnow.com/api/job-board-api (1 Seite ≈ 325 Stellen)
-    enabled: false
-    max_pages: 1
-  remotive:                # Remote-Stellen (max. 1 Abruf pro Lauf, Quelle verlinken)
-    enabled: false
-    category: ""           # z. B. customer-support | devops | software-dev
-  jobicy:                  # Remote-Stellen offen für Deutschland/EMEA
-    enabled: false
-    geo: germany
-  berlinstartupjobs:       # RSS-Feeds berlinstartupjobs.com
-    enabled: false
-  ats:                     # Karriereseiten (Greenhouse/Lever/Personio/SmartRecruiters), 1 Abruf pro Firma
-    enabled: false
-    companies: []
-    #  - {ats: greenhouse, token: sumup, name: SumUp}
-    #  - {ats: smartrecruiters, token: DeliveryHero, name: Delivery Hero}
   rss:
     enabled: false
     feeds: []
@@ -114,24 +91,14 @@ notify:
   min_score: 70            # Telegram nur für Stellen ab diesem Score
   max_items: 5
 
-# Absender im Anschreiben (PDF/Druckansicht, Mac-App). Nur öffentliche Kontaktdaten, keine Secrets.
-applicant:
-  name: Daniele Michelin
-  # street: Musterstraße 1   # optional
-  city: Berlin
-  email: info@daniele-michelin.com
-  phone: +49 160 7804710
-  linkedin: linkedin.com/in/daniele-michelin-02863143b
-  enclosures: [Lebenslauf]
-
 max_details_per_run: 80    # max. Detailabrufe (Arbeitsagentur) pro Lauf
 ui_lang: de                # de | it
 
 # Bewerbungen per E-Mail (gesendet von der macOS-App über Apple Mail).
 # Der Server entscheidet nur (Regeln unten) und protokolliert; er verschickt selbst nichts.
 send:
-  mode: approve            # off | approve (nur nach Freigabe pro Stelle) | auto (automatisch)
-  dry_run: true            # true = TESTMODUS: es wird nie etwas versendet
+  mode: auto               # off | approve (nur nach Freigabe pro Stelle) | auto (automatisch)
+  dry_run: false           # true = TESTMODUS: es wird nie etwas versendet
   auto_min_score: 80       # auto: nur Stellen ab diesem Score
   daily_cap: 5             # max. echte Sendungen pro Tag (Europe/Berlin), gilt für alle Modi
   company_cooldown_days: 90  # nie zwei Bewerbungen an dieselbe Firma innerhalb von N Tagen
@@ -143,6 +110,9 @@ send:
     - IONOS SE
     - STRATO AG
   require_letter: true     # ohne Anschreiben kein Versand; Vorlagen mit [...] werden nie gesendet
+  location_filter: true  # Umzugsfilter: automatisch NUR Berlin/Brandenburg oder 100 % Remote.
+                         # „Homeoffice möglich“ in Köln/Kiel/Nürnberg ist hybrid, zählt NICHT als remote.
+                         # Manuelle Freigabe bleibt möglich; neue Treffer außerhalb werden als „Zu weit weg“ abgelegt.
   kill_switch: false       # true = sofort alles stoppen (auch freigegebene)
   from_address: info@daniele-michelin.com
   sender_name: Daniele Michelin

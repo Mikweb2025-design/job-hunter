@@ -101,11 +101,13 @@ class ImportReport:
     received: int = 0
     imported: list[int] = field(default_factory=list)
     duplicates: list[int] = field(default_factory=list)
+    corrected: list[int] = field(default_factory=list)
     invalid: int = 0
     items: list[dict] = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {"received": self.received, "imported": len(self.imported), "duplicates": len(self.duplicates),
+                "corrected": len(self.corrected), "corrected_ids": self.corrected,
                 "invalid": self.invalid, "imported_ids": self.imported, "duplicate_ids": self.duplicates,
                 "items": self.items}
 
@@ -134,6 +136,11 @@ def _existing_by_key(db: Database, key: str) -> dict | None:
     return db.get_job(row["id"]) if row else None
 
 
+def _correctable(job: dict) -> bool:
+    """Only untouched jobs are corrected: still "neu", no letter written/edited by the user."""
+    return job.get("status") == "neu" and job.get("letter_origin") != "manuell"
+
+
 def import_alert_jobs(settings: Settings, db: Database, items: list[AlertItem]) -> ImportReport:
     """Insert new alert jobs (rule-scored, apply manually, no letter). A job we already have
     (same board id, or same normalized title + company from any source) is not inserted again:
@@ -154,6 +161,20 @@ def import_alert_jobs(settings: Settings, db: Database, items: list[AlertItem]) 
                        location=(it.location or "").strip(), url=url,
                        description=(it.description or "").strip(), published=_published(it.received_at))
         existing = _existing_by_source_id(db, it.source, ext) if ext else None
+        if existing and existing["dedup_key"] != key and _correctable(existing) and not _existing_by_key(db, key):
+            # Same board id, but an older app version parsed the mail wrongly (e.g. title
+            # "Neue Jobs entsprechen Ihren Einstellungen." / "Passt hervorragend"): correct it.
+            db.update_job(existing["id"], title=title, company=company, location=p.location,
+                          dedup_key=key, url=url or existing.get("url"))
+            fixed = db.get_job(existing["id"]) or existing
+            res = score_job(JobPosting(source=it.source, source_id=ext, title=title, company=company,
+                                       location=p.location, url=url,
+                                       description=fixed.get("description") or p.description), settings.profile, cv)
+            db.set_rule_score(existing["id"], res.score, res.breakdown)
+            rep.corrected.append(existing["id"])
+            rep.items.append({"external_id": ext, "source": it.source, "result": "corrected", "job_id": existing["id"]})
+            seen_keys.add(key)
+            continue
         existing = existing or _existing_by_key(db, key)
         if existing or key in seen_keys:
             if existing:

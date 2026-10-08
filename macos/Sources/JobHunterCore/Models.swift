@@ -5,6 +5,9 @@ import Foundation
 /// Tracker status as used by the server (`jobhunter.models.STATUSES`).
 public enum JobStatus: String, CaseIterable, Codable, Sendable, Identifiable, Hashable {
     case neu, interessant, beworben, gespraech, absage, angebot
+    /// Too far away (commute/relocation): never auto-sent, like `absage`.
+    /// Newer servers (rebuild 07.10.2026); older ones answer PATCH with 422.
+    case zuWeit = "zu_weit"
 
     public var id: String { rawValue }
 
@@ -16,6 +19,7 @@ public enum JobStatus: String, CaseIterable, Codable, Sendable, Identifiable, Ha
         case .gespraech: "Gespräch"
         case .absage: "Absage"
         case .angebot: "Angebot"
+        case .zuWeit: "Zu weit"
         }
     }
 
@@ -27,6 +31,7 @@ public enum JobStatus: String, CaseIterable, Codable, Sendable, Identifiable, Ha
         case .gespraech: "person.2"
         case .absage: "xmark.circle"
         case .angebot: "checkmark.seal"
+        case .zuWeit: "mappin.slash"
         }
     }
 
@@ -71,6 +76,12 @@ public struct JobSummary: Codable, Sendable, Identifiable, Hashable {
     public var sourceLabel: String?
     /// Characters of posting text on the server (newer servers). < 300: no automatic KI letter.
     public var descriptionLength: Int?
+    /// Server-computed category (`jobhunter.views.classify`, newer servers): auto | manual |
+    /// applied | later | far. Nil on older servers (the app falls back to `ApplyCategory.of`).
+    public var view: String?
+    /// Server-computed row label (`jobhunter.views.apply_label`, newer servers).
+    /// Shown when present; the local `ApplyMethodLabel` text is the offline fallback.
+    public var applyLabel: String?
 
     /// Minimum posting text for a KI letter (same rule as the server's letters.candidates).
     public static let minPostingText = 300

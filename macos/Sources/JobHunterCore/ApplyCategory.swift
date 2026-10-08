@@ -9,7 +9,7 @@ public enum ApplyCategory: String, CaseIterable, Sendable, Identifiable, Hashabl
     case manual
     /// Applied (status beworben/gespräch/angebot, or an e-mail was really sent).
     case applied
-    /// Rejected / put aside (status absage).
+    /// Rejected / put aside (status absage or zu_weit): never auto-sent.
     case later
 
     public var id: String { rawValue }
@@ -27,7 +27,7 @@ public enum ApplyCategory: String, CaseIterable, Sendable, Identifiable, Hashabl
         if job.sendState?.isSent == true { return .applied }
         switch job.status {
         case .beworben, .gespraech, .angebot: return .applied
-        case .absage: return .later
+        case .absage, .zuWeit: return .later
         case .neu, .interessant: break
         }
         if let email = job.applyEmail?.trimmingCharacters(in: .whitespaces), !email.isEmpty,
@@ -41,6 +41,13 @@ public enum ApplyCategory: String, CaseIterable, Sendable, Identifiable, Hashabl
     public static func isBlocked(company: String?, blocklist: [String]) -> Bool {
         guard let company = company?.lowercased(), !company.isEmpty else { return false }
         return blocklist.contains { !$0.isEmpty && company.contains($0.lowercased()) }
+    }
+
+    /// Anti-trasloco predicate shared by the far list, the detail boxes and the
+    /// auto-send guard: user-marked (`zu_weit`) or server-classified (`view == far`).
+    /// Far jobs are never auto-sent and have no send button.
+    public static func isFar(_ job: JobSummary) -> Bool {
+        job.status == .zuWeit || job.view == "far"
     }
 
     /// "Heute zu tun": open manual jobs, best score first.
@@ -57,7 +64,7 @@ extension JobFilter {
     public func matches(_ job: JobSummary, description: String? = nil, now: Date = .now) -> Bool {
         switch status {
         case .all: break
-        case .active: if job.status == .absage { return false }
+        case .active: if job.status == .absage || job.status == .zuWeit { return false }
         case .only(let s): if job.status != s { return false }
         }
         if minScore > 0 && job.score < minScore { return false }

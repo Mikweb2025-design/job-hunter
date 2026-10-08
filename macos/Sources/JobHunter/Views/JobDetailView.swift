@@ -241,6 +241,19 @@ struct JobDetailView: View {
     @ViewBuilder
     private func applyBox(_ d: JobDetail) -> some View {
         let s = d.summary
+        // Anti-trasloco: a job marked "Zu weit" (or server-classified `far`) is never
+        // applied to (neither automatic nor portal) — and the far view has no send
+        // button at all. The status can still be changed in the picker below.
+        if ApplyCategory.isFar(s) {
+            GroupBox {
+                Text("Als „Zu weit“ markiert – weder E-Mail noch Portal. Zum Reaktivieren unten einen anderen Status wählen.")
+                    .font(.callout)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(4)
+            } label: {
+                Label("Zu weit – nicht bewerben", systemImage: "mappin.slash").font(.headline).foregroundStyle(.secondary)
+            }
+        } else {
         let category = model.category(of: s)
         switch category {
         case .manual, .later:
@@ -320,10 +333,14 @@ struct JobDetailView: View {
                   systemImage: "checkmark.circle.fill")
                 .font(.headline).foregroundStyle(.green)
         }
+        }
     }
 
     private func mailBox(_ d: JobDetail) -> some View {
-        GroupBox {
+        // The far view never has a send button (anti-trasloco); the verdict is shown
+        // via blockerTexts instead.
+        let isFar = ApplyCategory.isFar(d.summary)
+        return GroupBox {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     TextField("Empfänger", text: $applyEmail, prompt: Text("keine Adresse – nur manuell bewerben"))
@@ -371,9 +388,10 @@ struct JobDetailView: View {
                         .foregroundStyle(.orange)
                     }
                     HStack {
-                        Button {
-                            confirmSend = true
-                        } label: {
+                        if !isFar {
+                            Button {
+                                confirmSend = true
+                            } label: {
                             Label(p.dryRun ? "Per Mail senden (Testmodus)" : "Per Mail senden", systemImage: "paperplane")
                         }
                         .buttonStyle(.borderedProminent)
@@ -390,6 +408,7 @@ struct JobDetailView: View {
                                  ? "Der Server ist im Testmodus (dry_run). Die Nachricht wird in Mail angezeigt, aber NICHT gesendet."
                                  : "An: \(email.to ?? "")\nVon: \(email.sender)\nBetreff: \(email.subject)\nAnhang: \(cvDisplayPath)\n\nDas kann nicht zurückgenommen werden.")
                         }
+                        }  // if !isFar: the far view has no send button
                         if model.isSending { ProgressView().controlSize(.small) }
                         Spacer()
                         Text(p.dryRun ? "Testmodus: es wird nichts gesendet." : "Sendet über Apple Mail (\(email.from)).")
@@ -414,9 +433,19 @@ struct JobDetailView: View {
                         Label("Erst synchronisieren: der Server hat noch nicht die lokale Fassung.", systemImage: "arrow.triangle.2.circlepath")
                             .font(.caption).foregroundStyle(.orange)
                     }
-                } else if preview != nil {
-                    Text("Keine Bewerbungs-E-Mail-Adresse in der Anzeige gefunden – nur manuell bewerben (oder Adresse oben eintragen).")
-                        .font(.callout).foregroundStyle(.secondary)
+                } else if let p = preview {
+                    // Server verdict in the server's own (German) words; generic fallback
+                    // only when the server sent no reason.
+                    if !p.blockerTexts.isEmpty {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Kann jetzt nicht gesendet werden:").font(.caption.weight(.semibold))
+                            ForEach(p.blockerTexts, id: \.self) { Text("• \($0)").font(.caption) }
+                        }
+                        .foregroundStyle(.orange)
+                    } else {
+                        Text("Keine Bewerbungs-E-Mail-Adresse in der Anzeige gefunden – nur manuell bewerben (oder Adresse oben eintragen).")
+                            .font(.callout).foregroundStyle(.secondary)
+                    }
                 }
             }
             .padding(4)

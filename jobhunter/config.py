@@ -100,6 +100,9 @@ class SendConfig:
     company_cooldown_days: int = 90
     blocklist: list[str] = field(default_factory=lambda: list(DEFAULT_BLOCKLIST))
     require_letter: bool = True
+    # Home-region gate: automatic sends only for jobs in Berlin/Brandenburg or
+    # explicitly 100% remote (see jobhunter.location). Manual approval still works.
+    location_filter: bool = True
     kill_switch: bool = False
     from_address: str = "info@daniele-michelin.com"
     sender_name: str = "Daniele Michelin"
@@ -225,6 +228,7 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         company_cooldown_days=int(sd.get("company_cooldown_days", defaults.company_cooldown_days)),
         blocklist=[str(b) for b in (sd.get("blocklist") if sd.get("blocklist") is not None else defaults.blocklist)],
         require_letter=bool(sd.get("require_letter", defaults.require_letter)),
+        location_filter=bool(sd.get("location_filter", defaults.location_filter)),
         kill_switch=_bool(_env("SEND_KILL_SWITCH"), sd.get("kill_switch", defaults.kill_switch)),
         from_address=str(sd.get("from_address", defaults.from_address)),
         sender_name=str(sd.get("sender_name", defaults.sender_name)),

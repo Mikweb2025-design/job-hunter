@@ -14,7 +14,8 @@
   {% if f.view == 'auto' %}<p class="small muted">Stellen mit Bewerbungs-E-Mail-Adresse. Ob und wann gesendet wird, entscheiden die Regeln im <a href="{{ base }}/outbox">Postausgang</a> – versendet wird nur von der Mac-App.</p>
   {% elif f.view == 'manual' %}<p class="small muted">Keine E-Mail-Adresse in der Anzeige: über das Portal / die Originalanzeige bewerben. Die besten 10 stehen unter <a href="{{ base }}/today">Heute zu tun</a>.</p>
   {% elif f.view == 'applied' %}<p class="small muted">Status Beworben/Gespräch/Angebot oder echt per E-Mail gesendet.</p>
-  {% elif f.view == 'later' %}<p class="small muted">Status Absage – zurückgestellt oder abgelehnt.</p>{% endif %}
+  {% elif f.view == 'later' %}<p class="small muted">Status Absage – zurückgestellt oder abgelehnt.</p>
+  {% elif f.view == 'far' %}<p class="small muted">Außerhalb Berlin/Brandenburg ohne 100 % Remote – kein Umzug. Wird nie automatisch versendet; bei Interesse Status auf „Interessant“ setzen und manuell bewerben.</p>{% endif %}
 </div>
 {% endif %}
 

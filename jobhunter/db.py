@@ -217,7 +217,7 @@ class Database:
                   limit: int = 500) -> list[dict]:
         where, args = [], []
         if status == "aktiv":
-            where.append("status NOT IN ('absage')")
+            where.append("status NOT IN ('absage','zu_weit')")
         elif status:
             where.append("status=?"); args.append(status)
         if min_score is not None:

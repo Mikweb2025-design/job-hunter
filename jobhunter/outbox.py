@@ -13,9 +13,12 @@ Rules (all modes unless noted):
                                  the fixed template ("vorlage") is never e-mailed – only KI or
                                  user-written ("manuell") letters
 * company cooldown            -> no real send / "beworben" at the same normalized company
-                                 within company_cooldown_days
+                                  within company_cooldown_days
 * daily cap                   -> at most daily_cap real sends per day (Europe/Berlin)
 * auto only (not approved)    -> mode=auto, score >= auto_min_score
+* home region (auto only)     -> location_filter: auto sends only for Berlin/Brandenburg
+                                  or explicitly 100% remote jobs (see jobhunter.location).
+                                  Manual approval of other jobs stays possible.
 Test sends (dry_run) are logged but never count for dedup, cooldown or cap.
 """
 from __future__ import annotations
@@ -28,6 +31,7 @@ from zoneinfo import ZoneInfo
 from .config import SendConfig, Settings
 from .db import Database
 from .dedup import _GENDER_RE, normalize_company
+from .location import location_ok
 
 ACTIVE_STATUSES = ("neu", "interessant")
 APPLIED_STATUSES = ("beworben", "gespraech", "absage", "angebot")
@@ -50,6 +54,7 @@ BLOCKER_TEXT = {
     "score": "Score unter der Auto-Schwelle",
     "template_letter": "Vorlagen-Anschreiben wird nie gesendet – zuerst mit KI schreiben oder selbst anpassen",
     "auto_off": "Automatischer Versand nur im Modus „auto“",
+    "location": "Außerhalb Berlin/Brandenburg und kein 100 % Remote – kein Umzug (Umzugsfilter)",
 }
 
 
@@ -257,6 +262,10 @@ class Gate:
             a.append("score")
         if not letter:
             a.append("no_letter")
+        if cfg.location_filter:
+            ok, _reason = location_ok(job)
+            if not ok:
+                a.append("location")
         return d
 
     # -- outbox ----------------------------------------------------------------

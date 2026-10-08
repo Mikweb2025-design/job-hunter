@@ -42,11 +42,13 @@ struct JobListView: View {
     }
 
     private var title: String {
-        item.category?.title ?? (item == .recent ? "Neu – letzte \(AppModel.recentDays) Tage" : "Alle Stellen")
+        if item == .far { return "Zu weit" }
+        return item.category?.title ?? (item == .recent ? "Neu – letzte \(AppModel.recentDays) Tage" : "Alle Stellen")
     }
 
     private var emptyText: String {
         switch item {
+        case .far: "Keine Stellen als „Zu weit“ markiert – weder E-Mail noch Portal."
         case .manual: "Keine offenen Stellen ohne E-Mail-Adresse."
         case .automatic: "Keine offenen Stellen mit Bewerbungs-Adresse."
         case .recent: "In den letzten \(AppModel.recentDays) Tagen wurden keine neuen Stellen gefunden."
@@ -66,6 +68,9 @@ struct JobListView: View {
         case .recent:
             ListHint(icon: "sparkles", tint: .purple,
                      text: "Neueste zuerst – auch Stellen aus deinen Job-Alerts (LinkedIn, StepStone, Indeed). Bei Alerts ohne Anzeigentext: „Anzeigentext einfügen“, dann schreibt die KI das Anschreiben.")
+        case .far:
+            ListHint(icon: "mappin.slash", tint: .secondary,
+                     text: "Zu weit entfernt – diese Stellen werden weder per E-Mail noch über das Portal beworben.")
         default:
             EmptyView()
         }
@@ -151,16 +156,41 @@ struct ApplyMethodLabel: View {
     let category: ApplyCategory
 
     var body: some View {
+        // Newer servers send the computed label (`views.apply_label`); prefer it so the row
+        // always agrees with the dashboard. Offline (or older servers) fall back to local text.
+        if let server = job.applyLabel, !server.trimmingCharacters(in: .whitespaces).isEmpty {
+            label(server, iconName, tint, bold: category == .manual)
+        } else {
+            switch category {
+            case .automatic:
+                label("Automatisch (E-Mail an \(job.applyEmail ?? "?"))", "envelope.fill", .blue, bold: false)
+            case .manual:
+                label(job.applyEmail == nil ? "MANUELL – über Portal bewerben" : "MANUELL – Firma gesperrt, über Portal bewerben",
+                      "hand.point.up.left.fill", .orange, bold: true)
+            case .applied:
+                label(appliedText, "checkmark.circle.fill", .green, bold: false)
+            case .later:
+                label(job.status == .zuWeit ? "Zu weit – nicht bewerben" : "Später/abgelehnt",
+                      "pause.circle", .gray, bold: false)
+            }
+        }
+    }
+
+    private var iconName: String {
         switch category {
-        case .automatic:
-            label("Automatisch (E-Mail an \(job.applyEmail ?? "?"))", "envelope.fill", .blue, bold: false)
-        case .manual:
-            label(job.applyEmail == nil ? "MANUELL – über Portal bewerben" : "MANUELL – Firma gesperrt, über Portal bewerben",
-                  "hand.point.up.left.fill", .orange, bold: true)
-        case .applied:
-            label(appliedText, "checkmark.circle.fill", .green, bold: false)
-        case .later:
-            label("Später/abgelehnt", "pause.circle", .gray, bold: false)
+        case .automatic: "envelope.fill"
+        case .manual: "hand.point.up.left.fill"
+        case .applied: "checkmark.circle.fill"
+        case .later: "pause.circle"
+        }
+    }
+
+    private var tint: Color {
+        switch category {
+        case .automatic: .blue
+        case .manual: .orange
+        case .applied: .green
+        case .later: .gray
         }
     }
 
@@ -230,6 +260,7 @@ struct StatusChip: View {
         case .gespraech: .orange
         case .absage: .secondary
         case .angebot: .green
+        case .zuWeit: .secondary
         }
     }
 }
