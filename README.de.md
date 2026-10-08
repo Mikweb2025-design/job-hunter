@@ -69,6 +69,9 @@ Quellen (jeweils ein-/ausschaltbar): Bundesagentur für Arbeit, Adzuna (eigener 
 ### Schwelle für den automatischen Versand
 Der Mindest-Score für automatische E-Mail-Bewerbungen (Standard 80) lässt sich zwischen 50 und 100 ändern – in der Mac-App (Einstellungen → E-Mail-Versand) oder im Dashboard (Postausgang). Tageslimit, 90-Tage-Regel pro Firma, Sperrliste und „nie Vorlagen“ gelten weiter.
 
+### Bewerbungs-Tracker
+Kanban mit allen 7 Status (Neu, Interessant, Beworben, Gespräch, Angebot, Absage, Zu weit) in der Mac-App und im Dashboard (`/tracker`): Drag & Drop, Status-Verlauf pro Stelle, Kennzahlen (Antwortquote, Gespräche, Angebote, Tage bis zur Antwort), Wochen-Diagramm, Nachfass-Liste nach 14 Tagen ohne Antwort (nur Entwurf – nie automatisch gesendet), Gesprächstermine, Mehrfachauswahl und Tastenkürzel.
+
 ---
 
 ## Aufbau des Repositorys

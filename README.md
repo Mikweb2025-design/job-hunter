@@ -69,6 +69,9 @@ Sources (each can be switched on/off): Bundesagentur für Arbeit, Adzuna (own ke
 ### Auto-send threshold
 The minimum score for automatic e-mail applications (default 80) can be changed between 50 and 100 in the Mac app (Settings → E-Mail-Versand) or on the dashboard (Postausgang). Daily cap, 90-day company rule, blocklist and "never templates" stay in force.
 
+### Application tracker
+Kanban with all 7 statuses (Neu, Interessant, Beworben, Gespräch, Angebot, Absage, Zu weit) in the Mac app and on the dashboard (`/tracker`): drag & drop, status history per job, KPIs (response rate, interviews, offers, days to answer), weekly chart, follow-up list after 14 days without answer (draft only – never sent automatically), interview dates, bulk actions and keyboard shortcuts.
+
 ---
 
 ## Repository layout
