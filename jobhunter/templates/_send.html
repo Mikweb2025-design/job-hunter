@@ -1,7 +1,7 @@
 {# Per-job e-mail badge. `s` = send_state dict from jobhunter.outbox.send_state #}
 {% macro send_badge(s) -%}
 {%- if s.state == 'sent' -%}
-  <span class="sbadge sent" title="Echt versendet">✉ Gesendet am {{ s.sent_at[:10] }} an {{ s.to }}</span>
+  <span class="sbadge sent" title="Echt versendet">✉ Gesendet am {{ s.sent_at|dmy }} an {{ s.to }}</span>
 {%- elif s.state == 'manual' -%}
   <span class="sbadge manual">Nur manuell (keine E-Mail-Adresse)</span>
 {%- else -%}
@@ -11,6 +11,6 @@
   {%- elif s.state == 'blocked' -%}<span class="sbadge blocked">E-Mail: {{ s.to }} (gesperrt)</span>
   {%- elif s.state == 'email' -%}<span class="sbadge email">E-Mail: {{ s.to }}</span>
   {%- endif -%}
-  {%- if s.test_at %} <span class="sbadge test" title="Testlauf am {{ s.test_at[:16].replace('T', ' ') }}">Test – nicht gesendet</span>{% endif -%}
+  {%- if s.test_at %} <span class="sbadge test" title="Testlauf am {{ s.test_at|localtime }}">Test – nicht gesendet</span>{% endif -%}
 {%- endif -%}
 {%- endmacro %}

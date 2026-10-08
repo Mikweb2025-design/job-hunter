@@ -8,20 +8,21 @@ struct JobListView: View {
     var body: some View {
         @Bindable var model = model
         let items = model.list(for: item)
-        List(items, selection: $model.selectedJobID) { job in
+        List(items, selection: selection) { job in
             JobRow(job: job, category: model.category(of: job), pending: !model.pendingChanges(for: job.id).isEmpty)
                 .tag(job.id)
-                .contextMenu {
-                    if let link = JobLinks.applyLink(for: job) {
-                        Link("Bewerbung öffnen", destination: link)
-                        Button("Link kopieren") { copyToPasteboard(link.absoluteString) }
-                    }
-                    if job.status != .beworben {
-                        Button("Als beworben markieren") { _ = model.markApplied(id: job.id) }
-                    }
-                }
+        }
+        .contextMenu(forSelectionType: Int.self) { ids in
+            if !ids.isEmpty { JobActionsMenu(ids: Array(ids)) }
+        } primaryAction: { ids in
+            if ids.count == 1, let id = ids.first, let job = model.job(id), let link = JobLinks.applyLink(for: job) {
+                NSWorkspace.shared.open(link)  // double-click: open the posting
+            }
         }
         .listStyle(.inset(alternatesRowBackgrounds: true))
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if model.selectedJobIDs.count > 1 { BulkBar(ids: Array(model.selectedJobIDs)) }
+        }
         .searchable(text: $model.filter.query, placement: .toolbar, prompt: "Titel, Firma, Text")
         .navigationTitle(title)
         .navigationSubtitle(items.count == 1 ? "1 Treffer" : "\(items.count) Treffer")
@@ -38,6 +39,17 @@ struct JobListView: View {
                                            description: Text(model.errorMessage ?? ""))
                 }
             }
+        }
+    }
+
+    /// Multi-selection (⌘/⇧-click); a single selection drives the detail column.
+    private var selection: Binding<Set<Int>> {
+        Binding {
+            model.selectedJobIDs.count > 1 ? model.selectedJobIDs : Set(model.selectedJobID.map { [$0] } ?? [])
+        } set: { ids in
+            model.selectedJobIDs = ids
+            if ids.count == 1 { model.selectedJobID = ids.first }
+            else if ids.isEmpty { model.selectedJobID = nil }
         }
     }
 
@@ -74,6 +86,44 @@ struct JobListView: View {
         default:
             EmptyView()
         }
+    }
+}
+
+/// Shown under a list while several jobs are selected.
+private struct BulkBar: View {
+    @Environment(AppModel.self) private var model
+    let ids: [Int]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("\(ids.count) ausgewählt").font(.callout.weight(.semibold))
+                Text("Rechtsklick für alle Aktionen").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button("Aufheben") { model.selectedJobIDs = [] }
+            }
+            HStack(spacing: 8) {
+                Menu("Status …") {
+                    ForEach(Tracker.columns) { s in
+                        Button(s.label) {
+                            if s == .absage { model.reasonSheetJobIDs = ids } else { model.setStatus(ids: ids, s) }
+                        }
+                    }
+                }
+                .fixedSize()
+                Button("Zu weit") { model.setStatus(ids: ids, .zuWeit) }
+                Button("Duplikat") { model.markDuplicate(ids: ids) }
+                    .help("Status Absage, Grund „Duplikat“ – zählt nicht als Antwort")
+                Button("KI-Anschreiben") { model.writeLetters(ids: ids) }
+                    .disabled(model.isWritingBatch)
+            }
+            .fixedSize()
+        }
+        .controlSize(.small)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
     }
 }
 
@@ -143,6 +193,18 @@ struct JobRow: View {
                 .foregroundStyle(.secondary)
                 if let st = job.sendState, ["sent", "test", "ready"].contains(st.state) || st.approved == true {
                     SendBadge(state: st)
+                }
+                if let d = Tracker.interviewDate(job.interviewAt) {
+                    Label("Gespräch \(Tracker.fmtDateTime(d))", systemImage: "calendar")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+                if Tracker.followUpDue(job) {
+                    Label("Nachfassen fällig", systemImage: "arrow.uturn.forward.circle")
+                        .font(.caption.weight(.semibold)).foregroundStyle(.orange)
+                }
+                if let n = job.notes?.trimmingCharacters(in: .whitespacesAndNewlines), !n.isEmpty {
+                    Text("📝 " + n).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        .help(n)
                 }
             }
         }

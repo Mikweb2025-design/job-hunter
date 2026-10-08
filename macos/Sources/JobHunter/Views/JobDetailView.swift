@@ -15,6 +15,7 @@ struct JobDetailView: View {
     @State private var letter = ""
     @State private var pdfRunning = false
     @State private var notes = ""
+    @State private var history: [HistoryEvent]?
     @State private var hasAppliedDate = false
     @State private var appliedDate = Date.now
     @State private var busy = false
@@ -52,6 +53,7 @@ struct JobDetailView: View {
         .task(id: jobID) { await load() }
         .onChange(of: model.sendGeneration) { Task { await loadPreview() } }
         .onChange(of: model.pendingCount) { refreshFromModel() }
+        .onChange(of: model.job(jobID)) { refreshFromModel() }
         .onChange(of: model.connection) { _, new in
             if new == .ok && preview == nil { Task { await loadPreview() } }
         }
@@ -508,7 +510,8 @@ struct JobDetailView: View {
     }
 
     private func trackerBox(_ d: JobDetail) -> some View {
-        GroupBox {
+        let s = d.summary
+        return GroupBox {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 16) {
                     Picker("Status", selection: statusBinding(d)) {
@@ -517,6 +520,7 @@ struct JobDetailView: View {
                         }
                     }
                     .frame(maxWidth: 240)
+                    .help("⌥⌘1 … ⌥⌘7")
 
                     Toggle("Beworben am", isOn: $hasAppliedDate)
                     DatePicker("Beworben am", selection: $appliedDate, displayedComponents: .date)
@@ -524,6 +528,51 @@ struct JobDetailView: View {
                         .disabled(!hasAppliedDate)
                     Spacer()
                 }
+                if s.status == .absage {
+                    Picker("Grund", selection: Binding(
+                        get: { s.closeReason.flatMap(Tracker.CloseReason.init(rawValue:)) },
+                        set: { r in applyLocal(model.setCloseReason(id: jobID, r), savedText("Grund gespeichert")) })) {
+                        Text("Absage der Firma / ohne Grund").tag(Tracker.CloseReason?.none)
+                        ForEach(Tracker.CloseReason.allCases) { r in Text(r.label).tag(Tracker.CloseReason?.some(r)) }
+                    }
+                    .frame(maxWidth: 360)
+                }
+                // Channel, next step, interview, follow-up
+                VStack(alignment: .leading, spacing: 6) {
+                    if let ch = Tracker.channel(s) {
+                        Label(ch.label + (Tracker.daysSinceApplied(s).map { $0 == 0 ? " (heute)" : " (vor \($0) Tagen)" } ?? ""),
+                              systemImage: ch.isEmail ? "envelope" : "hand.point.up.left")
+                    }
+                    Label("Nächster Schritt: " + Tracker.nextStep(s, category: model.category(of: s)), systemImage: "arrow.right.circle")
+                        .foregroundStyle(Tracker.followUpDue(s) ? Color.orange : Color.primary)
+                    HStack(spacing: 10) {
+                        if let it = Tracker.interviewDate(s.interviewAt) {
+                            Label("Gespräch: \(Tracker.fmtDateTime(it))", systemImage: "calendar")
+                            Button("Ändern …") { model.interviewSheetJobID = jobID }
+                            Button("In Kalender …") { model.openInterviewInCalendar(s) }
+                                .help("Öffnet eine Kalenderdatei – Kalender fragt vor dem Hinzufügen")
+                        } else {
+                            Button {
+                                model.interviewSheetJobID = jobID
+                            } label: { Label("Gesprächstermin eintragen …", systemImage: "calendar.badge.plus") }
+                        }
+                    }
+                    if s.status == .beworben {
+                        HStack(spacing: 10) {
+                            Label("Nachfassen ab \(Tracker.fmtDay(Tracker.followUpFrom(s)))", systemImage: "arrow.uturn.forward.circle")
+                            Button("E-Mail-Entwurf öffnen") { model.openFollowUpDraft(s) }
+                                .help("Öffnet einen Nachfass-Entwurf im Mailprogramm – es wird nichts gesendet")
+                            Button("Text kopieren") { copyToPasteboard(model.followUpDraft(for: s).body); info = "Nachfass-Text kopiert." }
+                            Button("Nachgefasst") {
+                                model.followUpDone(id: jobID)
+                                refreshFromModel()
+                            }
+                            .help("Notiz „Nachgefasst am …“ + nächste Erinnerung in \(Tracker.followUpDays) Tagen")
+                        }
+                    }
+                }
+                .font(.callout)
+                .controlSize(.small)
                 Text("Notizen").font(.caption).foregroundStyle(.secondary)
                 TextEditor(text: $notes)
                     .font(.body)
@@ -538,10 +587,42 @@ struct JobDetailView: View {
                         .disabled(!trackerDirty(d))
                         .keyboardShortcut("s", modifiers: [.command, .shift])
                 }
+                if let history, !history.isEmpty {
+                    DisclosureGroup("Verlauf (\(history.count))") {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(history) { e in
+                                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                    Image(systemName: icon(for: e.kind)).foregroundStyle(.secondary).frame(width: 16)
+                                    Text(e.date.map { e.kind == "interview" ? Tracker.fmtDateTime($0) : $0.formatted(date: .numeric, time: .shortened) } ?? e.at)
+                                        .font(.caption).monospacedDigit().foregroundStyle(.secondary).frame(width: 120, alignment: .leading)
+                                    Text(e.label).font(.caption)
+                                    if let detail = e.detail, !detail.isEmpty {
+                                        Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
+                    .font(.callout)
+                }
             }
             .padding(4)
         } label: {
             Label("Tracker", systemImage: "checklist")
+        }
+        .task(id: "\(jobID)-\(s.status.rawValue)-\(s.interviewAt ?? "")-\(model.pendingCount)") {
+            history = await model.history(id: jobID)
+        }
+    }
+
+    private func icon(for kind: String) -> String {
+        switch kind {
+        case "found": "sparkles"
+        case "sent": "envelope.fill"
+        case "test": "testtube.2"
+        case "interview": "calendar"
+        default: "arrow.right.circle"
         }
     }
 

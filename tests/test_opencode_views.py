@@ -14,7 +14,7 @@ from jobhunter.db import Database
 from jobhunter.llm import (LLMClient, LLMError, LetterRejected, OPENCODE_ORIGIN, build_letter_prompt,
                            clean_letter_output, opencode_command, run_opencode, text_from_json_events)
 from jobhunter.models import JobPosting
-from jobhunter.views import VIEW_LABELS, annotate, classify, filter_view, real_sent_ids, view_counts
+from jobhunter.views import annotate, classify, filter_view, real_sent_ids, view_counts
 
 AUTH = ("u", "p")
 GOOD = ("Als Cloud Support Engineer bei Acme GmbH möchte ich meine Erfahrung aus dem technischen Support "
@@ -363,8 +363,10 @@ def test_dashboard_views_today_and_mark_applied(client, fake_oc):
     m["notes"] = "wichtig"
     db.update_job(m["id"], notes="wichtig")
     html = c.get("/").text
-    for label in VIEW_LABELS.values():
-        assert label in html
+    # Navigation: Heute, Neu, Automatisch, Manuell, Tracker, Postausgang, Profil (+ Beworben/Später/Zu weit)
+    for href in ('/today"', "?view=recent", "?view=auto", "?view=manual", '/tracker"', '/outbox"', '/profile"',
+                 "?view=applied", "?view=later", "?view=far"):
+        assert href in html
     assert "Automatisch (E-Mail an jobs@acme.de)" in html and "MANUELL – über Portal bewerben" in html
     assert "Alle Vorlagen schreiben (max 10)" in html
     manual_html = c.get("/?view=manual").text

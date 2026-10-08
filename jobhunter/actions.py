@@ -20,13 +20,42 @@ from .scoring import CVProfile
 _UNSET = object()
 
 
-def update_tracker(db: Database, job: dict, status: str | None = None, notes=_UNSET,
-                   applied_date=_UNSET) -> dict:
-    """Validate and apply status/notes/applied_date changes.
+def _check_day(value: str | None, name: str) -> str | None:
+    if not value:
+        return None
+    try:
+        date.fromisoformat(value[:10])
+        if len(value) != 10:
+            raise ValueError
+    except (TypeError, ValueError):
+        raise ValueError(name) from None
+    return value
 
-    Raises ValueError for an unknown status or a malformed date. When the status becomes
-    "beworben" without an applied date, today's date (or the existing one) is used.
-    Returns the updated job.
+
+def _check_datetime(value: str | None, name: str) -> str | None:
+    """Interview time: "YYYY-MM-DDTHH:MM" (local time) – seconds/offsets are accepted and kept."""
+    if not value:
+        return None
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        raise ValueError(name) from None
+    if len(value) < 16:
+        raise ValueError(name)
+    return value
+
+
+CLOSE_REASONS = ("duplikat", "kein_interesse", "stelle_besetzt", "absage_firma", "sonstiges")
+
+
+def update_tracker(db: Database, job: dict, status: str | None = None, notes=_UNSET,
+                   applied_date=_UNSET, interview_at=_UNSET, follow_up_at=_UNSET,
+                   close_reason=_UNSET, history_source: str = "tracker") -> dict:
+    """Validate and apply tracker changes (status, notes, dates, close reason).
+
+    Raises ValueError (with the field name) for an unknown status / close reason or a malformed
+    date. When the status becomes "beworben" without an applied date, today's date (or the
+    existing one) is used. Leaving "absage" clears the close reason. Returns the updated job.
     """
     status = status or job["status"]
     if status not in STATUSES:
@@ -43,9 +72,20 @@ def update_tracker(db: Database, job: dict, status: str | None = None, notes=_UN
     fields: dict = {"applied_date": applied_date or None}
     if notes is not _UNSET:
         fields["notes"] = notes or ""
+    if interview_at is not _UNSET:
+        fields["interview_at"] = _check_datetime(interview_at, "interview_at")
+    if follow_up_at is not _UNSET:
+        fields["follow_up_at"] = _check_day(follow_up_at, "follow_up_at")
+    if close_reason is not _UNSET:
+        reason = (close_reason or "").strip().lower() or None
+        if reason and reason not in CLOSE_REASONS:
+            raise ValueError("close_reason")
+        fields["close_reason"] = reason
+    if status != "absage" and (job.get("close_reason") or fields.get("close_reason")):
+        fields["close_reason"] = None
     if status != job["status"]:
         fields.update(status=status, status_updated_at=datetime.now(timezone.utc).isoformat())
-    db.update_job(job["id"], **fields)
+    db.update_job(job["id"], history_source=history_source, **fields)
     return db.get_job(job["id"])
 
 
@@ -140,6 +180,7 @@ def record_sent(settings: Settings, db: Database, job: dict, *, dry_run: bool, s
             day = when.astimezone(ZoneInfo(settings.timezone)).date().isoformat()
         except Exception:
             day = when.date().isoformat()
-        job = update_tracker(db, job, status="beworben", applied_date=job.get("applied_date") or day)
+        job = update_tracker(db, job, status="beworben", applied_date=job.get("applied_date") or day,
+                             history_source="email")
         db.update_job(job["id"], send_approved_at=None)
     return db.get_sent(sent_id)

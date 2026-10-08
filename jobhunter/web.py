@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import actions, alerts, letter_doc, letters, links, pipeline, search_profile
+from . import actions, alerts, letter_doc, letters, links, pipeline, search_profile, tracker
 from .api import build_api_router
 from .config import Settings, load_settings
 from .db import Database
@@ -26,10 +26,11 @@ from .i18n import translator
 from .llm import LLMError
 from .models import STATUSES
 from .outbox import BLOCKER_TEXT, Gate, render_email, send_state, status_summary
-from .views import VIEW_LABELS, VIEWS, annotate, filter_view, outbox_rows, real_sent_ids, view_counts
+from .views import VIEW_LABELS, VIEWS, annotate, filter_view, outbox_rows, real_sent_ids
 
 log = logging.getLogger(__name__)
 HERE = Path(__file__).parent
+RECENT_DAYS = 3
 
 
 def _attachment(filename: str) -> str:
@@ -37,6 +38,34 @@ def _attachment(filename: str) -> str:
     from urllib.parse import quote
     ascii_name = filename.encode("ascii", "replace").decode().replace("?", "_").replace('"', "")
     return f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(filename)}'
+
+
+def _dmy(value: str | None) -> str:
+    """"2026-10-08…" → "08.10.2026"."""
+    if not value or len(value) < 10:
+        return value or ""
+    return f"{value[8:10]}.{value[5:7]}.{value[:4]}"
+
+
+def _dmyhm(value: str | None) -> str:
+    """Local wall time "2026-10-12T10:00" → "12.10.2026 10:00"."""
+    if not value:
+        return ""
+    return _dmy(value) + (f" {value[11:16]}" if len(value) >= 16 else "")
+
+
+def _localtime(value: str | None, tz: str) -> str:
+    """UTC timestamp → "08.10.2026 14:05" in the configured time zone."""
+    if not value:
+        return ""
+    try:
+        from zoneinfo import ZoneInfo
+        d = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=timezone.utc)
+        return d.astimezone(ZoneInfo(tz)).strftime("%d.%m.%Y %H:%M")
+    except Exception:
+        return value[:16].replace("T", " ")
 
 
 def _start_scheduler(settings: Settings):
@@ -84,8 +113,33 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
                                  BLOCKER_TEXT=BLOCKER_TEXT)
     # Evaluated on every page render: the send banner must always show the live state.
     templates.env.globals["send_status"] = lambda: status_summary(settings, Gate(settings, db), db.client_states())
-    templates.env.globals["view_counts"] = lambda: view_counts(db, settings.send.blocklist)
-    templates.env.globals.update(VIEW_LABELS=VIEW_LABELS, NAV_VIEWS=VIEWS, source_label=alerts.source_label)
+    def _nav_counts() -> dict:
+        jobs = annotate(db.list_jobs(limit=100000), real_sent_ids(db), settings.send.blocklist)
+        counts = {v: 0 for v in ("auto", "manual", "applied", "later", "far")}
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=RECENT_DAYS)).isoformat()
+        recent = 0
+        sent = tracker.real_sends(db)
+        today_d = date.today()
+        follow = 0
+        for j in jobs:
+            counts[j["view"]] += 1
+            if j["view"] not in ("applied", "later") and (j.get("fetched_at") or "") >= cutoff:
+                recent += 1
+            if tracker.follow_up_due(j, sent, today_d):
+                follow += 1
+        counts.update(today=min(10, counts["manual"]), total=len(jobs), recent=recent, follow_ups=follow)
+        return counts
+
+    templates.env.globals["view_counts"] = _nav_counts
+    templates.env.globals.update(VIEW_LABELS=VIEW_LABELS, NAV_VIEWS=VIEWS, source_label=alerts.source_label,
+                                 STATUS_LABELS=tracker.STATUS_LABELS, CLOSE_REASONS=tracker.CLOSE_REASON_LABELS,
+                                 FOLLOW_UP_DAYS=tracker.FOLLOW_UP_DAYS)
+    # Cache-busting for /static (style.css, app.js change with deploys).
+    templates.env.globals["asset_v"] = str(int(max(f.stat().st_mtime for f in (HERE / "static").iterdir())))
+    templates.env.filters["rel"] = tracker.relative_day
+    templates.env.filters["dmy"] = _dmy
+    templates.env.filters["dmyhm"] = _dmyhm
+    templates.env.filters["localtime"] = lambda v: _localtime(v, settings.timezone)
     llm_name = f"{settings.llm.provider}:{settings.llm.model}"
     templates.env.globals["ki"] = lambda: {"enabled": settings.llm.enabled, "label": llm_name,
                                            "provider": settings.llm.provider,
@@ -125,7 +179,8 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
             "source": qp.get("source") or "",
             "since": qp.get("since") or "",
             "q": (qp.get("q") or "").strip(),
-            "view": qp.get("view") if qp.get("view") in VIEWS and qp.get("view") != "today" else "",
+            "view": qp.get("view") if (qp.get("view") in VIEWS and qp.get("view") != "today")
+            or qp.get("view") == "recent" else "",
         }
         return f
 
@@ -134,11 +189,24 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
         if f["since"].isdigit():
             since_iso = (datetime.now(timezone.utc) - timedelta(days=int(f["since"]))).isoformat()
         min_score = int(f["min_score"]) if f["min_score"].isdigit() else None
+        if f.get("view") == "recent" and not since_iso:
+            since_iso = (datetime.now(timezone.utc) - timedelta(days=RECENT_DAYS)).isoformat()
         jobs = db.list_jobs(status=f["status"] or None, min_score=min_score, source=f["source"] or None,
                             since=since_iso, q=f["q"] or None, limit=100000 if f.get("view") else 500)
         annotate(jobs, real_sent_ids(db), settings.send.blocklist)
-        if f.get("view"):
+        if f.get("view") == "recent":
+            # "Neu": open jobs found/imported recently, newest first (like the Mac app).
+            jobs = sorted([j for j in jobs if j["view"] not in ("applied", "later")],
+                          key=lambda j: (j.get("fetched_at") or "", j.get("score") or 0), reverse=True)[:500]
+        elif f.get("view"):
             jobs = filter_view(jobs, f["view"])[:500]
+        return jobs
+
+    def _with_channel(jobs: list[dict]) -> list[dict]:
+        sent = tracker.real_sends(db)
+        for j in jobs:
+            ch = tracker.channel(j, sent)
+            j["channel_label"] = ch["label"] if ch else None
         return jobs
 
     app.include_router(build_api_router(settings, db, t))
@@ -154,6 +222,7 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
         gate = Gate(settings, db)
         for j in jobs:
             j["send"] = send_state(j, gate, light=True)
+        _with_channel(jobs)
         qs = urlencode({k: v for k, v in f.items() if v})
         return templates.TemplateResponse(request, "index.html", {
             "jobs": jobs, "f": f, "sources": list(dict.fromkeys([*db.sources(), *alerts.ALERT_SOURCES])),
@@ -174,13 +243,15 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
             "err": request.query_params.get("err"), "active_view": "today",
         })
 
-    def _back(target: str, job_id: int | None = None, **params) -> RedirectResponse:
+    def _back(target: str, job_id: int | None = None, anchor: str = "letter", **params) -> RedirectResponse:
         qs = ("?" + urlencode(params)) if params else ""
         if target == "today":
             return RedirectResponse(f"{base}/today{qs}", status_code=303)
+        if target == "tracker":
+            return RedirectResponse(f"{base}/tracker{qs}", status_code=303)
         if target == "list":
             return RedirectResponse(f"{base}/{qs}", status_code=303)
-        return RedirectResponse(f"{base}/jobs/{job_id}{qs}#letter", status_code=303)
+        return RedirectResponse(f"{base}/jobs/{job_id}{qs}#{anchor}", status_code=303)
 
     @app.post("/jobs/{job_id}/mark-applied")
     def mark_applied(job_id: int, back: str = Form("detail")):
@@ -218,6 +289,7 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
         if not job:
             raise HTTPException(404)
         annotate([job], real_sent_ids(db), settings.send.blocklist)
+        sent = tracker.real_sends(db)
         from .api import email_preview
         return templates.TemplateResponse(request, "detail.html", {
             "job": job, "msg": request.query_params.get("msg"), "mail": email_preview(settings, db, job),
@@ -225,6 +297,10 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
             "err": request.query_params.get("err"), "llm_enabled": settings.llm.enabled,
             "llm_label": f"{settings.llm.provider}:{settings.llm.model}" if settings.llm.enabled else None,
             "has_posting": alerts.has_posting_text(job), "is_alert": alerts.is_alert_source(job.get("source")),
+            "timeline": tracker.timeline(db, job),
+            "tcard": tracker.card(job, sent, date.today()),
+            "fu": tracker.follow_up_draft(job, sent, settings.applicant.name),
+            "back_url": request.query_params.get("back") or "",
         })
 
     @app.post("/jobs/{job_id}/description")
@@ -266,16 +342,52 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
                         headers={"Content-Disposition": _attachment(doc["filename"])})
 
     @app.post("/jobs/{job_id}/status")
-    def update_status(job_id: int, status: str = Form(...), notes: str = Form(""),
-                      applied_date: str = Form("")):
+    def update_status(job_id: int, status: str = Form(...), notes: str | None = Form(None),
+                      applied_date: str | None = Form(None), interview_at: str | None = Form(None),
+                      follow_up_at: str | None = Form(None), close_reason: str | None = Form(None),
+                      back: str = Form("detail")):
+        """Tracker form on the detail page (and quick status forms elsewhere). Fields that are not
+        in the form stay unchanged."""
         job = db.get_job(job_id)
         if not job or status not in STATUSES:
             raise HTTPException(400)
+        kwargs: dict = {"status": status}
+        for name, value in (("notes", notes), ("applied_date", applied_date), ("interview_at", interview_at),
+                            ("follow_up_at", follow_up_at), ("close_reason", close_reason)):
+            if value is not None:
+                kwargs[name] = value
         try:
-            actions.update_tracker(db, job, status=status, notes=notes, applied_date=applied_date)
+            actions.update_tracker(db, job, **kwargs)
         except ValueError as exc:
-            raise HTTPException(400, str(exc))
-        return RedirectResponse(f"{base}/jobs/{job_id}?msg=saved", status_code=303)
+            return _back(back, job_id, anchor="tracker", err=f"Ungültiger Wert: {exc}")
+        return _back(back, job_id, anchor="tracker", msg="saved")
+
+    @app.post("/jobs/{job_id}/follow-up")
+    def follow_up(job_id: int, action: str = Form("done"), days: int = Form(14), back: str = Form("tracker")):
+        """"Nachfassen": done = note + next reminder in `days`; snooze = only move the reminder."""
+        job = db.get_job(job_id)
+        if not job:
+            raise HTTPException(404)
+        days = max(1, min(days, 90))
+        due = (date.today() + timedelta(days=days)).isoformat()
+        kwargs: dict = {"follow_up_at": due}
+        if action == "done":
+            line = f"Nachgefasst am {date.today().strftime('%d.%m.%Y')}."
+            kwargs["notes"] = ((job.get("notes") or "").rstrip() + "\n" + line).strip()
+        actions.update_tracker(db, job, **kwargs)
+        return _back(back, job_id, anchor="tracker", msg="followup_done" if action == "done" else "followup_snoozed")
+
+    @app.get("/tracker", response_class=HTMLResponse)
+    def tracker_page(request: Request):
+        q = (request.query_params.get("q") or "").strip()
+        source = request.query_params.get("source") or ""
+        jobs = db.list_jobs(q=q or None, source=source or None, limit=100000)
+        annotate(jobs, real_sent_ids(db), settings.send.blocklist)
+        data = tracker.build(db, jobs, settings.applicant.name, per_column=40)
+        return templates.TemplateResponse(request, "tracker.html", {
+            "tr": data, "active_view": "tracker", "q": q, "source": source,
+            "sources": list(dict.fromkeys([*db.sources(), *alerts.ALERT_SOURCES])),
+        })
 
     @app.post("/jobs/{job_id}/letter")
     def save_letter(job_id: int, letter: str = Form("")):
@@ -355,13 +467,13 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
 
     @app.get("/export.csv")
     def export_csv(request: Request):
-        data = to_csv(_query(_filters(request)))
+        data = to_csv(_with_channel(_query(_filters(request))))
         return Response(data, media_type="text/csv; charset=utf-8",
                         headers={"Content-Disposition": f'attachment; filename="bewerbungen-{date.today()}.csv"'})
 
     @app.get("/export.xlsx")
     def export_xlsx(request: Request):
-        data = to_xlsx(_query(_filters(request)))
+        data = to_xlsx(_with_channel(_query(_filters(request))))
         return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         headers={"Content-Disposition": f'attachment; filename="bewerbungen-{date.today()}.xlsx"'})
 

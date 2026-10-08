@@ -4,19 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ t('app_title') }}{% endblock %}</title>
-  <link rel="stylesheet" href="{{ base }}/static/style.css">
+  <link rel="stylesheet" href="{{ base }}/static/style.css?v={{ asset_v }}">
   <script>
     try { const th = localStorage.getItem('jh-theme'); if (th) document.documentElement.dataset.theme = th; } catch (e) {}
   </script>
 </head>
-<body>
+<body data-base="{{ base }}" data-page="{{ active_view or '' }}">
+  <a class="skip" href="#main">Zum Inhalt springen</a>
   <header class="topbar">
-    <a class="brand" href="{{ base }}/">{{ t('app_title') }}</a>
-    <nav>
-      <a href="{{ base }}/">{{ t('jobs') }}</a>
-      <a href="{{ base }}/outbox">{{ t('outbox') }}</a>
-      <a href="{{ base }}/profile" {% if active_view == 'profile' %}aria-current="page"{% endif %}>Suchprofil</a>
-      <button type="button" class="ghost" id="theme-toggle" title="{{ t('theme') }}" aria-label="{{ t('theme') }}">◐</button>
+    <a class="brand" href="{{ base }}/today">{{ t('app_title') }}</a>
+    <nav class="topnav">
+      <a href="{{ base }}/" {% if active_view == '' and request.url.path.rstrip('/') == base %}aria-current="page"{% endif %}>Alle Stellen</a>
+      <button type="button" class="ghost icon" id="kbd-help-btn" title="Tastenkürzel (?)" aria-label="Tastenkürzel anzeigen">⌨</button>
+      <button type="button" class="ghost icon" id="theme-toggle" title="{{ t('theme') }}" aria-label="{{ t('theme') }}">◐</button>
     </nav>
   </header>
   {% set ss = send_status() %}
@@ -24,18 +24,23 @@
     <strong>{{ ss.headline }}</strong>
     <span class="counters">
       Server: send.mode = {{ ss.mode }}{% if ss.dry_run %}, dry_run{% endif %}{% if ss.kill_switch %}, kill_switch{% endif %}
-      · Mac-App „Automatisch senden“: {% if ss.app_auto_send is none %}unbekannt (App noch nicht verbunden){% elif ss.app_auto_send %}AN{% else %}AUS{% endif %}{% if ss.app_seen_at %} <span title="zuletzt gemeldet">({{ ss.app_seen_at[:16].replace('T', ' ') }} UTC)</span>{% endif %}
+      · Mac-App „Automatisch senden“: {% if ss.app_auto_send is none %}unbekannt (App noch nicht verbunden){% elif ss.app_auto_send %}AN{% else %}AUS{% endif %}{% if ss.app_seen_at %} <span title="zuletzt gemeldet">({{ ss.app_seen_at|localtime }})</span>{% endif %}
       <br>Heute gesendet: {{ ss.sent_today }} · Insgesamt gesendet: {{ ss.sent_total }} · Im Testmodus vorbereitet: {{ ss.dry_run_total }}
-      · <a href="{{ base }}/outbox">{{ t('outbox') }}</a>
     </span>
   </div>
   {% set vc = view_counts() %}
   <nav class="viewnav" aria-label="Ansichten">
-    {% for v in NAV_VIEWS %}
-      <a class="vtab v-{{ v }} {% if active_view == v %}active{% endif %}" href="{{ base }}/{{ 'today' if v == 'today' else '?view=' ~ v }}">{{ VIEW_LABELS[v] }} <span class="count">{{ vc[v] }}</span></a>
-    {% endfor %}
-    <a class="vtab {% if active_view == 'outbox' %}active{% endif %}" href="{{ base }}/outbox">📤 {{ t('outbox') }}</a>
-    <a class="vtab {% if active_view == 'profile' %}active{% endif %}" href="{{ base }}/profile">⚙️ Suchprofil</a>
+    <a class="vtab v-today {% if active_view == 'today' %}active{% endif %}" href="{{ base }}/today" {% if active_view == 'today' %}aria-current="page"{% endif %}>Heute <span class="count">{{ vc.today }}</span></a>
+    <a class="vtab {% if active_view == 'recent' %}active{% endif %}" href="{{ base }}/?view=recent" {% if active_view == 'recent' %}aria-current="page"{% endif %}>Neu <span class="count">{{ vc.recent }}</span></a>
+    <a class="vtab {% if active_view == 'auto' %}active{% endif %}" href="{{ base }}/?view=auto" {% if active_view == 'auto' %}aria-current="page"{% endif %}>✉ Automatisch <span class="count">{{ vc.auto }}</span></a>
+    <a class="vtab {% if active_view == 'manual' %}active{% endif %}" href="{{ base }}/?view=manual" {% if active_view == 'manual' %}aria-current="page"{% endif %}>🖐 Manuell <span class="count">{{ vc.manual }}</span></a>
+    <a class="vtab {% if active_view == 'tracker' %}active{% endif %}" href="{{ base }}/tracker" {% if active_view == 'tracker' %}aria-current="page"{% endif %}>📊 Tracker{% if vc.follow_ups %} <span class="count due" title="Nachfassen fällig">{{ vc.follow_ups }}</span>{% endif %}</a>
+    <a class="vtab {% if active_view == 'outbox' %}active{% endif %}" href="{{ base }}/outbox" {% if active_view == 'outbox' %}aria-current="page"{% endif %}>📤 {{ t('outbox') }}</a>
+    <a class="vtab {% if active_view == 'profile' %}active{% endif %}" href="{{ base }}/profile" {% if active_view == 'profile' %}aria-current="page"{% endif %}>⚙️ Profil</a>
+    <span class="vsep" aria-hidden="true"></span>
+    <a class="vtab minor {% if active_view == 'applied' %}active{% endif %}" href="{{ base }}/?view=applied">✅ Beworben <span class="count">{{ vc.applied }}</span></a>
+    <a class="vtab minor {% if active_view == 'later' %}active{% endif %}" href="{{ base }}/?view=later">⏸ Später <span class="count">{{ vc.later }}</span></a>
+    <a class="vtab minor {% if active_view == 'far' %}active{% endif %}" href="{{ base }}/?view=far">🗺️ Zu weit <span class="count">{{ vc.far }}</span></a>
   </nav>
   {% set k = ki() %}
   <div class="kibar" id="kibar" {% if not k.busy %}hidden{% endif %} role="status" aria-live="polite">
@@ -43,23 +48,33 @@
     <span id="kibar-text">KI schreibt{% if k.total %} {{ k.done + k.failed }}/{{ k.total }}{% endif %}{% if k.current %} – {{ k.current.title }}{% endif %} …</span>
   </div>
   {% if not k.busy and k.finished_at and k.failed %}
-  <details class="kilast small"><summary>Letzte KI-Runde ({{ k.finished_at[:16].replace('T', ' ') }} UTC): {{ k.done }} geschrieben, {{ k.failed }} fehlgeschlagen</summary>
+  <details class="kilast small"><summary>Letzte KI-Runde ({{ k.finished_at|localtime }}): {{ k.done }} geschrieben, {{ k.failed }} fehlgeschlagen</summary>
     <ul>{% for e in k.errors %}<li><a href="{{ base }}/jobs/{{ e.id }}">{{ e.title }}</a>: {{ e.error }}</li>{% endfor %}</ul>
   </details>
   {% endif %}
   {% if not auth_enabled %}<div class="banner warn">{{ t('no_auth_warning') }}</div>{% endif %}
-  <main class="container">
+  {% set _msg = request.query_params.get('msg') %}{% set _err = request.query_params.get('err') %}
+  <div id="toast" class="toast {% if _err %}bad{% else %}good{% endif %}" role="status" aria-live="polite" {% if not (_msg or _err) %}hidden{% endif %}>
+    <span id="toast-text">{% if _err %}{{ _err }}{% elif _msg %}{{ t(_msg) }}{% endif %}</span>
+    <button type="button" class="x" id="toast-close" aria-label="Meldung schließen">×</button>
+  </div>
+  <main class="container" id="main">
     {% block content %}{% endblock %}
   </main>
-  <script>
-    document.getElementById('theme-toggle').addEventListener('click', () => {
-      const root = document.documentElement;
-      const dark = root.dataset.theme ? root.dataset.theme === 'dark'
-                                      : matchMedia('(prefers-color-scheme: dark)').matches;
-      root.dataset.theme = dark ? 'light' : 'dark';
-      try { localStorage.setItem('jh-theme', root.dataset.theme); } catch (e) {}
-    });
-  </script>
+  <dialog id="kbd-help" class="dialog">
+    <h2>Tastenkürzel</h2>
+    <table class="kbd-table small">
+      <tr><td><kbd>j</kbd> / <kbd>k</kbd></td><td>nächste / vorige Stelle</td></tr>
+      <tr><td><kbd>Enter</kbd> / <kbd>o</kbd></td><td>Stelle öffnen</td></tr>
+      <tr><td><kbd>s</kbd></td><td>Status ändern (aktive Stelle / Detailseite)</td></tr>
+      <tr><td><kbd>x</kbd></td><td>Stelle auswählen (Mehrfachauswahl)</td></tr>
+      <tr><td><kbd>/</kbd></td><td>Suche</td></tr>
+      <tr><td><kbd>g</kbd> dann <kbd>h</kbd> <kbd>n</kbd> <kbd>a</kbd> <kbd>m</kbd> <kbd>t</kbd> <kbd>p</kbd></td><td>Heute · Neu · Automatisch · Manuell · Tracker · Postausgang</td></tr>
+      <tr><td><kbd>?</kbd></td><td>diese Hilfe</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>schließen / Auswahl aufheben</td></tr>
+    </table>
+    <form method="dialog"><button type="submit">Schließen</button></form>
+  </dialog>
   <script>
     // KI letters: poll the background writer while it runs, reload once when it is done.
     (function () {
@@ -84,6 +99,7 @@
       setTimeout(poll, 3000);
     })();
   </script>
+  <script src="{{ base }}/static/app.js?v={{ asset_v }}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

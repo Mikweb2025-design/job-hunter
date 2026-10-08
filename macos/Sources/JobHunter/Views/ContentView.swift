@@ -9,34 +9,48 @@ struct ContentView: View {
 
     var body: some View {
         @Bindable var model = model
-        NavigationSplitView(columnVisibility: $columns) {
-            SidebarView()
-                .navigationSplitViewColumnWidth(min: 230, ideal: 260, max: 340)
-        } content: {
-            Group {
-                switch model.sidebarSelection ?? .today {
-                case .today: TodayView()
-                case .tracker: TrackerView()
-                case .outbox: OutboxView()
-                case let item: JobListView(item: item)
+        Group {
+            if model.sidebarSelection == .tracker {
+                // Tracker: sidebar + full-width Kanban; the selected job opens in an inspector.
+                NavigationSplitView(columnVisibility: $columns) {
+                    SidebarView()
+                        .navigationSplitViewColumnWidth(min: 230, ideal: 260, max: 340)
+                } detail: {
+                    TrackerView()
+                        .safeAreaInset(edge: .top, spacing: 0) { banners }
+                        .inspector(isPresented: Binding(get: { model.selectedJobID != nil },
+                                                        set: { if !$0 { model.selectedJobID = nil } })) {
+                            if let id = model.selectedJobID {
+                                JobDetailView(jobID: id)
+                                    .id(id)
+                                    .inspectorColumnWidth(min: 380, ideal: 520, max: 760)
+                            }
+                        }
                 }
-            }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                VStack(spacing: 0) {
-                    OfflineBanner()
-                    SendBanner()
-                    StatusBanner()
-                }
-            }
-            .navigationSplitViewColumnWidth(min: 380, ideal: 460, max: 640)
-        } detail: {
-            if let id = model.selectedJobID {
-                JobDetailView(jobID: id)
-                    .id(id)
-                    .safeAreaInset(edge: .top, spacing: 0) { SendBanner(compact: true) }
             } else {
-                ContentUnavailableView("Keine Stelle ausgewählt", systemImage: "doc.text.magnifyingglass",
-                                       description: Text("Wähle links eine Stelle aus."))
+                NavigationSplitView(columnVisibility: $columns) {
+                    SidebarView()
+                        .navigationSplitViewColumnWidth(min: 230, ideal: 260, max: 340)
+                } content: {
+                    Group {
+                        switch model.sidebarSelection ?? .today {
+                        case .today: TodayView()
+                        case .outbox: OutboxView()
+                        case let item: JobListView(item: item)
+                        }
+                    }
+                    .safeAreaInset(edge: .top, spacing: 0) { banners }
+                    .navigationSplitViewColumnWidth(min: 380, ideal: 460, max: 640)
+                } detail: {
+                    if let id = model.selectedJobID {
+                        JobDetailView(jobID: id)
+                            .id(id)
+                            .safeAreaInset(edge: .top, spacing: 0) { SendBanner(compact: true) }
+                    } else {
+                        ContentUnavailableView("Keine Stelle ausgewählt", systemImage: "doc.text.magnifyingglass",
+                                               description: Text("Wähle links eine Stelle aus."))
+                    }
+                }
             }
         }
         .toolbar {
@@ -82,11 +96,20 @@ struct ContentView: View {
                 .disabled(model.isRunActive || model.client == nil || !model.isOnline)
             }
         }
+        .modifier(TrackerSheets())
         .confirmationDialog("Alle Vorlagen mit KI schreiben?", isPresented: $confirmBatch, titleVisibility: .visible) {
             Button("\(model.templateLetterJobs.count) Anschreiben schreiben") { model.writeAllTemplateLetters() }
             Button("Abbrechen", role: .cancel) {}
         } message: {
             Text("opencode (\(model.settings.letterModel)) schreibt nacheinander für \(model.templateLetterJobs.count) offene Stellen ein 4-Satz-Anschreiben und speichert es (offline: wartet auf Synchronisierung). Es wird nichts gesendet. Dauer ca. 20–60 s pro Stelle; jederzeit abbrechbar.")
+        }
+    }
+
+    private var banners: some View {
+        VStack(spacing: 0) {
+            OfflineBanner()
+            SendBanner()
+            StatusBanner()
         }
     }
 

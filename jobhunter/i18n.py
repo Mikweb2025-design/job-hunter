@@ -84,6 +84,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "letters_none": "Keine offenen Stellen mit Vorlage oder ohne Anschreiben.",
         "write_letter_ki": "Anschreiben mit KI schreiben",
         "write_all_ki": "Alle Vorlagen schreiben",
+        "followup_done": "Nachgefasst ✓ – nächste Erinnerung gesetzt.",
+        "followup_snoozed": "Erinnerung verschoben.",
+        "status_changed": "Status geändert.",
     },
     "it": {
         "app_title": "Job-Hunter",
@@ -163,6 +166,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "letters_none": "Nessuna offerta aperta con bozza modello o senza lettera.",
         "write_letter_ki": "Scrivi lettera con IA",
         "write_all_ki": "Scrivi tutte le bozze",
+        "followup_done": "Sollecito annotato ✓ – prossimo promemoria impostato.",
+        "followup_snoozed": "Promemoria spostato.",
+        "status_changed": "Stato cambiato.",
     },
 }
 

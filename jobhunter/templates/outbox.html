@@ -17,13 +17,13 @@
   <h2>Verlauf ({{ log.rows|length }})</h2>
   {% if log.rows %}
   <table class="log outbox">
-    <thead><tr><th>Status</th><th>Datum (UTC)</th><th>Stelle</th><th>Empfänger</th><th>Betreff</th></tr></thead>
+    <thead><tr><th>Status</th><th>Datum</th><th>Stelle</th><th>Empfänger</th><th>Betreff</th></tr></thead>
     <tbody>
     {% for r in log.rows %}
       <tr class="row-{{ r.state }}">
         <td><span class="obstate o-{{ r.state }}">{{ r.label }}</span>
           <div class="small muted">{{ r.detail }}</div></td>
-        <td>{{ r.date[:16].replace('T', ' ') if r.date else '–' }}</td>
+        <td>{{ r.date|localtime if r.date else '–' }}</td>
         <td><a href="{{ base }}/jobs/{{ r.job_id }}">{{ r.title }}</a><div class="muted small">{{ r.company or '–' }}</div></td>
         <td>{{ r.to or '–' }}</td>
         <td>{{ r.subject }}</td>
@@ -37,8 +37,6 @@
 
 <section class="card" id="auto-score">
   <h2>Mindest-Score für automatischen Versand</h2>
-  {% if msg == 'saved' %}<p class="ok small">Gespeichert.</p>{% endif %}
-  {% if err %}<p class="err small">{{ err }}</p>{% endif %}
   <form method="post" action="{{ base }}/outbox/auto-min-score" class="row" style="align-items:center;gap:.75rem;flex-wrap:wrap">
     <input type="range" name="auto_min_score" min="{{ score_info.min }}" max="{{ score_info.max }}" step="1"
            value="{{ score_info.auto_min_score }}" oninput="this.nextElementSibling.textContent=this.value" style="flex:1;min-width:160px">

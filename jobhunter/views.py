@@ -59,7 +59,8 @@ def apply_label(job: dict, category: str) -> str:
     elif category == "manual":
         label = "MANUELL – über Portal bewerben"
     elif category == "applied":
-        return "Beworben" + (f" am {job['applied_date']}" if job.get("applied_date") else "")
+        d = job.get("applied_date") or ""
+        return "Beworben" + (f" am {d[8:10]}.{d[5:7]}.{d[:4]}" if len(d) >= 10 else "")
     elif category == "far":
         return "Zu weit weg – kein Umzug (nur manuell prüfen)"
     else:

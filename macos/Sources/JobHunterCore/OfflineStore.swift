@@ -75,6 +75,8 @@ public struct LocalLetterOrigin: Codable, Sendable, Equatable {
 
 public enum PendingField: String, Codable, Sendable, CaseIterable {
     case status, notes, appliedDate, letter, description
+    // Tracker fields (08.10.2026). Older servers reject them (422) → shown as "abgelehnt".
+    case interviewAt, followUpAt, closeReason
 
     public var label: String {
         switch self {
@@ -83,6 +85,9 @@ public enum PendingField: String, Codable, Sendable, CaseIterable {
         case .appliedDate: "Beworben am"
         case .letter: "Anschreiben"
         case .description: "Anzeigentext"
+        case .interviewAt: "Gesprächstermin"
+        case .followUpAt: "Nachfassen am"
+        case .closeReason: "Absagegrund"
         }
     }
 
@@ -94,6 +99,9 @@ public enum PendingField: String, Codable, Sendable, CaseIterable {
         case .appliedDate: d.summary.appliedDate
         case .letter: d.letter
         case .description: d.description
+        case .interviewAt: d.summary.interviewAt
+        case .followUpAt: d.summary.followUpAt
+        case .closeReason: d.summary.closeReason
         }
     }
 
@@ -102,7 +110,7 @@ public enum PendingField: String, Codable, Sendable, CaseIterable {
         switch self {
         case .status: ServerDate.parse(d.summary.statusUpdatedAt)
         case .letter: ServerDate.parse(d.letterUpdatedAt)
-        case .notes, .appliedDate, .description: nil
+        case .notes, .appliedDate, .description, .interviewAt, .followUpAt, .closeReason: nil
         }
     }
 }
@@ -145,6 +153,9 @@ public struct PendingChange: Codable, Sendable, Identifiable, Equatable {
         case .status: value.flatMap(JobStatus.init(rawValue:)).map { JobUpdate(status: $0) }
         case .notes: JobUpdate(notes: value ?? "")
         case .appliedDate: JobUpdate(appliedDate: value.map { .set($0) } ?? .clear)
+        case .interviewAt: JobUpdate(interviewAt: value.map { .set($0) } ?? .clear)
+        case .followUpAt: JobUpdate(followUpAt: value.map { .set($0) } ?? .clear)
+        case .closeReason: JobUpdate(closeReason: value.map { .set($0) } ?? .clear)
         case .letter, .description: nil
         }
     }
@@ -201,9 +212,18 @@ public struct PendingQueue: Codable, Sendable, Equatable {
         var d = detail
         for c in changes(for: detail.id) {
             switch c.field {
-            case .status: if let s = c.value.flatMap(JobStatus.init(rawValue:)) { d.summary.status = s }
-            case .notes: d.notes = c.value ?? ""
+            case .status:
+                if let s = c.value.flatMap(JobStatus.init(rawValue:)) {
+                    d.summary.status = s
+                    if s != .absage { d.summary.closeReason = nil }
+                }
+            case .notes:
+                d.notes = c.value ?? ""
+                d.summary.notes = d.notes
             case .appliedDate: d.summary.appliedDate = c.value
+            case .interviewAt: d.summary.interviewAt = c.value
+            case .followUpAt: d.summary.followUpAt = c.value
+            case .closeReason: d.summary.closeReason = c.value
             case .letter:
                 d.letter = c.value ?? ""
                 d.summary.hasLetter = !(c.value ?? "").isEmpty
@@ -220,14 +240,21 @@ public struct PendingQueue: Codable, Sendable, Equatable {
         var s = summary
         for c in changes(for: summary.id) {
             switch c.field {
-            case .status: if let st = c.value.flatMap(JobStatus.init(rawValue:)) { s.status = st }
+            case .status:
+                if let st = c.value.flatMap(JobStatus.init(rawValue:)) {
+                    s.status = st
+                    if st != .absage { s.closeReason = nil }
+                }
             case .appliedDate: s.appliedDate = c.value
+            case .interviewAt: s.interviewAt = c.value
+            case .followUpAt: s.followUpAt = c.value
+            case .closeReason: s.closeReason = c.value
             case .letter:
                 s.hasLetter = !(c.value ?? "").isEmpty
                 s.letterOrigin = c.origin ?? "manuell"
             case .description:
                 s.descriptionLength = (c.value ?? "").trimmingCharacters(in: .whitespacesAndNewlines).count
-            case .notes: break
+            case .notes: s.notes = c.value ?? ""
             }
         }
         return s

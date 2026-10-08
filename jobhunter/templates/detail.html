@@ -3,34 +3,40 @@
 {% block title %}{{ job.title }} – {{ t('app_title') }}{% endblock %}
 {% block content %}
 {% set bd = job.score_breakdown %}
-<p><a href="{{ base }}/">← {{ t('back') }}</a></p>
-{% if msg %}<div class="banner ok">{{ t(msg) }}</div>{% endif %}
-{% if err %}<div class="banner warn">{{ t('llm_error') }}: {{ err }}</div>{% endif %}
+<p class="crumbs small"><a href="{% if back_url == 'tracker' %}{{ base }}/tracker{% elif back_url == 'today' %}{{ base }}/today{% else %}{{ base }}/{% if job.view in ('auto', 'manual', 'applied', 'later', 'far') %}?view={{ job.view }}{% endif %}{% endif %}">← {{ t('back') }}</a>
+  · <a href="{{ base }}/tracker">Tracker</a></p>
 
 <header class="job-head">
   <div>
     <h1>{{ job.title }}</h1>
-    <div><span class="applylabel a-{{ job.view }}">{{ job.apply_label }}</span> {{ send_badge(mail.send_state) }}</div>
     <p class="muted">{{ job.company or '–' }} · {{ job.location or t('unknown') }}{% if job.remote %} · <span class="tag">{{ t('remote') }}</span>{% endif %}</p>
+    <div class="headbadges"><span class="pill st-{{ job.status }}">{{ STATUS_LABELS[job.status] }}</span>
+      <span class="applylabel a-{{ job.view }}">{{ job.apply_label }}</span> {{ send_badge(mail.send_state) }}
+      {% if tcard.channel and job.view == 'applied' %}<span class="sbadge {{ 'sent' if tcard.channel.kind == 'email' else 'manual' }}">{{ tcard.channel.label }}</span>{% endif %}</div>
     <p class="small muted">
       {{ t('source') }}: <span class="tag">{{ source_label(job.source) }}</span>
       {% if job.also_seen_on %} · {{ t('also_seen') }}: {% for s in job.also_seen_on.split(',') if s %}{{ source_label(s) }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
-      {% if job.published %} · {{ t('published') }}: {{ job.published }}{% endif %}
-      · {{ t('found') }}: {{ job.fetched_at[:10] }}
+      {% if job.published %} · {{ t('published') }}: {{ job.published|dmy }}{% endif %}
+      · {{ t('found') }}: <span title="{{ job.fetched_at|localtime }}">{{ job.fetched_at|rel }}</span>
       {% if job.salary_min or job.salary_max %} · {{ t('salary') }}: {{ '{:,.0f}'.format(job.salary_min or job.salary_max).replace(',', '.') }}{% if job.salary_max and job.salary_max != job.salary_min %}–{{ '{:,.0f}'.format(job.salary_max).replace(',', '.') }}{% endif %} €{% if job.salary_predicted %} (geschätzt){% endif %}{% endif %}
     </p>
   </div>
-  <div class="score-big s{{ (job.score // 20) * 20 }}">{{ job.score }}</div>
+  <div class="score-big s{{ (job.score // 20) * 20 }}" title="Score {{ job.score }} von 100">{{ job.score }}</div>
 </header>
 
-<div class="cta">
-  {% set _al = apply_link(job) %}{% if _al %}<a class="button primary" href="{{ _al }}" target="_blank" rel="noopener noreferrer">{% if job.view == 'manual' %}Jetzt manuell bewerben{% else %}{{ t('open_application') }}{% endif %} ↗</a>{% endif %}
-  <details class="more-links" style="display:inline-block;margin-left:.5rem"><summary>Weitere Links</summary>{% for l in link_alternatives(job) %}<div><a href="{{ l.url }}" target="_blank" rel="noopener noreferrer">{{ l.title }} ↗</a></div>{% endfor %}</details>
+<div class="actionbar" role="toolbar" aria-label="Aktionen">
+  {% set _al = apply_link(job) %}{% if _al %}<a class="button primary" href="{{ _al }}" target="_blank" rel="noopener noreferrer">{% if job.view == 'manual' %}Jetzt manuell bewerben{% elif job.view == 'auto' %}Jetzt bewerben{% else %}{{ t('open_application') }}{% endif %} ↗</a>{% endif %}
+  <details class="more-links"><summary class="button ghost">Weitere Links ▾</summary><div class="menu">{% for l in link_alternatives(job) %}<a href="{{ l.url }}" target="_blank" rel="noopener noreferrer">{{ l.title }} ↗</a>{% endfor %}</div></details>
+  <a class="button ghost" href="{{ base }}/jobs/{{ job.id }}/anschreiben" target="_blank" rel="noopener">📄 PDF</a>
+  <label class="inline statuspick">Status
+    <select id="status-select" class="quick-status" data-id="{{ job.id }}" data-current="{{ job.status }}" data-reload="1">
+      {% for s in STATUSES %}<option value="{{ s }}" {% if job.status == s %}selected{% endif %}>{{ STATUS_LABELS[s] }}</option>{% endfor %}
+    </select></label>
   {% if job.view in ('auto', 'manual') %}
   <form method="post" action="{{ base }}/jobs/{{ job.id }}/mark-applied"><button type="submit" class="ghost">✅ Als beworben markieren</button></form>
   {% endif %}
-  <span class="small muted">{{ t('open_hint') }}</span>
 </div>
+<p class="small muted nextstep">➜ <strong>Nächster Schritt:</strong> {{ tcard.next_step }}{% if tcard.days_since_applied is not none %} · beworben {{ job.applied_date|rel }}{% endif %}</p>
 
 <div class="grid">
   <div class="col-main">
@@ -74,7 +80,7 @@
         <ul class="small">
         {% for r in mail.sent %}
           <li>{% if r.dry_run %}<span class="sbadge test">Test – nicht gesendet</span>{% else %}<span class="sbadge sent">✉ Gesendet</span>{% endif %}
-            {{ r.sent_at[:16].replace('T', ' ') }} UTC an {{ r.to }} – „{{ r.subject }}“</li>
+            {{ r.sent_at|localtime }} an {{ r.to }} – „{{ r.subject }}“</li>
         {% endfor %}
         </ul>
       {% endif %}
@@ -89,7 +95,7 @@
           <button type="button" id="copy-btn" data-label="{{ t('copy') }}" data-done="{{ t('copied') }}">{{ t('copy') }}</button>
           <button type="submit" class="ghost">{{ t('save') }}</button>
           <a class="button ghost" href="{{ base }}/jobs/{{ job.id }}/anschreiben" target="_blank" rel="noopener">📄 Anschreiben als PDF</a>
-          {% if job.letter_origin %}<span class="small muted">{{ job.letter_origin }}{% if job.letter_updated_at %} · {{ job.letter_updated_at[:16].replace('T', ' ') }}{% endif %}</span>{% endif %}
+          {% if job.letter_origin %}<span class="small muted">{{ job.letter_origin }}{% if job.letter_updated_at %} · {{ job.letter_updated_at|localtime }}{% endif %}</span>{% endif %}
         </div>
       </form>
       {% set k = ki() %}
@@ -124,16 +130,47 @@
   </div>
 
   <aside class="col-side">
-    <section class="card">
-      <h2>{{ t('status') }}</h2>
+    <section class="card" id="tracker">
+      <h2>Tracker</h2>
+      {% if tcard.follow_up_due %}
+      <div class="callout warn small">
+        <strong>Nachfassen fällig</strong> – {% if tcard.days_since_applied is not none %}seit {{ tcard.days_since_applied }} Tagen keine Antwort.{% endif %}
+        <div class="row">
+          <a class="button" href="mailto:{{ fu.to }}?subject={{ fu.subject|urlencode }}&amp;body={{ fu.body|urlencode }}" title="Öffnet einen Entwurf in deinem Mailprogramm – nichts wird automatisch gesendet">✉ Entwurf öffnen</a>
+          <button type="button" class="ghost" data-copy="#fu-text">Text kopieren</button>
+          <form method="post" action="{{ base }}/jobs/{{ job.id }}/follow-up"><input type="hidden" name="back" value="detail"><input type="hidden" name="action" value="done"><button type="submit" class="ghost">Erledigt</button></form>
+        </div>
+        <textarea id="fu-text" hidden readonly>{{ fu.body }}</textarea>
+      </div>
+      {% endif %}
+      {% if job.status == 'gespraech' and not job.interview_at %}<p class="callout small">Status „Gespräch“: trage den Termin ein – er erscheint im Tracker unter „Nächste Gespräche“.</p>{% endif %}
       <form method="post" action="{{ base }}/jobs/{{ job.id }}/status" class="stack">
-        <select name="status">
-          {% for s in STATUSES %}<option value="{{ s }}" {% if job.status == s %}selected{% endif %}>{{ t('st_' ~ s) }}</option>{% endfor %}
-        </select>
+        <input type="hidden" name="back" value="detail">
+        <label>{{ t('status') }}
+        <select name="status" id="tracker-status">
+          {% for s in STATUSES %}<option value="{{ s }}" {% if job.status == s %}selected{% endif %}>{{ STATUS_LABELS[s] }}</option>{% endfor %}
+        </select></label>
+        <label class="reason-field" {% if job.status != 'absage' %}hidden{% endif %}>Grund (bei Absage)
+          <select name="close_reason">
+            <option value="">– Absage der Firma / ohne Grund –</option>
+            {% for k, v in CLOSE_REASONS.items() %}<option value="{{ k }}" {% if job.close_reason == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+          </select></label>
         <label>{{ t('applied_date') }}<input type="date" name="applied_date" value="{{ job.applied_date or '' }}"></label>
-        <label>{{ t('notes') }}<textarea name="notes" rows="4">{{ job.notes or '' }}</textarea></label>
+        <label>Gespräch am<input type="datetime-local" name="interview_at" value="{{ (job.interview_at or '')[:16] }}"></label>
+        <label>Nachfassen am <span class="small muted">(leer = {{ FOLLOW_UP_DAYS }} Tage nach der Bewerbung)</span><input type="date" name="follow_up_at" value="{{ job.follow_up_at or '' }}"></label>
+        <label>{{ t('notes') }}<textarea name="notes" rows="4" placeholder="z. B. Ansprechpartner, Gesprächsnotizen …">{{ job.notes or '' }}</textarea></label>
         <button type="submit">{{ t('save') }}</button>
       </form>
+    </section>
+
+    <section class="card" id="history">
+      <h2>Verlauf</h2>
+      <ol class="timeline small">
+        {% for e in timeline %}
+        <li class="ev-{{ e.kind }}"><span class="when" title="{{ e.at }}">{% if e.kind == 'interview' %}{{ e.at|dmyhm }}{% else %}{{ e.at|localtime }}{% endif %}</span>
+          <span class="what">{{ e.label }}</span>{% if e.detail %} <span class="muted">· {{ e.detail }}</span>{% endif %}</li>
+        {% endfor %}
+      </ol>
     </section>
 
     {% if job.llm_reason %}
@@ -165,6 +202,8 @@
 {% endblock %}
 {% block scripts %}
 <script>
+  const ts = document.getElementById('tracker-status'), rf = document.querySelector('.reason-field');
+  ts && ts.addEventListener('change', () => { rf.hidden = ts.value !== 'absage'; });
   const btn = document.getElementById('copy-btn');
   btn && btn.addEventListener('click', async () => {
     const ta = document.getElementById('letter-text');

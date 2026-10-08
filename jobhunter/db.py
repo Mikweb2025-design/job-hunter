@@ -88,6 +88,15 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS job_status_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id INTEGER NOT NULL,
+    old_status TEXT,
+    new_status TEXT NOT NULL,
+    changed_at TEXT NOT NULL,
+    source TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_history_job ON job_status_history(job_id, changed_at);
 CREATE TABLE IF NOT EXISTS client_state (
     client TEXT PRIMARY KEY,
     state TEXT NOT NULL,
@@ -101,7 +110,11 @@ MIGRATIONS = [
     ("apply_method", "TEXT"),          # email | manual
     ("apply_email_source", "TEXT"),    # phrase | generic | closing | manuell
     ("send_approved_at", "TEXT"),
+    ("interview_at", "TEXT"),          # "YYYY-MM-DDTHH:MM" (local time, Europe/Berlin)
+    ("follow_up_at", "TEXT"),          # "YYYY-MM-DD": reminder to follow up ("Nachfassen")
+    ("close_reason", "TEXT"),          # e.g. "duplikat" (status absage without an employer reply)
 ]
+
 
 
 def now_iso() -> str:
@@ -115,6 +128,8 @@ class Database:
             self.path.parent.mkdir(parents=True, exist_ok=True)
         self._mem = sqlite3.connect(":memory:", check_same_thread=False) if str(path) == ":memory:" else None
         with self.conn() as c:
+            had_history = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                                    "AND name='job_status_history'").fetchone() is not None
             c.executescript(SCHEMA)
             have = {r[1] for r in c.execute("PRAGMA table_info(jobs)")}
             added = [(n, t) for n, t in MIGRATIONS if n not in have]
@@ -122,6 +137,29 @@ class Database:
                 c.execute(f"ALTER TABLE jobs ADD COLUMN {name} {typ}")
         if any(n == "apply_email" for n, _ in added):
             self.backfill_apply_email()
+        if not had_history:
+            self.backfill_status_history()
+
+    def backfill_status_history(self) -> int:
+        """One-time: give every job that left "neu" a history. If it was applied for (applied_date)
+        and is now further along, a "beworben" entry at the applied date comes first."""
+        n = 0
+        with self.conn() as c:
+            rows = c.execute("SELECT id, status, status_updated_at, fetched_at, applied_date FROM jobs "
+                             "WHERE status != 'neu' AND id NOT IN (SELECT job_id FROM job_status_history)").fetchall()
+            for r in rows:
+                at = r["status_updated_at"] or r["fetched_at"]
+                prev = None
+                if r["applied_date"] and r["status"] in ("gespraech", "absage", "angebot"):
+                    applied_at = r["applied_date"][:10] + "T12:00:00+00:00"
+                    if applied_at <= (at or applied_at):
+                        c.execute("INSERT INTO job_status_history (job_id, old_status, new_status, changed_at, source)"
+                                  " VALUES (?,?,?,?,?)", (r["id"], None, "beworben", applied_at, "backfill"))
+                        prev = "beworben"
+                c.execute("INSERT INTO job_status_history (job_id, old_status, new_status, changed_at, source)"
+                          " VALUES (?,?,?,?,?)", (r["id"], prev, r["status"], at, "backfill"))
+                n += 1
+        return n
 
     def backfill_apply_email(self, overwrite: bool = False) -> int:
         """Detect application e-mail addresses for stored jobs (keeps manual entries)."""
@@ -238,12 +276,32 @@ class Database:
         with self.conn() as c:
             return [_row(r) for r in c.execute(sql, args)]
 
-    def update_job(self, job_id: int, **fields: Any) -> None:
+    def update_job(self, job_id: int, history_source: str = "system", **fields: Any) -> None:
+        """Update columns. A status change is recorded in job_status_history (every writer goes
+        through here: dashboard, API, pipeline, rescore)."""
         if not fields:
             return
         sets = ", ".join(f"{k}=?" for k in fields)
         with self.conn() as c:
+            old = None
+            if "status" in fields:
+                row = c.execute("SELECT status FROM jobs WHERE id=?", (job_id,)).fetchone()
+                old = row["status"] if row else None
             c.execute(f"UPDATE jobs SET {sets} WHERE id=?", (*fields.values(), job_id))
+            if "status" in fields and old is not None and old != fields["status"]:
+                c.execute("INSERT INTO job_status_history (job_id, old_status, new_status, changed_at, source) "
+                          "VALUES (?,?,?,?,?)", (job_id, old, fields["status"],
+                                                 fields.get("status_updated_at") or now_iso(), history_source))
+
+    def status_history(self, job_id: int | None = None) -> list[dict]:
+        sql = "SELECT * FROM job_status_history"
+        args: list = []
+        if job_id is not None:
+            sql += " WHERE job_id=?"
+            args.append(job_id)
+        sql += " ORDER BY changed_at, id"
+        with self.conn() as c:
+            return [dict(r) for r in c.execute(sql, args)]
 
     def set_llm_result(self, job_id: int, llm_score: int | None, reason: str | None,
                        letter: str | None, origin: str) -> None:

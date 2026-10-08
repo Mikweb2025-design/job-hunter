@@ -25,8 +25,9 @@ struct SidebarView: View {
                     .badge(model.jobs.count)
                     .tag(SidebarItem.jobs)
                 Label("Tracker", systemImage: "chart.bar.xaxis")
-                    .badge(trackedCount)
+                    .badge(Tracker.followUps(model.allJobs).count)
                     .tag(SidebarItem.tracker)
+                    .help("Alle Status als Spalten, Kennzahlen, Nachfassen und Gespräche (Badge: Nachfassen fällig)")
                 Label("Postausgang", systemImage: "paperplane")
                     .badge(model.sendSettings?.sentToday ?? 0)
                     .tag(SidebarItem.outbox)
@@ -141,10 +142,6 @@ struct SidebarView: View {
             .badge(model.count(c))
             .tag(SidebarItem(rawValue: c.rawValue)!)
             .help(help)
-    }
-
-    private var trackedCount: Int {
-        model.allJobs.filter { $0.status != .neu }.count
     }
 
     private enum StatusChoice: Hashable { case all, active, only(JobStatus) }

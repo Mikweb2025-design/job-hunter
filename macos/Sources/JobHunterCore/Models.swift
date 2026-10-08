@@ -82,6 +82,15 @@ public struct JobSummary: Codable, Sendable, Identifiable, Hashable {
     /// Server-computed row label (`jobhunter.views.apply_label`, newer servers).
     /// Shown when present; the local `ApplyMethodLabel` text is the offline fallback.
     public var applyLabel: String?
+    // Tracker (newer servers, 08.10.2026; nil on older servers).
+    /// Interview date/time, local wall time "YYYY-MM-DDTHH:MM".
+    public var interviewAt: String?
+    /// Follow-up reminder "YYYY-MM-DD" ("Nachfassen"). Nil = 14 days after applying.
+    public var followUpAt: String?
+    /// Why a job was closed with status absage: duplikat | kein_interesse | stelle_besetzt | absage_firma | sonstiges.
+    public var closeReason: String?
+    /// Tracker notes (the list carries them so rows can show/edit a quick note).
+    public var notes: String?
 
     /// Minimum posting text for a KI letter (same rule as the server's letters.candidates).
     public static let minPostingText = 300
@@ -230,19 +239,32 @@ public struct JobUpdate: Encodable, Sendable, Equatable {
     public var appliedDate: AppliedDate?
     /// Recipient for e-mail applications; "" = none (apply manually).
     public var applyEmail: String?
+    /// "YYYY-MM-DDTHH:MM" (local) or clear.
+    public var interviewAt: AppliedDate?
+    /// "YYYY-MM-DD" or clear.
+    public var followUpAt: AppliedDate?
+    /// Close reason (with status absage) or clear.
+    public var closeReason: AppliedDate?
 
     public init(status: JobStatus? = nil, notes: String? = nil, appliedDate: AppliedDate? = nil,
-                applyEmail: String? = nil) {
+                applyEmail: String? = nil, interviewAt: AppliedDate? = nil, followUpAt: AppliedDate? = nil,
+                closeReason: AppliedDate? = nil) {
         self.status = status
         self.notes = notes
         self.appliedDate = appliedDate
         self.applyEmail = applyEmail
+        self.interviewAt = interviewAt
+        self.followUpAt = followUpAt
+        self.closeReason = closeReason
     }
 
     private enum CodingKeys: String, CodingKey {
         case status, notes
         case appliedDate = "applied_date"
         case applyEmail = "apply_email"
+        case interviewAt = "interview_at"
+        case followUpAt = "follow_up_at"
+        case closeReason = "close_reason"
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -250,10 +272,13 @@ public struct JobUpdate: Encodable, Sendable, Equatable {
         try c.encodeIfPresent(status?.rawValue, forKey: .status)
         try c.encodeIfPresent(notes, forKey: .notes)
         try c.encodeIfPresent(applyEmail, forKey: .applyEmail)
-        switch appliedDate {
-        case .set(let day): try c.encode(day, forKey: .appliedDate)
-        case .clear: try c.encodeNil(forKey: .appliedDate)
-        case nil: break
+        for (value, key) in [(appliedDate, CodingKeys.appliedDate), (interviewAt, .interviewAt),
+                             (followUpAt, .followUpAt), (closeReason, .closeReason)] {
+            switch value {
+            case .set(let v): try c.encode(v, forKey: key)
+            case .clear: try c.encodeNil(forKey: key)
+            case nil: break
+            }
         }
     }
 }

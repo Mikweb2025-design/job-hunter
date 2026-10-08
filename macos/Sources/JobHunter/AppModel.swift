@@ -51,6 +51,21 @@ final class AppModel {
     // Navigation
     var sidebarSelection: SidebarItem? = .today
     var selectedJobID: Int?
+    /// Multi-selection in the lists (⌘/⇧-click). `selectedJobID` follows a single selection.
+    var selectedJobIDs: Set<Int> = []
+    // Tracker sheets (shown once in ContentView, opened from menus everywhere)
+    var interviewSheetJobID: Int?
+    var noteSheetJobID: Int?
+    /// Jobs waiting for an absage reason (drag & drop / menu "Absage …").
+    var reasonSheetJobIDs: [Int]?
+
+    /// Jobs the "Stelle" menu acts on: the multi-selection, else the selected job.
+    var actionJobIDs: [Int] {
+        if selectedJobIDs.count > 1 { return Array(selectedJobIDs) }
+        return selectedJobID.map { [$0] } ?? []
+    }
+
+    func job(_ id: Int) -> JobSummary? { allJobs.first { $0.id == id } }
 
     // Data (server state as last seen; `allJobs`/`jobs` include pending local edits)
     private(set) var serverJobs: [JobSummary] = []
@@ -502,6 +517,10 @@ final class AppModel {
             switch field {
             case .status: return summary?.status.rawValue
             case .appliedDate: return summary?.appliedDate
+            case .interviewAt: return summary?.interviewAt
+            case .followUpAt: return summary?.followUpAt
+            case .closeReason: return summary?.closeReason
+            case .notes: return summary?.notes
             default: return nil
             }
         }()
@@ -774,6 +793,117 @@ final class AppModel {
 
     /// "Als beworben markieren" (manual applications).
     func markApplied(id: Int) -> JobDetail? { setStatus(id: id, .beworben) }
+
+    // MARK: Tracker (status for many jobs, interview, follow-up, notes) – all offline-capable
+
+    /// Sets the status of several jobs (multi-select, drag & drop). "absage" may carry a reason.
+    func setStatus(ids: [Int], _ status: JobStatus, reason: Tracker.CloseReason? = nil) {
+        for id in ids {
+            _ = setStatus(id: id, status)
+            if status == .absage, let reason { _ = recordEdit(id: id, field: .closeReason, value: reason.rawValue) }
+        }
+        let n = ids.count
+        transientMessage = (n == 1 ? "Status: \(status.label)" : "\(n) Stellen → \(status.label)")
+            + (reason.map { " (\($0.label))" } ?? "") + (isOnline ? "" : " – offline gespeichert")
+    }
+
+    /// "Duplikat ausblenden": status absage with reason "duplikat" (does not count as an answer).
+    func markDuplicate(ids: [Int]) { setStatus(ids: ids, .absage, reason: .duplikat) }
+
+    @discardableResult
+    func setInterview(id: Int, at date: Date?, note: String? = nil) -> JobDetail? {
+        var r = recordEdit(id: id, field: .interviewAt, value: date.map(Tracker.interviewString))
+        let job = allJobs.first { $0.id == id }
+        if date != nil, let job, job.status != .gespraech, job.status != .angebot {
+            r = setStatus(id: id, .gespraech) ?? r
+        }
+        if let date, let note = note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
+            r = appendNote(id: id, "Gespräch \(Tracker.fmtDateTime(date)): \(note)") ?? r
+        }
+        return r
+    }
+
+    @discardableResult
+    func setFollowUp(id: Int, on date: Date?) -> JobDetail? {
+        recordEdit(id: id, field: .followUpAt, value: date.map(Tracker.dayString))
+    }
+
+    @discardableResult
+    func setCloseReason(id: Int, _ reason: Tracker.CloseReason?) -> JobDetail? {
+        recordEdit(id: id, field: .closeReason, value: reason?.rawValue)
+    }
+
+    /// Current notes: cached detail (full text) or the list's copy.
+    func notes(for id: Int) -> String {
+        if let d = cachedDetail(id: id) { return d.notes }
+        return allJobs.first { $0.id == id }?.notes ?? ""
+    }
+
+    @discardableResult
+    func saveNotes(id: Int, _ text: String) -> JobDetail? {
+        recordEdit(id: id, field: .notes, value: text)
+    }
+
+    @discardableResult
+    func appendNote(id: Int, _ line: String) -> JobDetail? {
+        saveNotes(id: id, Tracker.appendNote(notes(for: id), line))
+    }
+
+    /// "Nachgefasst": note + next reminder in `days` days.
+    func followUpDone(id: Int, days: Int = Tracker.followUpDays) {
+        _ = appendNote(id: id, "Nachgefasst am \(Tracker.fmtDay(.now)).")
+        _ = setFollowUp(id: id, on: Tracker.calendar.date(byAdding: .day, value: days, to: .now))
+        transientMessage = "Nachgefasst – nächste Erinnerung in \(days) Tagen."
+    }
+
+    func snoozeFollowUp(id: Int, days: Int = 7) {
+        _ = setFollowUp(id: id, on: Tracker.calendar.date(byAdding: .day, value: days, to: .now))
+        transientMessage = "Erinnerung um \(days) Tage verschoben."
+    }
+
+    func followUpDraft(for job: JobSummary) -> Tracker.Draft {
+        Tracker.followUpDraft(job, applicantName: settings.applicantName)
+    }
+
+    /// Opens a follow-up e-mail as a DRAFT (compose window of the default mail app) – never sends.
+    func openFollowUpDraft(_ job: JobSummary) {
+        guard let url = followUpDraft(for: job).mailtoURL else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    /// Interview as a calendar file: Calendar opens and asks before adding the event.
+    func openInterviewInCalendar(_ job: JobSummary) {
+        guard let start = Tracker.interviewDate(job.interviewAt) else { return }
+        let ics = Tracker.icsEvent(title: job.title, company: job.company, start: start,
+                                   notes: Tracker.nextStep(job), url: JobLinks.applyLink(for: job),
+                                   uid: "jobhunter-\(job.id)-\(job.interviewAt ?? "")@local")
+        let url = FileManager.default.temporaryDirectory.appending(path: "Gespraech-\(job.id).ics")
+        do {
+            try ics.write(to: url, atomically: true, encoding: .utf8)
+            NSWorkspace.shared.open(url)
+        } catch {
+            transientMessage = "Kalenderdatei konnte nicht erstellt werden: \(error.localizedDescription)"
+        }
+    }
+
+    /// Status timeline from the server (nil offline / older server).
+    func history(id: Int) async -> [HistoryEvent]? {
+        guard isOnline, let client else { return nil }
+        return try? await client.history(id: id).events
+    }
+
+    /// KI letters for selected jobs (same sequential runner as "Alle Vorlagen schreiben").
+    func writeLetters(ids: [Int]) {
+        let targets = allJobs.filter { ids.contains($0.id) && hasPostingText($0) && $0.letterOrigin != "manuell" }
+        guard !targets.isEmpty else {
+            transientMessage = "Keine der Stellen braucht ein KI-Anschreiben (kein Anzeigentext oder eigenes Anschreiben)."
+            return
+        }
+        writeLetters(for: targets)
+    }
+
+    /// Jobs shown in the tracker: all jobs with the sidebar filters (source, score, search) applied.
+    var trackerJobs: [JobSummary] { allJobs.filter(matchesListFilter) }
 
     func regenerateLetter(id: Int) async throws -> JobDetail {
         guard let client else { throw APIError.notConfigured }

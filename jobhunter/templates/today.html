@@ -1,8 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Heute zu tun – {{ t('app_title') }}{% endblock %}
 {% block content %}
-{% if msg %}<div class="banner ok">{{ t(msg) }}</div>{% endif %}
-{% if err %}<div class="banner warn">{{ err }}</div>{% endif %}
 {% set k = ki() %}
 <div class="viewhead">
   <h1>Heute zu tun</h1>
@@ -18,12 +16,12 @@
 {% if jobs %}
 <ol class="todo">
 {% for j in jobs %}
-  <li class="todo-item">
+  <li class="todo-item kb-item">
     <div class="todo-head">
       <span class="check" aria-hidden="true">☐</span>
       <span class="score s{{ (j.score // 20) * 20 }}">{{ j.score }}</span>
       <div class="todo-title">
-        <a href="{{ base }}/jobs/{{ j.id }}">{{ j.title }}</a>
+        <a class="kb-open" href="{{ base }}/jobs/{{ j.id }}">{{ j.title }}</a>
         <div class="muted small">{{ j.company or '–' }} · {{ j.location or '–' }}{% if j.source.endswith('-alert') %} · <span class="tag">{{ source_label(j.source) }}</span>{% endif %}{% if j.remote %} · <span class="tag">remote</span>{% endif %}</div>
         <span class="applylabel a-manual">{{ j.apply_label }}</span>
         {% if j.letter_origin %}<span class="small muted"> · Anschreiben: {{ j.letter_origin }}</span>{% endif %}
@@ -51,7 +49,8 @@
 {% endfor %}
 </ol>
 {% else %}
-<p class="empty">Nichts mehr manuell zu tun. 🎉</p>
+<div class="empty"><p>Nichts mehr manuell zu tun. 🎉</p>
+  <p class="small">Schau in den <a href="{{ base }}/tracker">Tracker</a> (Nachfassen, Gespräche) oder unter <a href="{{ base }}/?view=recent">Neu</a>.</p></div>
 {% endif %}
 
 {% if done %}

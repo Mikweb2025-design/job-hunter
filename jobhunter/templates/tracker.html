@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block title %}Tracker – {{ t('app_title') }}{% endblock %}
+{% block content %}
+{% set k = tr.kpis %}
+<div class="viewhead tracker-head">
+  <div>
+    <h1>Bewerbungs-Tracker</h1>
+    <p class="small muted">Alle Status als Spalten. Karten per Drag &amp; Drop verschieben – oder den Status auf der Karte wählen (<kbd>j</kbd>/<kbd>k</kbd>, dann <kbd>s</kbd>).</p>
+  </div>
+  <form class="trfilter row" method="get" action="{{ base }}/tracker">
+    <input type="search" name="q" value="{{ q }}" placeholder="Titel, Firma, Text …" aria-label="Suche">
+    <select name="source" aria-label="Quelle"><option value="">Alle Quellen</option>
+      {% for s in sources %}<option value="{{ s }}" {% if source == s %}selected{% endif %}>{{ source_label(s) }}</option>{% endfor %}</select>
+    <button type="submit">Filtern</button>
+    {% if q or source %}<a class="button ghost" href="{{ base }}/tracker">Zurücksetzen</a>{% endif %}
+    <a class="button ghost" href="{{ base }}/export.csv?view=applied" title="Alle Bewerbungen als CSV (Excel)">⬇ CSV</a>
+  </form>
+</div>
+
+<section class="kpis" aria-label="Kennzahlen">
+  <div class="tile"><span class="big">{{ k.applied }}</span><span class="small muted">Bewerbungen</span></div>
+  <div class="tile"><span class="big">{{ k.this_week }}</span><span class="small muted">diese Woche</span></div>
+  <div class="tile"><span class="big">{{ k.by_channel.email }} <small>/ {{ k.by_channel.manual }}</small></span><span class="small muted">✉ E-Mail / 🖐 manuell</span></div>
+  <div class="tile"><span class="big">{{ k.response_rate if k.response_rate is not none else '–' }}<small>{% if k.response_rate is not none %} %{% endif %}</small></span><span class="small muted">Antwortquote ({{ k.responses }})</span></div>
+  <div class="tile"><span class="big">{{ k.interviews }}</span><span class="small muted">Gespräche</span></div>
+  <div class="tile"><span class="big">{{ k.offers }}</span><span class="small muted">Angebote</span></div>
+  <div class="tile"><span class="big">{{ k.avg_days_to_answer if k.avg_days_to_answer is not none else '–' }}</span><span class="small muted">Ø Tage bis Antwort</span></div>
+  <div class="tile {% if tr.follow_ups %}warn{% endif %}"><span class="big">{{ tr.follow_ups|length }}</span><span class="small muted">Nachfassen fällig</span></div>
+</section>
+
+<div class="tr-grid">
+  <section class="card">
+    <h2>Trichter</h2>
+    {% set top = (tr.funnel|map(attribute='value')|max) or 1 %}
+    <ul class="funnel">
+      {% for f in tr.funnel %}
+      <li><span class="flabel">{{ f.label }}</span>
+        <span class="fbar"><span style="width: {{ (100 * f.value / top)|round(1) }}%"></span></span>
+        <span class="fval">{{ f.value }}</span></li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Pro Woche <span class="legend small"><span class="sw sw-a"></span>Bewerbungen <span class="sw sw-r"></span>Antworten</span></h2>
+    {% set wmax = [tr.weekly|map(attribute='applications')|max, tr.weekly|map(attribute='responses')|max, 1]|max %}
+    <div class="weekchart" role="img" aria-label="Bewerbungen und Antworten der letzten 12 Wochen">
+      {% for w in tr.weekly %}
+      <div class="wcol" title="{{ w.week }} (ab {{ w.start|dmy }}): {{ w.applications }} Bewerbungen, {{ w.responses }} Antworten">
+        <div class="wbars">
+          <span class="wa" style="height: {{ (100 * w.applications / wmax)|round(1) }}%"></span>
+          <span class="wr" style="height: {{ (100 * w.responses / wmax)|round(1) }}%"></span>
+        </div>
+        <span class="wlabel">{{ w.week[-2:] }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <details class="small"><summary>Als Tabelle</summary>
+      <table class="mini"><tr><th>Woche</th><th>Bewerbungen</th><th>Antworten</th></tr>
+        {% for w in tr.weekly %}<tr><td>{{ w.week }}</td><td>{{ w.applications }}</td><td>{{ w.responses }}</td></tr>{% endfor %}</table>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>Nach Quelle</h2>
+    {% if tr.by_source %}
+    {% set smax = (tr.by_source|map(attribute='applications')|max) or 1 %}
+    <ul class="funnel">
+      {% for s in tr.by_source %}
+      <li title="{{ s.applications }} Bewerbungen, {{ s.responses }} Antworten"><span class="flabel">{{ s.label }}</span>
+        <span class="fbar"><span style="width: {{ (100 * s.applications / smax)|round(1) }}%"></span></span>
+        <span class="fval">{{ s.applications }}{% if s.responses %} <small class="muted">({{ s.responses }})</small>{% endif %}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="small muted">Noch keine Bewerbung – hier erscheint, über welche Quellen du dich bewirbst.</p>{% endif %}
+  </section>
+</div>
+
+<div class="tr-grid two">
+  <section class="card" id="followups">
+    <h2>Nachfassen <span class="small muted">(beworben, ≥ {{ k.follow_up_days }} Tage ohne Antwort oder Erinnerung fällig)</span></h2>
+    {% if tr.follow_ups %}
+    <ul class="plain fulist">
+      {% for c in tr.follow_ups %}
+      <li class="kb-item">
+        <a class="kb-open" href="{{ base }}/jobs/{{ c.id }}?back=tracker">{{ c.title }}</a> <span class="muted small">{{ c.company or '' }}</span>
+        <div class="small muted">{% if c.channel %}{{ c.channel.label }}{% endif %}{% if c.days_since_applied is not none %} · vor {{ c.days_since_applied }} Tagen{% endif %}</div>
+        <div class="row">
+          <a class="button" href="mailto:{{ c.draft.to }}?subject={{ c.draft.subject|urlencode }}&amp;body={{ c.draft.body|urlencode }}" title="Öffnet nur einen Entwurf in deinem Mailprogramm – nichts wird automatisch gesendet">✉ Entwurf öffnen</a>
+          <button type="button" class="ghost" data-copy="#fu-{{ c.id }}">Text kopieren</button>
+          <form method="post" action="{{ base }}/jobs/{{ c.id }}/follow-up"><input type="hidden" name="action" value="done"><button type="submit" class="ghost" title="Notiz „Nachgefasst am …“ + nächste Erinnerung in 14 Tagen">Erledigt</button></form>
+          <form method="post" action="{{ base }}/jobs/{{ c.id }}/follow-up"><input type="hidden" name="action" value="snooze"><input type="hidden" name="days" value="7"><button type="submit" class="ghost">+7 Tage</button></form>
+        </div>
+        <textarea id="fu-{{ c.id }}" hidden readonly>{{ c.draft.body }}</textarea>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="small muted">Nichts fällig. Bewerbungen ohne Antwort erscheinen hier nach {{ k.follow_up_days }} Tagen.</p>{% endif %}
+  </section>
+
+  <section class="card" id="interviews">
+    <h2>Nächste Gespräche</h2>
+    {% if tr.interviews %}
+    <ul class="plain">
+      {% for c in tr.interviews %}
+      <li class="kb-item"><strong>{{ c.interview_at|dmyhm }}</strong> · <a class="kb-open" href="{{ base }}/jobs/{{ c.id }}?back=tracker">{{ c.title }}</a> <span class="muted small">{{ c.company or '' }}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="small muted">Keine Termine. Zieh eine Karte nach „Gespräch“ – dann kannst du Datum und Uhrzeit eintragen.</p>{% endif %}
+  </section>
+</div>
+
+<section class="kanban" aria-label="Status-Spalten">
+  {% for col in tr.columns %}
+  <div class="kcol" data-status="{{ col.status }}" aria-label="{{ col.label }}">
+    <header class="khead st-{{ col.status }}"><span>{{ col.label }}</span> <span class="kcount" data-count="{{ col.count }}">{{ col.count }}</span></header>
+    <div class="kcards">
+      {% for c in col.cards %}
+      <article class="kcard kb-item" draggable="true" data-id="{{ c.id }}" data-status="{{ c.status }}">
+        <div class="ktop"><span class="score s{{ (c.score // 20) * 20 }}">{{ c.score }}</span>
+          <a class="kb-open ktitle" href="{{ base }}/jobs/{{ c.id }}?back=tracker">{{ c.title }}</a></div>
+        <div class="small muted">{{ c.company or '–' }}</div>
+        {% if c.channel %}<div class="small">{{ c.channel.label }}{% if c.applied_date %} · {{ c.applied_date|rel }}{% endif %}</div>{% endif %}
+        {% if c.interview_at %}<div class="small">📅 {{ c.interview_at|dmyhm }}</div>{% endif %}
+        {% if c.close_reason_label %}<div class="small muted">{{ c.close_reason_label }}</div>{% endif %}
+        <div class="small knext {% if c.follow_up_due %}due{% endif %}">➜ {{ c.next_step }}</div>
+        {% if c.notes %}<div class="small note">📝 {{ c.notes }}</div>{% endif %}
+        <select class="quick-status" data-id="{{ c.id }}" data-current="{{ c.status }}" aria-label="Status von {{ c.title }}">
+          {% for s in tr.statuses %}<option value="{{ s }}" {% if c.status == s %}selected{% endif %}>{{ tr.labels[s] }}</option>{% endfor %}
+        </select>
+      </article>
+      {% endfor %}
+      {% if col.more %}<a class="kmore small" href="{{ base }}/?status={{ col.status }}">+ {{ col.more }} weitere in der Liste →</a>{% endif %}
+      {% if not col.count %}<p class="kempty small muted">Leer – Karte hierher ziehen.</p>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
+
+<dialog id="dlg-interview" class="dialog">
+  <form method="dialog" class="stack">
+    <h2>Gesprächstermin eintragen?</h2>
+    <label>Datum und Uhrzeit<input type="datetime-local" name="when" required></label>
+    <div class="row"><button value="save" type="submit">Speichern</button><button value="skip" type="submit" class="ghost" formnovalidate>Später</button></div>
+  </form>
+</dialog>
+<dialog id="dlg-reason" class="dialog">
+  <form method="dialog" class="stack">
+    <h2>Grund der Absage</h2>
+    <label>Grund<select name="reason"><option value="">Absage der Firma / ohne Grund</option>
+      {% for kk, v in tr.close_reasons.items() %}<option value="{{ kk }}">{{ v }}</option>{% endfor %}</select></label>
+    <div class="row"><button value="save" type="submit">Speichern</button><button value="skip" type="submit" class="ghost">Ohne Grund</button></div>
+  </form>
+</dialog>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const api = (...a) => window.jhApi(...a), toast = (...a) => window.jhToast(...a);
+  const labels = {{ tr.labels|tojson }};
+  const col = (st) => document.querySelector('.kcol[data-status="' + st + '"]');
+  function bump(st, d) {
+    const c = col(st) && col(st).querySelector('.kcount');
+    if (c) { c.dataset.count = Number(c.dataset.count) + d; c.textContent = c.dataset.count; }
+  }
+  function ask(id) {
+    const dlg = document.getElementById(id);
+    return new Promise((resolve) => {
+      dlg.addEventListener('close', () => resolve(dlg.returnValue === 'save' ? new FormData(dlg.querySelector('form')) : null), {once: true});
+      dlg.showModal();
+    });
+  }
+  function moveCard(card, status) {
+    const old = card.dataset.status;
+    const target = col(status) && col(status).querySelector('.kcards');
+    if (target) { target.prepend(card); const e = target.querySelector('.kempty'); if (e) e.remove(); }
+    card.dataset.status = status;
+    const sel = card.querySelector('select.quick-status');
+    if (sel) { sel.value = status; sel.dataset.current = status; }
+    bump(old, -1); bump(status, +1);
+  }
+  async function afterMove(id, status) {
+    if (status === 'gespraech') {
+      const fd = await ask('dlg-interview');
+      if (fd && fd.get('when')) {
+        try { await api('PATCH', '/jobs/' + id, {interview_at: fd.get('when')}); toast('Gesprächstermin gespeichert.', 'ok'); }
+        catch (e) { toast('Termin nicht gespeichert: ' + e.message, 'err'); }
+      }
+    } else if (status === 'absage') {
+      const fd = await ask('dlg-reason');
+      if (fd && fd.get('reason')) {
+        try { await api('PATCH', '/jobs/' + id, {close_reason: fd.get('reason')}); }
+        catch (e) { toast('Grund nicht gespeichert: ' + e.message, 'err'); }
+      }
+    }
+  }
+  // Drag & drop
+  let dragged = null;
+  document.querySelectorAll('.kcard').forEach((card) => {
+    card.addEventListener('dragstart', (ev) => { dragged = card; card.classList.add('dragging'); ev.dataTransfer.setData('text/plain', card.dataset.id); ev.dataTransfer.effectAllowed = 'move'; });
+    card.addEventListener('dragend', () => { card.classList.remove('dragging'); document.querySelectorAll('.kcol.over').forEach((c) => c.classList.remove('over')); });
+  });
+  document.querySelectorAll('.kcol').forEach((c) => {
+    c.addEventListener('dragover', (ev) => { if (dragged) { ev.preventDefault(); c.classList.add('over'); } });
+    c.addEventListener('dragleave', () => c.classList.remove('over'));
+    c.addEventListener('drop', async (ev) => {
+      ev.preventDefault(); c.classList.remove('over');
+      const card = dragged; dragged = null;
+      if (!card) return;
+      const status = c.dataset.status, old = card.dataset.status;
+      if (status === old) return;
+      moveCard(card, status);
+      card.classList.add('saving');
+      try {
+        await api('PATCH', '/jobs/' + card.dataset.id, {status});
+        toast('„' + card.querySelector('.ktitle').textContent + '“ → ' + labels[status], 'ok');
+        await afterMove(card.dataset.id, status);
+      } catch (e) {
+        moveCard(card, old);
+        toast('Nicht gespeichert: ' + e.message, 'err');
+      } finally { card.classList.remove('saving'); }
+    });
+  });
+  // Status chosen on a card (select): move it too.
+  document.addEventListener('jh:status', async (ev) => {
+    const card = document.querySelector('.kcard[data-id="' + ev.detail.id + '"]');
+    if (!card) return;
+    card.dataset.status = ev.detail.old;
+    moveCard(card, ev.detail.status);
+    await afterMove(ev.detail.id, ev.detail.status);
+  });
+})();
+</script>
+{% endblock %}

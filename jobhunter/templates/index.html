@@ -5,12 +5,16 @@
     {{ '{:,.0f}'.format(j.salary_min or j.salary_max).replace(',', '.') }}{% if j.salary_max and j.salary_min and j.salary_max != j.salary_min %}–{{ '{:,.0f}'.format(j.salary_max).replace(',', '.') }}{% endif %} €{% if j.salary_predicted %}*{% endif %}
   {%- else -%}<span class="muted">–</span>{%- endif -%}
 {%- endmacro %}
+{% macro status_select(j) -%}
+<select class="quick-status" data-id="{{ j.id }}" data-current="{{ j.status }}" aria-label="Status von {{ j.title }}">
+  {% for s in STATUSES %}<option value="{{ s }}" {% if j.status == s %}selected{% endif %}>{{ STATUS_LABELS[s] }}</option>{% endfor %}
+</select>
+{%- endmacro %}
 {% block content %}
-{% if msg %}<div class="banner ok">{{ t(msg) }}</div>{% endif %}
-{% if err %}<div class="banner warn">{{ err }}</div>{% endif %}
 {% if f.view %}
 <div class="viewhead">
-  <h1>{{ VIEW_LABELS[f.view] }}</h1>
+  <h1>{% if f.view == 'recent' %}Neu – letzte 3 Tage{% else %}{{ VIEW_LABELS[f.view] }}{% endif %}</h1>
+  {% if f.view == 'recent' %}<p class="small muted">Neu gefundene und importierte Stellen (auch Job-Alerts), neueste zuerst. Bereits beworbene und abgelehnte fehlen hier.</p>{% endif %}
   {% if f.view == 'auto' %}<p class="small muted">Stellen mit Bewerbungs-E-Mail-Adresse. Ob und wann gesendet wird, entscheiden die Regeln im <a href="{{ base }}/outbox">Postausgang</a> – versendet wird nur von der Mac-App.</p>
   {% elif f.view == 'manual' %}<p class="small muted">Keine E-Mail-Adresse in der Anzeige: über das Portal / die Originalanzeige bewerben. Die besten 10 stehen unter <a href="{{ base }}/today">Heute zu tun</a>.</p>
   {% elif f.view == 'applied' %}<p class="small muted">Status Beworben/Gespräch/Angebot oder echt per E-Mail gesendet.</p>
@@ -70,41 +74,66 @@
   </label>
   <div class="filter-buttons">
     <button type="submit">{{ t('filter') }}</button>
-    <a class="button ghost" href="{{ base }}/{% if f.view %}?view={{ f.view }}{% endif %}">{{ t('reset') }}</a>
+    <a class="button ghost" href="{{ base }}/?{% if f.view %}view={{ f.view }}&amp;{% endif %}reset=1">{{ t('reset') }}</a>
   </div>
 </form>
 
-<p class="muted small">{{ jobs|length }} {{ t('count') }}</p>
+<p class="muted small listmeta">{{ jobs|length }} {{ t('count') }}{% if f.status or f.min_score or f.source or f.since or f.q %} · <a href="{{ base }}/?{% if f.view %}view={{ f.view }}&amp;{% endif %}reset=1">Filter zurücksetzen</a>{% endif %}
+  <span class="kbd-hint">· <kbd>j</kbd>/<kbd>k</kbd> wählen, <kbd>x</kbd> markieren, <kbd>s</kbd> Status, <kbd>?</kbd> Hilfe</span></p>
+
+<div id="bulkbar" class="bulkbar" hidden role="region" aria-label="Mehrfachauswahl">
+  <strong id="bulk-count">0 ausgewählt</strong>
+  <select id="bulk-status" aria-label="Status für die Auswahl">
+    <option value="">Status …</option>
+    {% for s in STATUSES %}<option value="{{ s }}">{{ STATUS_LABELS[s] }}</option>{% endfor %}
+  </select>
+  <button type="button" data-bulk="status">Setzen</button>
+  <button type="button" class="ghost" data-bulk="zu_weit">🗺️ Zu weit</button>
+  <button type="button" class="ghost" data-bulk="duplikat" title="Status Absage mit Grund „Duplikat“ – zählt nicht als Antwort">🗑 Duplikat ausblenden</button>
+  <button type="button" class="ghost" data-bulk="letters" {% if not ki().enabled %}disabled title="Keine KI konfiguriert"{% endif %}>🤖 KI-Anschreiben</button>
+  <button type="button" class="ghost" id="bulk-clear">Auswahl aufheben</button>
+</div>
 
 {% if jobs %}
 <div class="table-wrap">
 <table class="jobs">
   <thead>
-    <tr><th>{{ t('score') }}</th><th>{{ t('title') }}</th><th>{{ t('location') }}</th><th>{{ t('salary') }}</th><th>{{ t('source') }}</th><th>{{ t('status') }}</th><th>{{ t('found') }}</th></tr>
+    <tr><th class="cb"><input type="checkbox" id="bulk-all" aria-label="Alle auswählen"></th><th>{{ t('score') }}</th><th>{{ t('title') }}</th><th>{{ t('location') }}</th><th>{{ t('salary') }}</th><th>{{ t('source') }}</th><th>{{ t('status') }}</th><th>{{ t('found') }}</th></tr>
   </thead>
   <tbody>
   {% for j in jobs %}
-    <tr>
+    <tr class="kb-item">
+      <td class="cb"><input type="checkbox" class="bulk-cb" value="{{ j.id }}" aria-label="{{ j.title }} auswählen"></td>
       <td data-label="{{ t('score') }}"><span class="score s{{ (j.score // 20) * 20 }}" title="{{ t('rule_score') }} {{ j.rule_score }}{% if j.llm_score is not none %} · {{ t('llm_score') }} {{ j.llm_score }}{% endif %}">{{ j.score }}</span></td>
       <td class="title-cell">
-        <a href="{{ base }}/jobs/{{ j.id }}">{{ j.title }}</a>
+        <a class="kb-open" href="{{ base }}/jobs/{{ j.id }}">{{ j.title }}</a>
         <div class="muted small">{{ j.company or '–' }}</div>
-        <div><span class="applylabel a-{{ j.view }}">{{ j.apply_label }}</span></div>
+        <div><span class="applylabel a-{{ j.view }}">{{ j.apply_label }}</span>{% if j.channel_label and j.view == 'applied' %} <span class="sbadge {{ 'sent' if j.channel_label.startswith('✉') else 'manual' }}">{{ j.channel_label }}</span>{% endif %}</div>
         <div>{{ send_badge(j.send) }}</div>
+        {% if j.notes %}<div class="note small" title="Notiz">📝 {{ j.notes|truncate(120) }}</div>{% endif %}
         {% if j.llm_reason %}<div class="reason small">{{ j.llm_reason }}</div>{% endif %}
       </td>
       <td data-label="{{ t('location') }}">{{ j.location or '–' }}{% if j.remote %} <span class="tag">remote</span>{% endif %}</td>
       <td data-label="{{ t('salary') }}">{{ salary(j) }}</td>
       <td data-label="{{ t('source') }}"><span class="tag">{{ source_label(j.source) }}</span></td>
-      <td data-label="{{ t('status') }}"><span class="pill st-{{ j.status }}">{{ t('st_' ~ j.status) }}</span></td>
-      <td data-label="{{ t('found') }}" class="small muted">{{ j.fetched_at[:10] }}</td>
+      <td data-label="{{ t('status') }}">{{ status_select(j) }}{% if j.close_reason %}<div class="small muted">{{ CLOSE_REASONS.get(j.close_reason, j.close_reason) }}</div>{% endif %}</td>
+      <td data-label="{{ t('found') }}" class="small muted" title="{{ j.fetched_at|localtime }}">{{ j.fetched_at|rel }}</td>
     </tr>
   {% endfor %}
   </tbody>
 </table>
 </div>
 {% else %}
-<p class="empty">{{ t('no_jobs') }}</p>
+<div class="empty">
+  {% if f.status or f.min_score or f.source or f.since or f.q %}
+    <p><strong>Keine Treffer mit diesen Filtern.</strong></p>
+    <p class="small">Lockere die Filter oder <a href="{{ base }}/?{% if f.view %}view={{ f.view }}&amp;{% endif %}reset=1">setze sie zurück</a>.</p>
+  {% elif f.view == 'auto' %}<p>Keine offene Stelle mit Bewerbungs-Adresse.</p><p class="small">Neue Stellen kommen mit dem täglichen Suchlauf – oder trage im Detail einer Stelle eine E-Mail-Adresse ein.</p>
+  {% elif f.view == 'manual' %}<p>Nichts manuell zu tun. 🎉</p><p class="small">Neue Stellen erscheinen nach dem nächsten Suchlauf.</p>
+  {% elif f.view == 'recent' %}<p>In den letzten 3 Tagen wurde nichts Neues gefunden.</p><p class="small">„Jetzt suchen“ startet einen Lauf; im <a href="{{ base }}/profile">Suchprofil</a> kannst du mehr Suchbegriffe oder Quellen einschalten.</p>
+  {% elif f.view == 'applied' %}<p>Noch keine Bewerbung.</p><p class="small">Unter <a href="{{ base }}/today">Heute</a> stehen die besten Stellen – nach dem Bewerben „Als beworben markieren“.</p>
+  {% else %}<p>{{ t('no_jobs') }}</p>{% endif %}
+</div>
 {% endif %}
 
 {% if runs %}
@@ -112,7 +141,7 @@
   <summary>{{ t('last_runs') }}</summary>
   <ul>
   {% for r in runs %}
-    <li><code>{{ r.started_at[:16].replace('T', ' ') }}</code> – neu: {{ r.new_jobs }}
+    <li><code>{{ r.started_at|localtime }}</code> – neu: {{ r.new_jobs }}
       {% if r.stats.fetched %}· {% for k, v in r.stats.fetched.items() %}{{ k }}: {{ v }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
       {% if r.stats.skipped %}· übersprungen: {{ r.stats.skipped|join(', ') }}{% endif %}
       {% if r.errors %}<div class="err small">{{ r.errors|join(' | ') }}</div>{% endif %}

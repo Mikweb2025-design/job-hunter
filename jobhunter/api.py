@@ -16,7 +16,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import actions, alerts, letter_doc, letters, pipeline, search_profile
+from . import actions, alerts, letter_doc, letters, pipeline, search_profile, tracker
 from .config import Settings
 from .db import Database
 from .llm import LLMError, generation_busy
@@ -28,7 +28,8 @@ API_VERSION = 1
 
 SUMMARY_FIELDS = ("id", "title", "company", "location", "url", "source", "published", "fetched_at",
                   "score", "rule_score", "llm_score", "status", "status_updated_at", "applied_date",
-                  "salary_min", "salary_max", "letter_origin")
+                  "salary_min", "salary_max", "letter_origin", "interview_at", "follow_up_at",
+                  "close_reason")
 
 
 def _bool(v: Any) -> bool:
@@ -48,6 +49,7 @@ def job_summary(job: dict, send: dict | None = None) -> dict:
     out["has_letter"] = bool(job.get("letter"))
     out["source_label"] = alerts.source_label(job.get("source"))
     out["description_length"] = len((job.get("description") or "").strip())
+    out["notes"] = job.get("notes") or ""
     if "view" in job:
         out["view"] = job["view"]
         out["apply_label"] = job["apply_label"]
@@ -147,6 +149,18 @@ class JobUpdate(BaseModel):
     notes: str | None = Field(default=None, max_length=20000)
     applied_date: str | None = None
     apply_email: str | None = Field(default=None, max_length=320)
+    interview_at: str | None = Field(default=None, max_length=40)   # "YYYY-MM-DDTHH:MM", null clears
+    follow_up_at: str | None = Field(default=None, max_length=10)   # "YYYY-MM-DD", null clears
+    close_reason: str | None = Field(default=None, max_length=40)   # duplikat | kein_interesse | …
+
+
+class BulkUpdate(BaseModel):
+    """Multi-select in the lists: set a status (+ close reason) and/or start KI letters."""
+    model_config = ConfigDict(extra="forbid")
+    ids: list[int] = Field(min_length=1, max_length=500)
+    status: str | None = None
+    close_reason: str | None = Field(default=None, max_length=40)
+    write_letters: bool = False
 
 
 class AutoScoreIn(BaseModel):
@@ -330,8 +344,9 @@ def build_api_router(settings: Settings, db: Database, t) -> APIRouter:
         kwargs: dict[str, Any] = {"status": body.status}
         if "notes" in body.model_fields_set:
             kwargs["notes"] = body.notes
-        if "applied_date" in body.model_fields_set:
-            kwargs["applied_date"] = body.applied_date
+        for name in ("applied_date", "interview_at", "follow_up_at", "close_reason"):
+            if name in body.model_fields_set:
+                kwargs[name] = getattr(body, name)
         try:
             if "apply_email" in body.model_fields_set:
                 actions.set_apply_email(db, job_id, body.apply_email)
@@ -340,6 +355,54 @@ def build_api_router(settings: Settings, db: Database, t) -> APIRouter:
         except ValueError as exc:
             raise HTTPException(422, f"invalid {exc}") from None
         return _detail(job)
+
+    @router.get("/jobs/{job_id}/history")
+    def job_history(job_id: int):
+        """Timeline: found, status changes (job_status_history), e-mail sends, interview."""
+        job = _get(job_id)
+        return {"job_id": job_id, "events": tracker.timeline(db, job)}
+
+    @router.post("/jobs/bulk", dependencies=write)
+    def bulk_update(body: BulkUpdate):
+        if body.status is None and not body.write_letters:
+            raise HTTPException(422, "status or write_letters required")
+        if body.status is not None and body.status not in STATUSES:
+            raise HTTPException(422, "unknown status")
+        jobs = [j for j in (db.get_job(i) for i in dict.fromkeys(body.ids)) if j]
+        updated = 0
+        if body.status is not None:
+            for j in jobs:
+                kwargs: dict[str, Any] = {"status": body.status, "history_source": "bulk"}
+                if body.status == "absage" and "close_reason" in body.model_fields_set:
+                    kwargs["close_reason"] = body.close_reason
+                try:
+                    actions.update_tracker(db, j, **kwargs)
+                except ValueError as exc:
+                    raise HTTPException(422, f"invalid {exc}") from None
+                updated += 1
+        started, hint = False, None
+        if body.write_letters:
+            if not settings.llm.enabled:
+                hint = "Keine KI konfiguriert (llm.provider / OPENCODE_BIN)"
+            else:
+                fresh = [db.get_job(j["id"]) for j in jobs]
+                todo = [j for j in fresh if j and alerts.has_posting_text(j) and j.get("letter_origin") != "manuell"]
+                started = letters.start(settings, db, todo) if todo else False
+                if not todo:
+                    hint = "Keine der Stellen braucht ein KI-Anschreiben (kein Anzeigentext oder eigenes Anschreiben)."
+                elif not started:
+                    hint = "Die KI ist gerade beschäftigt – bitte später erneut."
+        return {"updated": updated, "missing": len(set(body.ids)) - len(jobs), "letters_started": started,
+                "hint": hint}
+
+    @router.get("/tracker")
+    def get_tracker(q: str | None = None, source: str | None = None,
+                    per_column: int = Query(60, ge=1, le=5000)):
+        """Kanban columns for all statuses + KPIs/funnel + weekly/source charts + follow-ups
+        + upcoming interviews (see jobhunter.tracker)."""
+        jobs = db.list_jobs(source=source or None, q=(q or "").strip() or None, limit=100000)
+        annotate(jobs, real_sent_ids(db), settings.send.blocklist)
+        return tracker.build(db, jobs, settings.applicant.name, per_column=per_column)
 
     @router.get("/sources")
     def sources():

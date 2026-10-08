@@ -33,6 +33,7 @@ struct JobHunterApp: App {
                     .disabled(model.isRunActive)
                 OpenSearchProfileButton()
             }
+            JobCommands(model: model)
         }
 
         Window("Suchprofil & Profil", id: "searchProfile") {

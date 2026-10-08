@@ -14,7 +14,11 @@ COLUMNS = [
     ("salary_min", "Gehalt min"), ("salary_max", "Gehalt max"), ("source", "Quelle"),
     ("published", "Veröffentlicht"), ("fetched_at", "Gefunden"), ("url", "Link"),
     ("llm_reason", "Begründung"), ("notes", "Notizen"),
+    ("channel_label", "Kanal"), ("interview_at", "Gespräch am"), ("follow_up_at", "Nachfassen am"),
+    ("close_reason", "Abschlussgrund"),
 ]
+STATUS_LABELS = {"neu": "Neu", "interessant": "Interessant", "beworben": "Beworben", "gespraech": "Gespräch",
+                 "absage": "Absage", "angebot": "Angebot", "zu_weit": "Zu weit"}
 
 
 def _safe(value):
@@ -24,9 +28,15 @@ def _safe(value):
     return value
 
 
+def _value(j: dict, key: str):
+    if key == "status":
+        return STATUS_LABELS.get(j.get("status") or "", j.get("status"))
+    return j.get(key)
+
+
 def _rows(jobs: list[dict]):
     for j in jobs:
-        yield [_safe(j.get(k)) if j.get(k) is not None else "" for k, _ in COLUMNS]
+        yield [_safe(_value(j, k)) if _value(j, k) is not None else "" for k, _ in COLUMNS]
 
 
 def to_csv(jobs: list[dict]) -> str:
@@ -44,7 +54,7 @@ def to_xlsx(jobs: list[dict]) -> bytes:
     ws.append([label for _, label in COLUMNS])
     for row in _rows(jobs):
         ws.append(row)
-    widths = {"Titel": 45, "Unternehmen": 28, "Link": 40, "Begründung": 60, "Notizen": 40}
+    widths = {"Kanal": 30, "Titel": 45, "Unternehmen": 28, "Link": 40, "Begründung": 60, "Notizen": 40}
     for i, (_, label) in enumerate(COLUMNS, start=1):
         ws.column_dimensions[get_column_letter(i)].width = widths.get(label, 14)
     ws.freeze_panes = "A2"
