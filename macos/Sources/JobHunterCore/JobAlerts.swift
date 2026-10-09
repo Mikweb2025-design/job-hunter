@@ -295,9 +295,34 @@ enum HTMLText {
 
 public enum JobAlertParser {
     /// Bump when a parser changes so already processed mails are read again.
-    public static let version = 4
+    public static let version = 6
 
     /// Jobs in one alert e-mail (empty for other mails from the same sender, e.g. "Willkommen").
+    /// Application confirmations in a message (empty for normal alerts).
+    public static func confirmations(_ message: AlertMailMessage) -> [AppliedConfirmation] {
+        guard let source = AlertSource.from(sender: message.sender) else { return [] }
+        let subject = message.subject.replacingOccurrences(of: "\u{00A0}", with: " ")
+        switch source {
+        case .stepstone:
+            // "Daniele, deine Bewerbung als Support Specialist … (m/w/d) ist raus"
+            guard let t = firstMatch(#"(?i)bewerbung\s+als\s+(.+?)\s+ist\s+raus"#, in: subject) else { return [] }
+            return [AppliedConfirmation(source: .stepstone, title: t.trimmingCharacters(in: .whitespaces), appliedAt: message.receivedAt)]
+        case .linkedin:
+            // "Daniele, Ihre Bewerbung wurde an Charles & Main Consulting gesendet." – first job block = the application
+            guard let company = firstMatch(#"(?i)bewerbung\s+wurde\s+an\s+(.+?)\s+gesendet"#, in: subject)
+                    ?? firstMatch(#"(?i)application\s+was\s+sent\s+to\s+(.+?)$"#, in: subject) else { return [] }
+            let (plain, html) = MIMEText.bodies(of: message.source)
+            let jobs = plain.map { linkedInPlain($0, receivedAt: message.receivedAt) } ?? html.map { linkedInHTML($0, receivedAt: message.receivedAt) } ?? []
+            if let j = jobs.first {
+                return [AppliedConfirmation(source: .linkedin, title: j.title, company: j.company.isEmpty ? company : j.company,
+                                            location: j.location, url: j.url, externalId: j.externalId, appliedAt: message.receivedAt)]
+            }
+            return []
+        case .indeed:
+            return []
+        }
+    }
+
     public static func parse(_ message: AlertMailMessage) -> [AlertJob] {
         guard let source = AlertSource.from(sender: message.sender) else { return [] }
         let (plain, html) = MIMEText.bodies(of: message.source)
@@ -332,7 +357,8 @@ public enum JobAlertParser {
     static let linkedInNoise = try! NSRegularExpression(pattern: """
         (?ix)^(?:
           .*jobbenachrichtigung.* | .*benachrichtigen\\s+sie.* | .*job\\s*alert.* | \\d+\\+?\\s+neue\\s+jobs.* |
-          neue\\s+jobs\\s+entsprechen.* | (?:new\\s+)?jobs?\\s+(?:that\\s+)?match(?:es)?\\s+your.* | sie\\s+könnten\\s+für.* |
+          neue\\s+jobs\\s+entsprechen.* | ihre\\s+bewerbung\\s+wurde.* | your\\s+application\\s+was.* | beworben\\s+am.* |
+          ähnliche\\s+stellen.* | setzen\\s+sie\\s+ihren.* | similar\\s+jobs.* | (?:new\\s+)?jobs?\\s+(?:that\\s+)?match(?:es)?\\s+your.* | sie\\s+könnten\\s+für.* |
           .*ehemalige\\s+kolleg.* | \\d+\\s+(?:frühere|former)\\s+.* | aktives\\s+recruiting | top[-\\s]?bewerber.* |
           \\d+\\+?\\s+new\\s+jobs.* | ihre\\s+aktuellen\\s+jobempfehlungen.* | alle\\s+jobs\\s+anzeigen.* | see\\s+all\\s+jobs.* |
           dieses\\s+unternehmen\\s+ist\\s+aktiv.* | aktiv\\s+auf\\s+personalsuche | actively\\s+(?:hiring|recruiting).* |
@@ -450,6 +476,7 @@ public enum JobAlertParser {
                 if l.isEmpty { j -= 1; continue }
                 let lower = l.lowercased()
                 if lower.hasPrefix("http") || lower.hasPrefix("hallo") || lower.hasPrefix("ich bin interessiert") { break }
+                if let f = l.first, f.isLowercase, l.count > 25 { break }   // promo sentence, not a title/company
                 if l.count > 70 && (l.hasSuffix("!") || l.hasSuffix("?") || l.hasSuffix(".")) { break }
                 block.insert(l, at: 0)
                 j -= 1
@@ -497,6 +524,7 @@ public enum JobAlertParser {
             if l.isEmpty { if !block.isEmpty { break }; j -= 1; continue }
             if l.count > 70 && (l.hasSuffix("!") || l.hasSuffix("?") || l.hasSuffix(".")) { break }
             if l.lowercased().hasPrefix("hallo") { break }
+            if let f = l.first, f.isLowercase, l.count > 25 { break }
             block.insert(l, at: 0)
             j -= 1
         }
@@ -579,6 +607,8 @@ public struct JobAlertState: Codable, Sendable, Equatable {
     public var lastSummary: String?
     /// Parser version that processed the messages; older → messages are read again.
     public var parserVersion: Int?
+    /// Application confirmations not yet accepted by the server.
+    public var pendingApplied: [AppliedConfirmation]?
 
     public init() {}
 }
@@ -590,9 +620,55 @@ public protocol AlertMailReading: Sendable {
 
 public protocol JobImportAPI: Sendable {
     func importJobs(_ jobs: [AlertJob]) async throws -> ImportResult
+    /// Applications sent on StepStone/LinkedIn (confirmation e-mails) → server marks "beworben".
+    func appliedConfirmations(_ items: [AppliedConfirmation]) async throws -> AppliedResult
+}
+
+extension JobImportAPI {
+    public func appliedConfirmations(_ items: [AppliedConfirmation]) async throws -> AppliedResult {
+        throw APIError.notFound
+    }
+}
+
+/// "Daniele, deine Bewerbung als … ist raus" (StepStone) / "Ihre Bewerbung wurde an … gesendet" (LinkedIn).
+public struct AppliedConfirmation: Codable, Sendable, Hashable {
+    public var source: String
+    public var title: String
+    public var company: String
+    public var location: String
+    public var url: String
+    public var externalId: String
+    public var appliedAt: String
+
+    public init(source: AlertSource, title: String, company: String = "", location: String = "", url: String = "",
+                externalId: String = "", appliedAt: Date) {
+        self.source = source.rawValue
+        self.title = title
+        self.company = company
+        self.location = location
+        self.url = url
+        self.externalId = externalId
+        self.appliedAt = ISO8601DateFormatter().string(from: appliedAt)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case source, title, company, location, url
+        case externalId = "external_id"
+        case appliedAt = "applied_at"
+    }
+
+    var key: String { "\(source)|\(title.lowercased())|\(company.lowercased())|\(appliedAt.prefix(10))" }
+}
+
+public struct AppliedResult: Codable, Sendable, Equatable {
+    public var updated: [Int]
+    public var unchanged: [Int]
+    public var created: [Int]
+    public var invalid: Int
 }
 
 public struct JobAlertOutcome: Sendable, Equatable {
+    public var appliedMarked = 0
     public var messages = 0
     public var jobsFound = 0
     public var imported = 0
@@ -613,6 +689,7 @@ public struct JobAlertOutcome: Sendable, Equatable {
         parts.append("\(imported) neu importiert")
         if duplicates > 0 { parts.append("\(duplicates) schon bekannt") }
         if invalid > 0 { parts.append("\(invalid) ungültig") }
+        if appliedMarked > 0 { parts.append(appliedMarked == 1 ? "1 Bewerbung erkannt" : "\(appliedMarked) Bewerbungen erkannt") }
         if queued > 0 { parts.append("\(queued) warten auf den Server" + (serverError.map { " (\($0))" } ?? "")) }
         return parts.joined(separator: " · ")
     }
@@ -639,6 +716,11 @@ public enum JobAlertImporter {
                 out.messages += 1
                 let jobs = JobAlertParser.parse(msg)
                 out.jobsFound += jobs.count
+                for c in JobAlertParser.confirmations(msg) {
+                    var list = state.pendingApplied ?? []
+                    if !list.contains(where: { $0.key == c.key }) { list.append(c) }
+                    state.pendingApplied = list
+                }
                 for job in jobs where known.insert(job.key).inserted {
                     state.pending.append(job)
                 }
@@ -682,10 +764,20 @@ public enum JobAlertImporter {
                     out.serverError = "Server kennt den Job-Alert-Import noch nicht (Backend aktualisieren) – Stellen bleiben gespeichert"
                     break
                 }
-                if let api = error as? APIError, !SyncEngine.isTransient(api) {
-                    // Rejected for good (e.g. 422): drop the batch instead of retrying forever.
-                    out.serverError = api.errorDescription
-                    out.invalid += batch.count
+                if let apiErr = error as? APIError, !SyncEngine.isTransient(apiErr) {
+                    // Rejected for good (e.g. 422): send the batch job by job so only the bad
+                    // ones are dropped – never lose a whole batch because of one odd mail.
+                    for job in batch {
+                        if let r = try? await api.importJobs([job]) {
+                            out.imported += r.imported
+                            out.duplicates += r.duplicates
+                            out.invalid += r.invalid
+                            out.importedIDs += r.importedIds
+                        } else {
+                            out.invalid += 1
+                        }
+                    }
+                    out.serverError = out.invalid > 0 ? apiErr.errorDescription : nil
                     state.pending.removeFirst(batch.count)
                     continue
                 }
@@ -694,6 +786,17 @@ public enum JobAlertImporter {
             }
         }
         out.queued = state.pending.count
+        if let applied = state.pendingApplied, !applied.isEmpty {
+            do {
+                let r = try await api.appliedConfirmations(applied)
+                out.appliedMarked += r.updated.count + r.created.count
+                state.pendingApplied = []
+            } catch let e as APIError where !SyncEngine.isTransient(e) && !serverLacksImport(e) {
+                state.pendingApplied = []   // rejected for good
+            } catch {
+                // keep for the next run (offline / older server)
+            }
+        }
     }
 }
 

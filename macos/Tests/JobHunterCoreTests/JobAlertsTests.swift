@@ -354,3 +354,67 @@ struct AlertFormatsOct {
         #expect(jobs.first?.company == "Beispiel GmbH")
     }
 }
+
+@Suite("Bewerbungs-Bestätigungen")
+struct AppliedConfirmationTests {
+    @Test func stepStoneConfirmation() throws {
+        let msg = AlertMailMessage(id: "<a1>", receivedAt: Date(timeIntervalSince1970: 1_791_574_000), sender: "Stepstone <info@email.stepstone.de>",
+                                   subject: "Max, deine Bewerbung als Support Specialist Softwareentwicklung (m/w/d) ist raus",
+                                   source: try eml("stepstone_applied"))
+        let c = JobAlertParser.confirmations(msg)
+        #expect(c.count == 1)
+        #expect(c.first?.title == "Support Specialist Softwareentwicklung (m/w/d)")
+        #expect(c.first?.source == "stepstone-alert")
+    }
+
+    @Test func linkedInConfirmation() throws {
+        let msg = AlertMailMessage(id: "<a2>", receivedAt: .now, sender: "LinkedIn <jobs-noreply@linkedin.com>",
+                                   subject: "Max, Ihre Bewerbung wurde an Charles & Main Consulting gesendet.",
+                                   source: try eml("linkedin_applied"))
+        let c = try #require(JobAlertParser.confirmations(msg).first)
+        #expect(c.title == "Support-Spezialist:in VoIP")
+        #expect(c.company == "Charles & Main Consulting")
+        #expect(c.externalId == "4470136155")
+    }
+
+    @Test func normalAlertIsNoConfirmation() throws {
+        let msg = AlertMailMessage(id: "<a3>", receivedAt: .now, sender: "LinkedIn Jobbenachrichtigungen <jobalerts-noreply@linkedin.com>",
+                                   subject: "Customer Support Specialist bei AMBOSS", source: try eml("linkedin_alert_single_first"))
+        #expect(JobAlertParser.confirmations(msg).isEmpty)
+    }
+
+    @Test func promoSentenceIsNotATitle() {
+        let src = "From: info@jobagent.stepstone.de\nContent-Type: text/plain; charset=utf-8\n\nHallo Max,\ndieser Job hat viele Klicks - bewirb dich jetzt, bevor er weg ist\n\nPasst gut\n\nDevSecOps Platform Engineer (w/m/d)\nBeispiel AG\nBerlin\n\nIch bin interessiert\nhttps://click.stepstone.de/f/a/x\n"
+        let jobs = JobAlertParser.parse(AlertMailMessage(id: "p2", receivedAt: .now, sender: "info@jobagent.stepstone.de", subject: "x", source: src))
+        #expect(jobs.first?.title == "DevSecOps Platform Engineer (w/m/d)")
+        #expect(jobs.first?.company == "Beispiel AG")
+    }
+
+    @Test func confirmationsAreSentToServer() async throws {
+        actor API: JobImportAPI {
+            var got: [AppliedConfirmation] = []
+            func importJobs(_ jobs: [AlertJob]) async throws -> ImportResult {
+                try JSONDecoder().decode(ImportResult.self, from: Data(#"{"received":0,"imported":0,"duplicates":0,"invalid":0,"imported_ids":[]}"#.utf8))
+            }
+            func appliedConfirmations(_ items: [AppliedConfirmation]) async throws -> AppliedResult {
+                got += items
+                return AppliedResult(updated: [7], unchanged: [], created: [], invalid: 0)
+            }
+            func count() -> Int { got.count }
+        }
+        struct Reader: AlertMailReading {
+            let src: String
+            func alertMessages(account: String, daysBack: Int, skipIDs: [String]) async throws -> [AlertMailMessage] {
+                [AlertMailMessage(id: "<c>", receivedAt: .now, sender: "Stepstone <info@email.stepstone.de>",
+                                  subject: "Max, deine Bewerbung als Cloud Engineer (m/w/d) ist raus", source: src)]
+            }
+        }
+        let api = API()
+        var state = JobAlertState()
+        state.parserVersion = JobAlertParser.version
+        let out = await JobAlertImporter.run(state: &state, reader: Reader(src: try eml("stepstone_applied")), api: api, account: "a", daysBack: 14)
+        #expect(await api.count() == 1)
+        #expect(out.appliedMarked == 1)
+        #expect(state.pendingApplied?.isEmpty == true)
+    }
+}

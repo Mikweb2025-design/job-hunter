@@ -432,7 +432,7 @@ struct LetterTests {
 
     Dort löse ich im Second- und Third-Level-Support komplexe Linux-Fälle, analysiere Störungen bis zur Ursache und schreibe FAQ-Artikel, damit Kolleginnen und Kollegen wiederkehrende Anfragen selbst lösen können.
 
-    Ihre Stelle reizt mich, weil Sie ausdrücklich Erfahrung mit Objektspeicher suchen. In den ersten 90 Tagen würde ich mich in Ihr Ticket-System einarbeiten und die häufigsten Anfragen dokumentieren.
+    Ihre Stelle interessiert mich, weil Sie ausdrücklich Erfahrung mit Objektspeicher suchen. In den ersten 90 Tagen würde ich mich in Ihr Ticket-System einarbeiten und die häufigsten Anfragen dokumentieren.
 
     Über die Einladung zu einem persönlichen Gespräch freue ich mich.
     """

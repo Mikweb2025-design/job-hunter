@@ -191,3 +191,69 @@ def test_reimport_corrects_wrongly_parsed_alert_job(settings):
     again = AlertItem(**{**good.__dict__, "title": "Other"}) if hasattr(good, "__dict__") else good
     r3 = import_alert_jobs(settings, db, [again])
     assert r3.corrected == []
+
+
+def test_applied_confirmations_mark_and_create(settings):
+    from jobhunter.alerts import AlertItem, AppliedItem, import_alert_jobs, record_applied
+    from jobhunter.db import Database
+    db = Database(settings.db_path)
+    r = import_alert_jobs(settings, db, [AlertItem(source="stepstone-alert", external_id="t1", title="Cloud Administrator / Cloud Engineer (m/w/d)",
+                                                   company="Amadeus Fire AG", location="Berlin", url="https://click.stepstone.de/x",
+                                                   received_at="2026-10-08T10:00:00Z")])
+    jid = r.imported[0]
+    db.update_job(jid, status="zu_weit")
+    out = record_applied(settings, db, [
+        AppliedItem(source="stepstone-alert", title="Cloud Administrator / Cloud Engineer (m/w/d)", applied_at="2026-10-09T18:59:00Z"),
+        AppliedItem(source="stepstone-alert", title="Support Specialist Softwareentwicklung (m/w/d)", applied_at="2026-10-09T19:46:00Z"),
+    ])
+    assert out["updated"] == [jid] and len(out["created"]) == 1
+    job = db.get_job(jid)
+    assert job["status"] == "beworben" and job["applied_date"] == "2026-10-09"
+    new = db.get_job(out["created"][0])
+    assert new["status"] == "beworben" and new["apply_method"] == "manual"
+    # idempotent
+    again = record_applied(settings, db, [AppliedItem(source="stepstone-alert", title="Support Specialist Softwareentwicklung (m/w/d)",
+                                                      applied_at="2026-10-09T19:46:00Z")])
+    assert again["created"] == [] and again["unchanged"] == out["created"]
+
+
+def test_applied_confirmation_other_company_not_matched(settings):
+    from jobhunter.alerts import AlertItem, AppliedItem, import_alert_jobs, record_applied
+    from jobhunter.db import Database
+    db = Database(settings.db_path)
+    r = import_alert_jobs(settings, db, [AlertItem(source="linkedin-alert", external_id="111", title="Support Specialist",
+                                                   company="A GmbH", url="https://www.linkedin.com/jobs/view/111/", received_at="")])
+    out = record_applied(settings, db, [AppliedItem(source="linkedin-alert", title="Support Specialist", company="B GmbH",
+                                                    external_id="222", applied_at="2026-10-09T10:00:00Z")])
+    assert out["updated"] == [] and len(out["created"]) == 1
+    assert db.get_job(r.imported[0])["status"] == "neu"
+
+
+def test_import_truncates_long_fields_instead_of_422(settings):
+    from fastapi.testclient import TestClient
+    from jobhunter.db import Database
+    from jobhunter.web import create_app
+    settings.dashboard_user, settings.dashboard_password = ("u", "p")
+    c = TestClient(create_app(settings, db=Database(settings.db_path))); c.auth = ("u", "p")
+    item = {"source": "stepstone-alert", "external_id": "x1", "title": "DevOps Engineer", "company": "A GmbH",
+            "location": "Berlin, " * 200, "url": "https://click.stepstone.de/x", "received_at": "2026-10-09T10:00:00Z"}
+    ok = {**item, "external_id": "x2", "title": "Cloud Engineer", "location": "Berlin"}
+    r = c.post("/api/v1/jobs/import", json=[item, ok])
+    assert r.status_code == 200 and r.json()["imported"] == 2
+
+
+def test_wrong_header_title_corrected_even_if_applied(settings):
+    from jobhunter.alerts import AlertItem, import_alert_jobs
+    from jobhunter.db import Database
+    db = Database(settings.db_path)
+    bad = AlertItem(source="linkedin-alert", external_id="4470136155", title="Ihre Bewerbung wurde an Charles & Main Consulting gesendet.",
+                    company="Support-Spezialist:in VoIP", url="https://www.linkedin.com/jobs/view/4470136155/", received_at="")
+    jid = import_alert_jobs(settings, db, [bad]).imported[0]
+    db.update_job(jid, status="beworben", applied_date="2026-10-09")
+    good = AlertItem(source="linkedin-alert", external_id="4470136155", title="Support-Spezialist:in VoIP",
+                     company="Charles & Main Consulting", location="Deutschland",
+                     url="https://www.linkedin.com/jobs/view/4470136155/", received_at="")
+    assert import_alert_jobs(settings, db, [good]).corrected == [jid]
+    j = db.get_job(jid)
+    assert j["title"] == "Support-Spezialist:in VoIP" and j["company"] == "Charles & Main Consulting"
+    assert j["status"] == "beworben" and j["applied_date"] == "2026-10-09"

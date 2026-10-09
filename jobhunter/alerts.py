@@ -136,8 +136,16 @@ def _existing_by_key(db: Database, key: str) -> dict | None:
     return db.get_job(row["id"]) if row else None
 
 
+_WRONG_TITLE = re.compile(r"(?i)^(ihre\s+bewerbung\s+wurde|neue\s+jobs\s+entsprechen|passt\b|dieser\s+job|"
+                          r"deine\s+chancen|dein\s+profil|nur\s+wenige|empfehlung|du\s+bist\s+ein)")
+
+
 def _correctable(job: dict) -> bool:
-    """Only untouched jobs are corrected: still "neu", no letter written/edited by the user."""
+    """Untouched jobs (still "neu", no letter edited by the user) are corrected; a title that is
+    clearly a mail header (e.g. "Ihre Bewerbung wurde an … gesendet.") is always corrected –
+    only title/company/location change, status, notes and letter stay."""
+    if _WRONG_TITLE.match((job.get("title") or "").strip()):
+        return True
     return job.get("status") == "neu" and job.get("letter_origin") != "manuell"
 
 
@@ -212,3 +220,84 @@ def set_description(settings: Settings, db: Database, job: dict, text: str) -> d
     res = score_job(p, settings.profile, cv)
     db.set_rule_score(job["id"], res.score, res.breakdown)
     return db.get_job(job["id"])
+
+
+# --- Application confirmations ("deine Bewerbung … ist raus", "Ihre Bewerbung wurde an … gesendet") ---
+
+APPLIED_FROM = {"neu", "interessant", "zu_weit", "absage"}  # statuses a confirmation moves to "beworben"
+
+
+@dataclass
+class AppliedItem:
+    source: str            # stepstone-alert | linkedin-alert | indeed-alert
+    title: str
+    company: str = ""
+    location: str = ""
+    url: str = ""
+    external_id: str = ""
+    applied_at: str = ""   # ISO time of the confirmation e-mail
+
+
+def _applied_date(applied_at: str) -> str:
+    try:
+        return datetime.fromisoformat(applied_at.replace("Z", "+00:00")).date().isoformat()
+    except (ValueError, AttributeError):
+        return datetime.now(timezone.utc).date().isoformat()
+
+
+def find_applied_job(db: Database, it: AppliedItem) -> dict | None:
+    """The job a confirmation refers to: same board id; else same title (+ company when known),
+    preferring the same source and the most recently found job."""
+    from .dedup import normalize_company, normalize_title
+    if it.external_id:
+        hit = _existing_by_source_id(db, it.source, it.external_id)
+        if hit:
+            return hit
+    t = normalize_title(it.title)
+    if not t:
+        return None
+    cands = [j for j in db.list_jobs(limit=100000) if normalize_title(j.get("title") or "") == t]
+    if it.company:
+        c = normalize_company(it.company)
+        same = [j for j in cands if normalize_company(j.get("company") or "") == c]
+        if same:
+            cands = same
+        elif cands:
+            return None  # same title at another company – not this application
+    if not cands:
+        return None
+    cands.sort(key=lambda j: (j.get("source") == it.source, j.get("fetched_at") or ""), reverse=True)
+    return cands[0]
+
+
+def record_applied(settings: Settings, db: Database, items: list[AppliedItem]) -> dict:
+    """Mark jobs as applied from confirmation e-mails; unknown jobs are added as "beworben"."""
+    out = {"received": len(items), "updated": [], "unchanged": [], "created": [], "invalid": 0}
+    for it in items:
+        title = (it.title or "").strip()
+        if it.source not in ALERT_SOURCES or not title:
+            out["invalid"] += 1
+            continue
+        day = _applied_date(it.applied_at)
+        job = find_applied_job(db, it)
+        if job:
+            if job.get("status") in APPLIED_FROM:
+                db.update_job(job["id"], history_source=f"bestaetigung:{it.source}", status="beworben",
+                              status_updated_at=it.applied_at or None, applied_date=job.get("applied_date") or day)
+                out["updated"].append(job["id"])
+            else:
+                out["unchanged"].append(job["id"])
+            continue
+        p = JobPosting(source=it.source, source_id=it.external_id or f"applied:{dedup_key(title, it.company)}",
+                       title=title, company=(it.company or "").strip(), location=(it.location or "").strip(),
+                       url=canonical_url(it.source, it.url, it.external_id), description="",
+                       published=_published(it.applied_at))
+        cv = CVProfile.load(settings.cv_path, settings.profile.keyword_weights)
+        res = score_job(p, settings.profile, cv)
+        job_id = db.insert_job(p, res.score, res.breakdown)
+        if job_id:
+            db.update_job(job_id, apply_email=None, apply_method="manual", apply_email_source=None)
+            db.update_job(job_id, history_source=f"bestaetigung:{it.source}", status="beworben",
+                          status_updated_at=it.applied_at or None, applied_date=day)
+            out["created"].append(job_id)
+    return out

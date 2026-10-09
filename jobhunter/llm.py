@@ -34,21 +34,26 @@ log = logging.getLogger(__name__)
 
 MAX_POSTING_CHARS = 15000  # postings are rarely longer; keeps cost predictable
 
-LETTER_RULES = """Du hilfst einem erfahrenen Support Engineer bei der Jobsuche in Deutschland und schreibst den Text seines Anschreibens für die Stellenanzeige unten.
+LETTER_RULES = """Du schreibst für einen erfahrenen Support Engineer den Text seines Anschreibens für die Stellenanzeige unten. Ziel: Eine Personalerin liest den ersten Satz und will weiterlesen – der Brief klingt wie von einem Menschen geschrieben, der diese Stelle wirklich will, nicht wie von einer KI.
 
-Form: Deutsch, sachlich, konkret und in natürlichem, flüssigem Deutsch, 3 bis 4 kurze Absätze mit zusammen 180 bis 260 Wörtern; Absätze durch eine Leerzeile getrennt, jeder Absatz höchstens 4 Sätze. Prüfe Grammatik und Rechtschreibung vor der Ausgabe. Nur der Brieftext: keine Anrede, kein Gruß, keine Betreffzeile, keine Unterschrift.
+Form: Deutsch, natürlich und flüssig, 3 bis 4 kurze Absätze mit zusammen 170 bis 250 Wörtern; Absätze durch eine Leerzeile getrennt, jeder Absatz höchstens 4 Sätze. Prüfe Grammatik, Rechtschreibung und Kommas vor der Ausgabe. Nur der Brieftext: keine Anrede, kein Gruß, keine Betreffzeile, keine Unterschrift.
 Schreibe in der ICH-FORM aus Sicht des Bewerbers (ich, mein, mir); das Unternehmen wird höflich mit „Sie“ angesprochen. Sprich NIE den Bewerber selbst mit „Sie“ oder „Ihre“ an.
 
 Aufbau:
-1. Absatz (Einstieg): ein konkreter Einstieg, der mein stärkstes passendes Ergebnis aus dem Profil (mit seiner Zahl, falls vorhanden) mit der Stelle verbindet; nenne den Stellentitel (Zeile „Titel“) und das Unternehmen. Nicht mit „hiermit bewerbe ich mich“ oder „mit großem Interesse“ beginnen.
-2. Absatz (Erfahrung): zwei bis drei konkrete Belege aus dem Profil, jeweils bezogen auf eine Hauptanforderung der Anzeige (z. B. 2nd/3rd-Level-Support, Root-Cause-Analysen, Größe der betreuten Plattformen, Ticketvolumen, FAQ/Wissensdatenbank für Kollegen, KI-gestützte Ticket-Triage über MCP, Python/Docker) – nur was zur Anzeige passt.
-3. Absatz (Warum Sie): ein konkreter Bezug aus dem Anzeigentext (Produkt, Aufgabe, Kunden oder Technik) und was ich in den ersten 90 Tagen als Erstes konkret tun würde.
-4. Absatz (Abschluss): ein kurzer, schlichter Satz, z. B. „Über die Einladung zu einem persönlichen Gespräch freue ich mich.“ Kein Eintrittstermin, keine Kündigungsfrist, keine Gehaltsangabe, keine Selbstbewertung.
+1. Absatz (Aufhänger): Der erste Satz (höchstens 25 Wörter, schlicht formuliert) ist ein konkreter Moment oder ein Ergebnis aus meinem Arbeitsalltag, das direkt die wichtigste Aufgabe der Anzeige trifft (z. B. ein kritischer Incident, den ich bis zur Ursache verfolgt habe, oder die Größe der Plattform, die ich betreue). Erst im zweiten Satz Stellentitel (Zeile „Titel“) und Unternehmen nennen. NICHT mit „Seit …“, „Als …“, „Hiermit …“, „Mit großem Interesse …“ oder meinem Namen beginnen.
+2. Absatz (Belege): zwei konkrete Belege aus dem Profil, jeweils an eine Hauptanforderung der Anzeige geknüpft. Mindestens einer davon als kleines Beispiel in ein bis zwei Sätzen – das Beispiel MUSS aus dem Profil-Abschnitt „Beispiele aus dem Alltag“ oder „Kernergebnisse“ stammen; erfinde keine neue Geschichte, kein Ergebnis und keine Wirkung („Fehlerrate gesenkt“ o. ä.), die dort nicht steht. Keine Aufzählung von Technologien.
+3. Absatz (Warum Sie): ein konkreter Punkt aus dem Anzeigentext (Produkt, Kunden, Aufgabe oder Technik), den ich mit eigenen Worten aufgreife, und was ich in den ersten 90 Tagen als Erstes konkret anpacken würde.
+4. Absatz (Abschluss): ein kurzer, selbstbewusster Satz mit konkretem Gesprächsvorschlag, z. B. „Gern erzähle ich Ihnen in einem kurzen Gespräch, wie ich …“. Kein Eintrittstermin, keine Kündigungsfrist, keine Gehaltsangabe.
+
+Stil:
+- Abwechselnd kurze und längere Sätze, aktive Verben, konkrete Substantive. Übernimm zwei bis drei Schlüsselbegriffe der Anzeige wörtlich (wichtig für Bewerbermanagement-Systeme).
+- Selbstbewusst, aber bescheiden: keine Superlative, keine Selbstlob-Adjektive.
+- Keine konstruierten Einstiege wie „Gerade als …“, „Wenn ich an … denke“, „Stellen Sie sich vor“.
+- Verboten (typische KI-Floskeln): „genau die Rolle“, „genau das“, „entspricht genau“, „reizt mich“, „spannend“, „Herausforderung“, „bringe ich mit“, „passt perfekt“, „passt hervorragend“, „ich freue mich darauf“, „gerne würde ich“, „in einem dynamischen Umfeld“, „leidenschaftlich“, „Synergien“, „Mehrwert“, „hochmotiviert“, „Teamplayer“, „ich bin überzeugt“, „hiermit bewerbe ich mich“, „nicht nur … sondern auch“, Gedankenstrich-Ketten und Doppelpunkte als Stilmittel.
 
 Inhalt:
 - Nur Fakten aus dem Profil und der Anzeige. Erfinde NIEMALS Zahlen, Firmen, Kunden, Zertifikate, Werkzeuge oder Ergebnisse. Zahlen nur, wenn sie wörtlich im Profil oder in der Anzeige stehen (Ausnahme: „90 Tage“). Jahreszahlen nur so, wie der Abschnitt „Erfahrung“ des Profils sie einer Station zuordnet (z. B. seit 2008 bei STRATO, aber erst seit 2018 als Specialist Support Engineer).
-- Behaupte keine Erfahrung mit Produkten oder Technologien der Anzeige, die nicht im Profil stehen. Fehlendes höchstens in einem kurzen, positiven Halbsatz (z. B. „in X arbeite ich mich gezielt ein“); keine Aufzählung von Dingen, die ich nicht kann, keine Entschuldigungen.
-- Keine Buzzwords und Floskeln (z. B. „leidenschaftlich“, „dynamisch“, „Synergien“, „Mehrwert schaffen“, „hochmotiviert“, „Teamplayer“, „ich bin überzeugt“, „hiermit bewerbe ich mich“).
+- Behaupte keine Erfahrung mit Produkten oder Technologien der Anzeige, die nicht im Profil stehen. Fehlendes höchstens in einem kurzen, positiven Halbsatz (z. B. „in X arbeite ich mich gezielt ein“); keine Entschuldigungen.
 - Keine Platzhalter in eckigen Klammern, kein Markdown, keine Aufzählungszeichen.
 Benutze keine Werkzeuge und lies keine Dateien – alles Nötige steht unten.
 
@@ -191,6 +196,9 @@ def invented_numbers(letter: str, sources: list[str]) -> list[str]:
     return out
 
 
+_CLICHE_RE = re.compile(r"(?i)\b(genau\s+die\s+rolle|reizt\s+mich|bringe\s+ich\s+mit|passt\s+perfekt|passt\s+hervorragend|"
+                        r"in\s+einem\s+dynamischen\s+umfeld|leidenschaftlich|hochmotiviert|teamplayer|synergien|mehrwert|"
+                        r"ich\s+bin\s+überzeugt|hiermit\s+bewerbe\s+ich\s+mich|mit\s+großem\s+interesse)\b")
 _ENGLISH_RE = re.compile(r"\b(customers?|clients?|however|therefore|furthermore|experience|responsibilit(?:y|ies)|skills)\b")
 _ICH_RE = re.compile(r"\b(ich|mein|meine|meinen|meiner|meinem|mir|mich)\b", re.IGNORECASE)
 _WRONG_SIE_RE = re.compile(r"\b(haben Sie bereits|Ihre bisherige|Ihrer bisherigen|Ihre Erfahrung|würden Sie sich|Ihre Eignung|Sie haben .{0,40}(aufgebaut|gezeigt|gearbeitet))", re.IGNORECASE)
@@ -259,6 +267,9 @@ def clean_letter_output(raw: str, sources: list[str] | None = None, company: str
     english = _ENGLISH_RE.findall(letter)
     if english:
         raise LetterRejected(f"Anschreiben enthält englische Wörter ({', '.join(sorted(set(english)))}) – verworfen.")
+    cliche = _CLICHE_RE.search(letter)
+    if cliche:
+        raise LetterRejected(f"Anschreiben enthält eine KI-Floskel („{cliche.group(0)}“) – verworfen.")
     if not wrong_perspective_ok(letter):
         raise LetterRejected("Anschreiben nicht in der Ich-Form (spricht den Bewerber mit „Sie“ an) – verworfen.")
     if sources:

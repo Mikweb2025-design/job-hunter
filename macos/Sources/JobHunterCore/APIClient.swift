@@ -121,6 +121,11 @@ public struct APIClient: Sendable {
         try await send("POST", "jobs/import", body: try Self.encoder.encode(jobs))
     }
 
+    /// Application confirmations (`POST /api/v1/jobs/applied-confirmations`).
+    public func appliedConfirmations(_ items: [AppliedConfirmation]) async throws -> AppliedResult {
+        try await send("POST", "jobs/applied-confirmations", body: try Self.encoder.encode(items))
+    }
+
     public func regenerateLetter(id: Int) async throws -> JobDetail {
         try await send("POST", "jobs/\(id)/regenerate", body: Data("{}".utf8))
     }

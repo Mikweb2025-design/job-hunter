@@ -14,7 +14,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import actions, alerts, letter_doc, letters, pipeline, search_profile, tracker
 from .config import Settings
@@ -199,17 +199,39 @@ class LetterUpdate(BaseModel):
     origin: str | None = Field(default=None, max_length=40)
 
 
-class AlertJobIn(BaseModel):
-    """One job parsed from a job-alert e-mail by the macOS app."""
+class AppliedIn(BaseModel):
+    """An application confirmation e-mail (StepStone "… ist raus", LinkedIn "… gesendet")."""
     model_config = ConfigDict(extra="ignore")
-    source: str = Field(max_length=40)              # linkedin-alert | stepstone-alert | indeed-alert
-    external_id: str = Field(default="", max_length=200)
+    source: str = Field(max_length=40)
     title: str = Field(max_length=500)
     company: str = Field(default="", max_length=300)
     location: str = Field(default="", max_length=300)
     url: str = Field(default="", max_length=2000)
-    received_at: str = Field(default="", max_length=40)
-    description: str | None = Field(default=None, max_length=50000)
+    external_id: str = Field(default="", max_length=200)
+    applied_at: str = Field(default="", max_length=40)
+
+
+class AlertJobIn(BaseModel):
+    """One job parsed from a job-alert e-mail by the macOS app. Over-long fields are truncated
+    (never reject a whole batch because one mail had e.g. a very long list of cities)."""
+    model_config = ConfigDict(extra="ignore")
+    source: str = Field(max_length=40)              # linkedin-alert | stepstone-alert | indeed-alert
+    external_id: str = ""
+    title: str
+    company: str = ""
+    location: str = ""
+    url: str = ""
+    received_at: str = ""
+    description: str | None = None
+
+    @field_validator("external_id", "title", "company", "location", "url", "received_at", "description", mode="before")
+    @classmethod
+    def _truncate(cls, v, info):
+        if v is None:
+            return v
+        limits = {"external_id": 200, "title": 500, "company": 300, "location": 300, "url": 2000,
+                  "received_at": 40, "description": 50000}
+        return str(v)[: limits[info.field_name]]
 
 
 class DescriptionUpdate(BaseModel):
@@ -417,6 +439,12 @@ def build_api_router(settings: Settings, db: Database, t) -> APIRouter:
         items = [alerts.AlertItem(**it.model_dump(exclude={"description"}), description=it.description or "")
                  for it in body]
         return alerts.import_alert_jobs(settings, db, items).as_dict()
+
+    @router.post("/jobs/applied-confirmations", dependencies=write)
+    def applied_confirmations(body: list[AppliedIn] = Body(..., max_length=500)):
+        """Applications the user sent himself on StepStone/LinkedIn (confirmation e-mails, read by
+        the macOS app): the matching job becomes "beworben"; unknown jobs are added as "beworben"."""
+        return alerts.record_applied(settings, db, [alerts.AppliedItem(**it.model_dump()) for it in body])
 
     @router.put("/jobs/{job_id}/description", dependencies=write)
     def put_description(job_id: int, body: DescriptionUpdate):

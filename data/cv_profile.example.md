@@ -12,6 +12,11 @@ Berlin oder remote. Mindestgehalt 44.000 EUR/Jahr.
 - Bearbeitung von rund 150 Tickets pro Woche (2nd/3rd Level)
 - Aufbau einer Wissensdatenbank für das Support-Team
 
+## Beispiele aus dem Alltag
+<!-- Echte Fälle – die KI darf NUR diese als kleine Geschichte verwenden. -->
+- Kritischen Incident im Speicher-Backend bis zur Ursache analysiert
+- Wissensdatenbank-Artikel für das Team geschrieben
+
 ## Erfahrung
 - **Beispiel GmbH**, Berlin – Support Engineer (2018 – heute)
 
