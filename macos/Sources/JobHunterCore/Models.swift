@@ -230,6 +230,18 @@ public struct Health: Decodable, Sendable, Hashable {
     public var serverTime: String
     /// A server-side letter batch is running (newer servers).
     public var lettersRunning: Bool?
+    /// Release number of the server ("1.1.0", newer servers). Same numbering as the app.
+    public var version: String?
+}
+
+/// Server and app are released together with the same version number (VERSION file /
+/// `jobhunter.__version__`). They belong together when major.minor match.
+public enum ReleaseVersion {
+    public static func same(_ a: String?, _ b: String?) -> Bool {
+        guard let a, let b, !a.isEmpty, !b.isEmpty else { return false }
+        func mm(_ v: String) -> [Substring] { Array(v.trimmingCharacters(in: .whitespaces).split(separator: ".").prefix(2)) }
+        return mm(a) == mm(b)
+    }
 }
 
 public struct RunResponse: Decodable, Sendable, Hashable {

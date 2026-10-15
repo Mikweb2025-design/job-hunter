@@ -3,7 +3,7 @@
 #
 #   scripts/build-app.sh                 # -> build/JobHunter.app
 #   scripts/build-app.sh --install       # additionally copies it to ~/Applications
-#   VERSION=1.1 scripts/build-app.sh
+#   VERSION=1.2.0 scripts/build-app.sh   # overrides the VERSION file
 #
 # Uses $DEVELOPER_DIR if set, otherwise Xcode at /Volumes/Daten/Applications/Xcode.app
 # (falls back to the active xcode-select toolchain).
@@ -16,7 +16,8 @@ if [[ -z "${DEVELOPER_DIR:-}" && -d /Volumes/Daten/Applications/Xcode.app/Conten
   export DEVELOPER_DIR=/Volumes/Daten/Applications/Xcode.app/Contents/Developer
 fi
 
-VERSION="${VERSION:-1.0}"
+# Single source: the VERSION file (same release number as the server's jobhunter/__init__.py).
+VERSION="${VERSION:-$(tr -d '[:space:]' < VERSION)}"
 BUILD="${BUILD:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}"
 APP="$ROOT/build/JobHunter.app"
 

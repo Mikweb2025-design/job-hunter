@@ -16,7 +16,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from . import actions, alerts, letter_doc, letters, pipeline, replies, search_profile, tracker
+from . import __version__, actions, alerts, letter_doc, letters, pipeline, replies, search_profile, tracker
 from .config import Settings
 from .db import Database
 from .llm import LLMError, generation_busy
@@ -332,6 +332,7 @@ def build_api_router(settings: Settings, db: Database, t) -> APIRouter:
         return {
             "ok": True,
             "api_version": API_VERSION,
+            "version": __version__,
             "running": pipeline.is_running(),
             "llm_enabled": settings.llm.enabled,
             "llm": f"{settings.llm.provider}:{settings.llm.model}" if settings.llm.enabled else None,

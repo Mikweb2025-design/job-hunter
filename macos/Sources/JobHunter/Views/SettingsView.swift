@@ -53,6 +53,15 @@ struct SettingsView: View {
                             .textSelection(.enabled)
                     }
                 }
+                Section("Versionen") {
+                    LabeledContent("Mac-App", value: (model.appVersion ?? "–") + (model.appBuild.map { " (Build \($0))" } ?? ""))
+                    LabeledContent("Server", value: model.serverVersion ?? "unbekannt")
+                    if model.versionMismatch {
+                        Label("App und Server haben verschiedene Versionen – beide auf denselben Stand bringen (Server deployen bzw. App neu bauen).",
+                              systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange).font(.caption)
+                    }
+                }
             }
             .formStyle(.grouped)
             .tabItem { Label("Server", systemImage: "server.rack") }
@@ -351,7 +360,7 @@ struct SettingsView: View {
         switch await model.testConnection() {
         case .success(let h):
             testOK = true
-            testResult = "Verbunden (API v\(h.apiVersion)" + (h.llmEnabled ? ", LLM: \(h.llm ?? "an")" : ", ohne LLM") + ")"
+            testResult = "Verbunden (Server \(h.version ?? "?"), API v\(h.apiVersion)" + (h.llmEnabled ? ", LLM: \(h.llm ?? "an")" : ", ohne LLM") + ")"
             await model.refresh()
         case .failure(let error):
             testOK = false

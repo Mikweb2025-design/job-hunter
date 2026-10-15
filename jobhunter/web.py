@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import actions, alerts, letter_doc, letters, links, pipeline, replies, search_profile, tracker
+from . import __version__, actions, alerts, letter_doc, letters, links, pipeline, replies, same_release, search_profile, tracker
 from .api import build_api_router
 from .config import Settings, load_settings
 from .db import Database
@@ -112,6 +112,11 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
     templates.env.globals.update(apply_link=links.apply_link, link_alternatives=links.alternatives, base=base, t=t, STATUSES=STATUSES, auth_enabled=auth_enabled, lang=settings.ui_lang,
                                  BLOCKER_TEXT=BLOCKER_TEXT)
     # Evaluated on every page render: the send banner must always show the live state.
+    def _versions() -> dict:
+        app = next((s for s in db.client_states() if s.get("app_version")), None)
+        app_v = app.get("app_version") if app else None
+        return {"server": __version__, "app": app_v, "match": same_release(__version__, app_v) if app_v else True}
+    templates.env.globals["versions"] = _versions
     templates.env.globals["send_status"] = lambda: status_summary(settings, Gate(settings, db), db.client_states())
     def _nav_counts() -> dict:
         jobs = annotate(db.list_jobs(limit=100000), real_sent_ids(db), settings.send.blocklist)
@@ -214,7 +219,7 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
 
     @app.get("/healthz")
     def healthz():
-        return {"ok": True, "running": pipeline.is_running()}
+        return {"ok": True, "running": pipeline.is_running(), "version": __version__}
 
     @app.get("/", response_class=HTMLResponse)
     def index(request: Request):

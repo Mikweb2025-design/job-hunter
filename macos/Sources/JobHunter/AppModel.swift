@@ -574,7 +574,15 @@ final class AppModel {
 
     // MARK: E-mail applications
 
-    private var appVersion: String? { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String }
+    var appVersion: String? { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String }
+    var appBuild: String? { Bundle.main.infoDictionary?["CFBundleVersion"] as? String }
+    /// Release of the connected server (GET /health); nil until known or on older servers.
+    private(set) var serverVersion: String?
+    /// App and server releases differ (major.minor) – shown in the settings.
+    var versionMismatch: Bool {
+        guard let serverVersion, let appVersion else { return false }
+        return !ReleaseVersion.same(serverVersion, appVersion)
+    }
 
     /// Server send settings + counters + outbox; also tells the server our "Automatisch senden" toggle.
     /// Changes the minimum score for automatic sending on the server. Returns an error text or nil.
@@ -594,6 +602,7 @@ final class AppModel {
         if let s = try? await client.sendSettings() { sendSettings = s }
         if let o = try? await client.outbox() { outbox = o }
         try? await client.reportClientState(autoSendEnabled: settings.autoSendEnabled, appVersion: appVersion)
+        if serverVersion == nil, let h = try? await client.health() { serverVersion = h.version }
         rebuildLists()
     }
 
@@ -1144,6 +1153,7 @@ final class AppModel {
         guard let client else { return .failure(APIError.notConfigured) }
         do {
             let h = try await client.health()
+            serverVersion = h.version
             connection = .ok
             return .success(h)
         } catch {

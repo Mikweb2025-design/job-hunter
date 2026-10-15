@@ -61,6 +61,11 @@
   <main class="container" id="main">
     {% block content %}{% endblock %}
   </main>
+  {% set _v = versions() %}
+  <footer class="container small muted version-footer">
+    Job-Hunter Server {{ _v.server }}{% if _v.app %} · Mac-App {{ _v.app }}{% endif %}
+    {% if not _v.match %}<span class="warn-text"> – Versionen passen nicht zusammen: Mac-App bzw. Server aktualisieren</span>{% endif %}
+  </footer>
   <dialog id="kbd-help" class="dialog">
     <h2>Tastenkürzel</h2>
     <table class="kbd-table small">

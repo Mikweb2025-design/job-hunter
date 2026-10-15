@@ -148,4 +148,14 @@ struct EmployerRepliesTests {
         let s = try JSONDecoder().decode(JobAlertState.self, from: old)
         #expect(s.processedReplies == nil && s.pendingReplies == nil)
     }
+
+    @Test func releaseVersionsAndVersionFile() throws {
+        #expect(ReleaseVersion.same("1.1.0", "1.1") && ReleaseVersion.same("1.1.0", "1.1.4"))
+        #expect(!ReleaseVersion.same("1.1.0", "1.0") && !ReleaseVersion.same(nil, "1.1.0"))
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let v = try String(contentsOf: root.appending(path: "VERSION"), encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+        #expect(v.split(separator: ".").count == 3)
+        let h = try APIClient.decode(Health.self, from: Data(#"{"ok":true,"api_version":1,"running":false,"llm_enabled":true,"server_time":"x","version":"1.1.0"}"#.utf8))
+        #expect(h.version == "1.1.0" && ReleaseVersion.same(h.version, v))
+    }
 }

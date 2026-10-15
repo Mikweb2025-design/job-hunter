@@ -333,3 +333,16 @@ def test_reply_to_our_answer_replaces_open_requests(ctx):
     assert db.get_job(j["id"])["docs_requested"] == "Gehaltsvorstellung, Führerschein, Berufsabschluss"
     replies.record_replies(db, [item("<g2@x>", "Gfbeispiel Bewerbung <bewerbung@gfbeispiel.de>", "AW: Ihre Bewerbung", QUOTED)])
     assert db.get_job(j["id"])["docs_requested"] == "Führerschein, Berufsabschluss"
+
+
+def test_versions_are_reported_and_compared(ctx):
+    from jobhunter import __version__, same_release
+    c, _, db = ctx
+    assert c.get("/healthz").json()["version"] == __version__
+    assert c.get("/api/v1/health").json()["version"] == __version__
+    assert same_release("1.1.0", "1.1") and same_release("1.1.0", "1.1.3") and not same_release("1.1.0", "1.0")
+    c.post("/api/v1/client-state", json={"client": "macos", "auto_send_enabled": False, "app_version": "1.0"})
+    html = c.get("/tracker").text
+    assert f"Server {__version__}" in html and "Mac-App 1.0" in html and "Versionen passen nicht zusammen" in html
+    c.post("/api/v1/client-state", json={"client": "macos", "auto_send_enabled": False, "app_version": __version__})
+    assert "Versionen passen nicht zusammen" not in c.get("/tracker").text
