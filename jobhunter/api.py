@@ -16,7 +16,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from . import actions, alerts, letter_doc, letters, pipeline, search_profile, tracker
+from . import actions, alerts, letter_doc, letters, pipeline, replies, search_profile, tracker
 from .config import Settings
 from .db import Database
 from .llm import LLMError, generation_busy
@@ -50,6 +50,9 @@ def job_summary(job: dict, send: dict | None = None) -> dict:
     out["source_label"] = alerts.source_label(job.get("source"))
     out["description_length"] = len((job.get("description") or "").strip())
     out["notes"] = job.get("notes") or ""
+    out["reply_kind"] = job.get("reply_kind")
+    out["reply_at"] = job.get("reply_at")
+    out["docs_requested"] = job.get("docs_requested") or ""
     if "view" in job:
         out["view"] = job["view"]
         out["apply_label"] = job["apply_label"]
@@ -152,6 +155,17 @@ class JobUpdate(BaseModel):
     interview_at: str | None = Field(default=None, max_length=40)   # "YYYY-MM-DDTHH:MM", null clears
     follow_up_at: str | None = Field(default=None, max_length=10)   # "YYYY-MM-DD", null clears
     close_reason: str | None = Field(default=None, max_length=40)   # duplikat | kein_interesse | …
+    reply_kind: str | None = Field(default=None, max_length=20)     # rueckfrage | unterlagen | einladung | absage
+    docs_requested: str | None = Field(default=None, max_length=500)  # open requests, comma separated; null = done
+
+
+class ReplyIn(BaseModel):
+    """An employer's e-mail read by the macOS app from Apple Mail (jobhunter.replies)."""
+    message_id: str = Field(min_length=1, max_length=1000)
+    sender: str = Field(default="", max_length=1000)
+    subject: str = Field(default="", max_length=2000)
+    body: str = Field(default="", max_length=60000)
+    received_at: str = Field(default="", max_length=40)
 
 
 class BulkUpdate(BaseModel):
@@ -366,7 +380,7 @@ def build_api_router(settings: Settings, db: Database, t) -> APIRouter:
         kwargs: dict[str, Any] = {"status": body.status}
         if "notes" in body.model_fields_set:
             kwargs["notes"] = body.notes
-        for name in ("applied_date", "interview_at", "follow_up_at", "close_reason"):
+        for name in ("applied_date", "interview_at", "follow_up_at", "close_reason", "reply_kind", "docs_requested"):
             if name in body.model_fields_set:
                 kwargs[name] = getattr(body, name)
         try:
@@ -445,6 +459,16 @@ def build_api_router(settings: Settings, db: Database, t) -> APIRouter:
         """Applications the user sent himself on StepStone/LinkedIn (confirmation e-mails, read by
         the macOS app): the matching job becomes "beworben"; unknown jobs are added as "beworben"."""
         return alerts.record_applied(settings, db, [alerts.AppliedItem(**it.model_dump()) for it in body])
+
+    @router.post("/jobs/replies", dependencies=write)
+    def employer_replies(body: list[ReplyIn] = Body(..., max_length=300)):
+        """Employer e-mails (read-only from the user's mailbox by the macOS app): classify, match to
+        the application, note it in the job's notes, count Rückfrage/Unterlagen as Rückmeldung."""
+        return replies.record_replies(db, [replies.ReplyItem(**it.model_dump()) for it in body])
+
+    @router.get("/replies")
+    def list_replies(job_id: int | None = None):
+        return {"replies": db.replies(job_id), "labels": replies.KIND_LABELS}
 
     @router.put("/jobs/{job_id}/description", dependencies=write)
     def put_description(job_id: int, body: DescriptionUpdate):

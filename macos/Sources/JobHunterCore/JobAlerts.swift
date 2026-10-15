@@ -609,6 +609,9 @@ public struct JobAlertState: Codable, Sendable, Equatable {
     public var parserVersion: Int?
     /// Application confirmations not yet accepted by the server.
     public var pendingApplied: [AppliedConfirmation]?
+    /// Employer replies (EmployerReplies.swift): Message-ID → when read, and the server queue.
+    public var processedReplies: [String: Date]?
+    public var pendingReplies: [EmployerReplyMail]?
 
     public init() {}
 }

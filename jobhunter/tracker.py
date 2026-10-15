@@ -6,9 +6,12 @@ Rules (the macOS app mirrors them in JobHunterCore/Tracker.swift – keep both i
 * applied   – a real e-mail was sent, or status beworben/gespraech/angebot, or status absage with an
               applied date (rejected after applying). close_reason "duplikat" never counts.
 * responded – applied and status gespraech/angebot, or absage that is an employer answer
-              (close_reason empty, "absage_firma" or "stelle_besetzt").
+              (close_reason empty, "absage_firma" or "stelle_besetzt"), or an employer reply
+              (reply_kind: Rückfrage/Rücksprache, Unterlagen angefordert, Einladung, Absage – see
+              jobhunter.replies; an Eingangsbestätigung is no answer).
 * follow-up – status beworben and either follow_up_at <= today, or no follow_up_at and applied
-              >= FOLLOW_UP_DAYS days ago ("Nachfassen").
+              (or the employer's last reply) >= FOLLOW_UP_DAYS days ago ("Nachfassen"). Not while
+              requested documents/answers are still open.
 * channel   – "email" (real send logged, with date) or "manual" (applied by hand / portal).
 
 Nothing here sends anything: the follow-up text is only a draft the user opens in Mail.
@@ -17,7 +20,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
-from . import alerts, links
+from . import alerts, links, replies
 from .db import Database
 from .models import STATUSES
 
@@ -80,6 +83,8 @@ def is_applied(job: dict, sent: dict[int, dict]) -> bool:
 def has_response(job: dict, sent: dict[int, dict]) -> bool:
     if not is_applied(job, sent):
         return False
+    if job.get("reply_kind") in replies.RESPONSE_KINDS:
+        return True  # Rückfrage/Rücksprache, Unterlagen angefordert, Einladung, Absage per Mail
     st = job.get("status")
     if st in ("gespraech", "angebot"):
         return True
@@ -109,13 +114,24 @@ def _fmt_day(d: date | None) -> str:
     return d.strftime("%d.%m.%Y") if d else "–"
 
 
+def _reply_day(job: dict) -> date | None:
+    return _day(job.get("reply_at")) if job.get("reply_kind") in replies.RESPONSE_KINDS else None
+
+
+def open_requests(job: dict) -> list[str]:
+    """Documents/answers the employer asked for and the user has not marked as sent."""
+    if job.get("status") not in ("beworben", "gespraech", "angebot"):
+        return []
+    return [x.strip() for x in (job.get("docs_requested") or "").split(",") if x.strip()]
+
+
 def follow_up_due(job: dict, sent: dict[int, dict], today: date) -> bool:
-    if job.get("status") != "beworben":
+    if job.get("status") != "beworben" or open_requests(job):
         return False
     fu = _day(job.get("follow_up_at"))
     if fu is not None:
         return fu <= today
-    ad = applied_day(job, sent)
+    ad = max(filter(None, [applied_day(job, sent), _reply_day(job)]), default=None)
     return ad is not None and (today - ad).days >= FOLLOW_UP_DAYS
 
 
@@ -124,7 +140,7 @@ def follow_up_from(job: dict, sent: dict[int, dict]) -> date | None:
     fu = _day(job.get("follow_up_at"))
     if fu is not None:
         return fu
-    ad = applied_day(job, sent)
+    ad = max(filter(None, [applied_day(job, sent), _reply_day(job)]), default=None)
     return ad + timedelta(days=FOLLOW_UP_DAYS) if ad else None
 
 
@@ -138,7 +154,12 @@ def next_step(job: dict, sent: dict[int, dict], today: date, now: datetime | Non
         if view == "far":
             return "Zu weit weg – nur bei Interesse manuell"
         return "Manuell über das Portal bewerben"
+    req = open_requests(job)
+    if req and st in ("beworben", "gespraech"):
+        return "Nachreichen / beantworten: " + ", ".join(req)
     if st == "beworben":
+        if job.get("reply_kind") == "rueckfrage":
+            return "Rückfrage der Firma beantwortet? Dann auf Antwort warten"
         if follow_up_due(job, sent, today):
             ad = applied_day(job, sent)
             days = (today - ad).days if ad else None
@@ -205,6 +226,8 @@ def card(job: dict, sent: dict[int, dict], today: date) -> dict:
         "follow_up_due": follow_up_due(job, sent, today), "close_reason": job.get("close_reason"),
         "close_reason_label": CLOSE_REASON_LABELS.get(job.get("close_reason") or ""),
         "notes": notes[:160], "next_step": next_step(job, sent, today),
+        "reply_kind": job.get("reply_kind"), "reply_label": replies.KIND_LABELS.get(job.get("reply_kind") or ""),
+        "reply_at": job.get("reply_at"), "docs_requested": open_requests(job),
         "status_updated_at": job.get("status_updated_at"), "url": links.apply_link(job),
     }
 
@@ -215,7 +238,12 @@ def _card_sort(status: str):
     return lambda c: (c["score"], c["id"])
 
 
-def _answer_day(job: dict, history: list[dict], applied: date) -> date | None:
+def _answer_day(job: dict, history: list[dict], applied: date, mails: list[dict] | None = None) -> date | None:
+    for r in mails or []:  # first real answer by e-mail (sorted by received_at)
+        if r["kind"] in replies.RESPONSE_KINDS:
+            d = _day(r["received_at"])
+            if d and d >= applied:
+                return d
     for h in history:
         if h["new_status"] in RESPONSE_STATUSES:
             d = _day(h["changed_at"])
@@ -223,7 +251,7 @@ def _answer_day(job: dict, history: list[dict], applied: date) -> date | None:
                 return d
     if job.get("status") in RESPONSE_STATUSES:
         return _day(job.get("status_updated_at"))
-    return None
+    return _reply_day(job)
 
 
 def _week_start(d: date) -> date:
@@ -238,6 +266,10 @@ def build(db: Database, jobs: list[dict], applicant_name: str = "", today: date 
     hist: dict[int, list[dict]] = {}
     for h in db.status_history():
         hist.setdefault(h["job_id"], []).append(h)
+    mails: dict[int, list[dict]] = {}
+    for r in db.replies():
+        if r["job_id"] is not None:
+            mails.setdefault(r["job_id"], []).append(r)
 
     cards_by: dict[str, list[dict]] = {s: [] for s in COLUMN_ORDER}
     for j in jobs:
@@ -255,13 +287,20 @@ def build(db: Database, jobs: list[dict], applicant_name: str = "", today: date 
     days = []
     for j in responded:
         ad = applied_day(j, sent)
-        ans = _answer_day(j, hist.get(j["id"], []), ad) if ad else None
+        ans = _answer_day(j, hist.get(j["id"], []), ad, mails.get(j["id"])) if ad else None
         if ad and ans:
             days.append(max(0, (ans - ad).days))
     interviews_total = [j for j in applied if j["status"] in ("gespraech", "angebot") or j.get("interview_at")
                         or any(h["new_status"] == "gespraech" for h in hist.get(j["id"], []))]
     by_channel = {"email": sum(1 for j in applied if j["id"] in sent)}
     by_channel["manual"] = len(applied) - by_channel["email"]
+
+    def ever(j: dict, kinds: tuple) -> bool:
+        return j.get("reply_kind") in kinds or any(r["kind"] in kinds for r in mails.get(j["id"], []))
+    rueckfragen = [j for j in applied if ever(j, replies.ACTION_KINDS)]
+    docs_asked = [j for j in applied if ever(j, ("unterlagen",))]
+    action = [card(j, sent, today) for j in applied if open_requests(j)]
+    action.sort(key=lambda c: c["reply_at"] or "", reverse=True)
     kpis = {
         "applied": len(applied), "this_week": len(this_week),
         "by_channel": by_channel,
@@ -270,7 +309,11 @@ def build(db: Database, jobs: list[dict], applicant_name: str = "", today: date 
         "interviews": len(interviews_total),
         "offers": sum(1 for j in applied if j["status"] == "angebot"),
         "rejections": sum(1 for j in responded if j["status"] == "absage"),
-        "waiting": sum(1 for j in applied if j["status"] == "beworben"),
+        "rueckfragen": len(rueckfragen),          # Rückfrage/Rücksprache or documents requested (= Rückmeldung)
+        "docs_requested": len(docs_asked),        # employers that asked for documents
+        "open_requests": len(action),             # still to send / answer
+        "acknowledged": sum(1 for j in applied if any(r["kind"] == "eingang" for r in mails.get(j["id"], []))),
+        "waiting": sum(1 for j in applied if j["status"] == "beworben" and not has_response(j, sent)),
         "avg_days_to_answer": round(sum(days) / len(days), 1) if days else None,
         "follow_up_days": FOLLOW_UP_DAYS,
     }
@@ -279,7 +322,8 @@ def build(db: Database, jobs: list[dict], applicant_name: str = "", today: date 
         {"key": "interesting", "label": "In Bearbeitung",
          "value": sum(1 for j in jobs if j["status"] != "neu" and j["status"] != "zu_weit" and j.get("close_reason") != "duplikat")},
         {"key": "applied", "label": "Beworben", "value": len(applied)},
-        {"key": "responses", "label": "Antwort", "value": len(responded)},
+        {"key": "responses", "label": "Rückmeldung", "value": len(responded)},
+        {"key": "rueckfragen", "label": "Rückfrage / Unterlagen", "value": len(rueckfragen)},
         {"key": "interviews", "label": "Gespräch", "value": len(interviews_total)},
         {"key": "offers", "label": "Angebot", "value": kpis["offers"]},
     ]
@@ -293,7 +337,7 @@ def build(db: Database, jobs: list[dict], applicant_name: str = "", today: date 
             weekly[_week_start(ad)]["applications"] += 1
     for j in responded:
         ad = applied_day(j, sent)
-        ans = _answer_day(j, hist.get(j["id"], []), ad) if ad else None
+        ans = _answer_day(j, hist.get(j["id"], []), ad, mails.get(j["id"])) if ad else None
         if ans and _week_start(ans) in weekly:
             weekly[_week_start(ans)]["responses"] += 1
 
@@ -303,6 +347,8 @@ def build(db: Database, jobs: list[dict], applicant_name: str = "", today: date 
         e = src.setdefault(label, {"source": j.get("source"), "label": label, "applications": 0, "responses": 0})
         e["applications"] += 1
         e["responses"] += int(has_response(j, sent))
+    for e in src.values():
+        e["rate"] = round(100 * e["responses"] / e["applications"]) if e["applications"] else None
     by_source = sorted(src.values(), key=lambda e: (-e["applications"], e["label"]))
 
     follow_ups = []
@@ -323,6 +369,8 @@ def build(db: Database, jobs: list[dict], applicant_name: str = "", today: date 
     return {"columns": columns, "statuses": list(COLUMN_ORDER), "labels": STATUS_LABELS, "kpis": kpis,
             "funnel": funnel, "weekly": list(weekly.values()), "by_source": by_source,
             "follow_ups": follow_ups, "interviews": upcoming, "close_reasons": CLOSE_REASON_LABELS,
+            "action_needed": action, "replies": replies.stats(db, {j["id"] for j in applied}),
+            "reply_kinds": replies.KIND_LABELS,
             "today": today.isoformat()}
 
 
@@ -340,6 +388,13 @@ def timeline(db: Database, job: dict) -> list[dict]:
         events.append({"at": r["sent_at"], "kind": "test" if r["dry_run"] else "sent",
                        "label": "Test – nicht gesendet" if r["dry_run"] else "✉ E-Mail gesendet",
                        "detail": r["to_addr"]})
+    for r in db.replies(job["id"]):
+        detail = r["subject"] or ""
+        if r.get("documents"):
+            detail = f"{r['documents']} · {detail}"
+        events.append({"at": r["received_at"], "kind": "reply", "reply_kind": r["kind"],
+                       "label": f"{replies.KIND_ICONS.get(r['kind'], '✉')} {replies.KIND_LABELS.get(r['kind'], r['kind'])}",
+                       "detail": detail})
     if job.get("interview_at"):
         events.append({"at": job["interview_at"], "kind": "interview", "label": "Gespräch (Termin)",
                        "detail": _local_dt(job["interview_at"]).strftime("%d.%m.%Y %H:%M")

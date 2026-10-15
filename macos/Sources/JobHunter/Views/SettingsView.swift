@@ -285,6 +285,16 @@ struct SettingsView: View {
                 }
                 LabeledContent("Verarbeitete Alert-Mails", value: "\(model.alertState.processed.count)")
             }
+            Section("Antworten der Firmen") {
+                Toggle("Antworten der Firmen lesen (Rückfragen, Unterlagen, Einladungen, Absagen)", isOn: $settings.employerRepliesEnabled)
+                LabeledContent("Gelesene Antwort-Mails", value: "\(model.alertState.processedReplies?.count ?? 0)")
+                if let n = model.alertState.pendingReplies?.count, n > 0 {
+                    Label("\(n) Antworten warten auf den Server", systemImage: "arrow.triangle.2.circlepath")
+                        .foregroundStyle(.orange).font(.caption)
+                }
+                Text("Liest im selben Posteingang (nur lesend) die Mails zu deinen Bewerbungen – Betreff mit „Bewerbung“, „Application“, „Unterlagen“ … oder von Bewerbermanagement-Systemen (Personio, softgarden, JOIN …) und von Firmen, denen du per E-Mail geschrieben hast. Der Server ordnet sie der Stelle zu, schreibt eine Zeile in die Notizen (z. B. „📎 Unterlagen angefordert – Arbeitszeugnisse, Gehaltsvorstellung“), setzt bei eindeutigen Absagen/Einladungen den Status und zählt Rückfragen/Rücksprache als Rückmeldung im Tracker. Eingangsbestätigungen zählen nicht.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("So funktioniert es") {
                 Text("Liest im Posteingang des gewählten Accounts nur die Job-Alert-E-Mails von LinkedIn („Jobbenachrichtigung“), StepStone und Indeed – nichts wird verschoben, markiert oder gesendet, und die Jobbörsen selbst werden nie aufgerufen (deren AGB verbieten Bots). Titel, Firma, Ort und Link gehen an den Server; schon bekannte Stellen (z. B. von der Arbeitsagentur) werden nicht doppelt angelegt. Automatisch nach dem Aktualisieren, höchstens stündlich und nur, wenn Mail läuft; offline wartet der Import, bis der Server erreichbar ist.")
                     .font(.caption).foregroundStyle(.secondary)

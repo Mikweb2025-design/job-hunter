@@ -77,6 +77,8 @@ public enum PendingField: String, Codable, Sendable, CaseIterable {
     case status, notes, appliedDate, letter, description
     // Tracker fields (08.10.2026). Older servers reject them (422) → shown as "abgelehnt".
     case interviewAt, followUpAt, closeReason
+    // Employer replies (15.10.2026). Older servers reject them (422).
+    case replyKind, docsRequested
 
     public var label: String {
         switch self {
@@ -88,6 +90,8 @@ public enum PendingField: String, Codable, Sendable, CaseIterable {
         case .interviewAt: "Gesprächstermin"
         case .followUpAt: "Nachfassen am"
         case .closeReason: "Absagegrund"
+        case .replyKind: "Rückmeldung"
+        case .docsRequested: "Nachzureichen"
         }
     }
 
@@ -102,6 +106,8 @@ public enum PendingField: String, Codable, Sendable, CaseIterable {
         case .interviewAt: d.summary.interviewAt
         case .followUpAt: d.summary.followUpAt
         case .closeReason: d.summary.closeReason
+        case .replyKind: d.summary.replyKind
+        case .docsRequested: d.summary.docsRequested.flatMap { $0.isEmpty ? nil : $0 }
         }
     }
 
@@ -110,7 +116,7 @@ public enum PendingField: String, Codable, Sendable, CaseIterable {
         switch self {
         case .status: ServerDate.parse(d.summary.statusUpdatedAt)
         case .letter: ServerDate.parse(d.letterUpdatedAt)
-        case .notes, .appliedDate, .description, .interviewAt, .followUpAt, .closeReason: nil
+        case .notes, .appliedDate, .description, .interviewAt, .followUpAt, .closeReason, .replyKind, .docsRequested: nil
         }
     }
 }
@@ -156,6 +162,8 @@ public struct PendingChange: Codable, Sendable, Identifiable, Equatable {
         case .interviewAt: JobUpdate(interviewAt: value.map { .set($0) } ?? .clear)
         case .followUpAt: JobUpdate(followUpAt: value.map { .set($0) } ?? .clear)
         case .closeReason: JobUpdate(closeReason: value.map { .set($0) } ?? .clear)
+        case .replyKind: JobUpdate(replyKind: value.map { .set($0) } ?? .clear)
+        case .docsRequested: JobUpdate(docsRequested: value.map { .set($0) } ?? .clear)
         case .letter, .description: nil
         }
     }
@@ -224,6 +232,8 @@ public struct PendingQueue: Codable, Sendable, Equatable {
             case .interviewAt: d.summary.interviewAt = c.value
             case .followUpAt: d.summary.followUpAt = c.value
             case .closeReason: d.summary.closeReason = c.value
+            case .replyKind: d.summary.replyKind = c.value
+            case .docsRequested: d.summary.docsRequested = c.value
             case .letter:
                 d.letter = c.value ?? ""
                 d.summary.hasLetter = !(c.value ?? "").isEmpty
@@ -249,6 +259,8 @@ public struct PendingQueue: Codable, Sendable, Equatable {
             case .interviewAt: s.interviewAt = c.value
             case .followUpAt: s.followUpAt = c.value
             case .closeReason: s.closeReason = c.value
+            case .replyKind: s.replyKind = c.value
+            case .docsRequested: s.docsRequested = c.value
             case .letter:
                 s.hasLetter = !(c.value ?? "").isEmpty
                 s.letterOrigin = c.origin ?? "manuell"

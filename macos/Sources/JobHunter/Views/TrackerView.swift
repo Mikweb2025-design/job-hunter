@@ -26,6 +26,7 @@ struct TrackerView: View {
                 }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 380), spacing: 12, alignment: .top)],
                           alignment: .leading, spacing: 12) {
+                    requests(Tracker.actionNeeded(jobs), metrics)
                     followUps(Tracker.followUps(jobs))
                     interviews(Tracker.upcomingInterviews(jobs))
                 }
@@ -49,7 +50,7 @@ struct TrackerView: View {
     }
 
     private func subtitle(_ m: Tracker.Metrics) -> String {
-        "\(m.applied) Bewerbungen · \(m.responses) Antworten" + (m.responseRate.map { " (\($0) %)" } ?? "")
+        "\(m.applied) Bewerbungen · \(m.responses) Rückmeldungen" + (m.responseRate.map { " (\($0) %)" } ?? "")
     }
 
     // MARK: KPIs
@@ -59,8 +60,11 @@ struct TrackerView: View {
             Tile(title: "Bewerbungen", value: "\(m.applied)", symbol: "paperplane", tint: .teal)
             Tile(title: "Diese Woche", value: "\(m.thisWeek)", symbol: "calendar", tint: .blue)
             Tile(title: "✉ E-Mail / 🖐 manuell", value: "\(m.byEmail) / \(m.manual)", symbol: "envelope", tint: .indigo)
-            Tile(title: "Antwortquote", value: m.responseRate.map { "\($0) %" } ?? "–", symbol: "bubble.left.and.bubble.right", tint: .purple,
-                 help: "(Gespräch + Angebot + Absage der Firma) / Bewerbungen – Duplikate und „Kein Interesse“ zählen nicht")
+            Tile(title: "Rückmeldequote", value: m.responseRate.map { "\($0) % (\(m.responses))" } ?? "–", symbol: "bubble.left.and.bubble.right", tint: .purple,
+                 help: "(Gespräch + Angebot + Absage der Firma + Rückfrage/Rücksprache + Unterlagen angefordert) / Bewerbungen – Eingangsbestätigungen, Duplikate und „Kein Interesse“ zählen nicht")
+            Tile(title: "Rückfragen / Unterlagen", value: "\(m.rueckfragen)", symbol: "questionmark.bubble", tint: .indigo,
+                 help: "Firmen, die zurückgefragt (Rücksprache, Gehalt, Eintritt …) oder Unterlagen angefordert haben – zählt als Rückmeldung. Davon Unterlagen: \(m.docsRequested)")
+            Tile(title: "Noch nachzureichen", value: "\(m.openRequests)", symbol: "paperclip", tint: m.openRequests > 0 ? .orange : .gray)
             Tile(title: "Gespräche", value: "\(m.interviews)", symbol: JobStatus.gespraech.symbolName, tint: .orange)
             Tile(title: "Angebote", value: "\(m.offers)", symbol: JobStatus.angebot.symbolName, tint: .green)
             Tile(title: "Ø Tage bis Antwort", value: m.avgDaysToAnswer.map { String(format: "%.1f", $0) } ?? "–",
@@ -120,7 +124,8 @@ struct TrackerView: View {
     }
 
     private func funnel(_ m: Tracker.Metrics) -> some View {
-        let steps: [(String, Int)] = [("Gefunden", m.found), ("Beworben", m.applied), ("Antwort", m.responses),
+        let steps: [(String, Int)] = [("Gefunden", m.found), ("Beworben", m.applied), ("Rückmeld.", m.responses),
+                                      ("Rückfrage", m.rueckfragen),
                                       ("Gespräch", m.interviews), ("Angebot", m.offers)]
         let top = max(steps.map(\.1).max() ?? 1, 1)
         return GroupBox("Trichter") {
@@ -146,7 +151,47 @@ struct TrackerView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: Follow-ups / interviews
+    // MARK: Requests / follow-ups / interviews
+
+    /// Documents/answers employers asked for (read from the mailbox by the app, see Einstellungen › Job-Alerts).
+    private func requests(_ items: [JobSummary], _ m: Tracker.Metrics) -> some View {
+        GroupBox {
+            if items.isEmpty {
+                Text("Nichts offen. Fordert eine Firma Zeugnisse, Gehaltsvorstellung, Eintrittstermin o. Ä. an, erscheint es hier – die App liest dazu die Antworten in deinem Postfach (nur lesend).")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(items.prefix(8)) { job in
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Button(job.title) { select(job) }.buttonStyle(.link).lineLimit(1)
+                                Text([job.company, Tracker.replyKind(job)?.label,
+                                      Tracker.replyDay(job).map { "am " + Tracker.fmtDay($0) }].compactMap { $0 }.joined(separator: " · "))
+                                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                Text("📎 " + Tracker.openRequests(job).joined(separator: ", "))
+                                    .font(.caption).lineLimit(3)
+                            }
+                            Spacer()
+                            Button("Erledigt") { model.setDocsRequested(id: job.id, nil) }
+                                .help("Alles nachgereicht/beantwortet – entfernt die offenen Punkte (die Notiz bleibt)")
+                        }
+                        .controlSize(.small)
+                    }
+                    if items.count > 8 { Text("+ \(items.count - 8) weitere").font(.caption).foregroundStyle(.secondary) }
+                    if !m.requested.isEmpty {
+                        Divider()
+                        Text("Am häufigsten angefragt: " + m.requested.map { "\($0.item) (\($0.count))" }.joined(separator: " · "))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+        } label: {
+            Label("Nachreichen / beantworten (\(items.count))", systemImage: "paperclip")
+                .foregroundStyle(items.isEmpty ? Color.primary : Color.orange)
+        }
+        .frame(maxWidth: .infinity)
+    }
 
     private func followUps(_ items: [JobSummary]) -> some View {
         GroupBox {
@@ -355,6 +400,10 @@ private struct KanbanCard: View {
             }
             if let d = Tracker.interviewDate(job.interviewAt) {
                 Label(Tracker.fmtDateTime(d), systemImage: "calendar").font(.caption2).foregroundStyle(.orange)
+            }
+            if let r = Tracker.replyKind(job), job.status != .absage {
+                Label(r.label, systemImage: r.symbolName).font(.caption2.weight(.semibold))
+                    .foregroundStyle(r.needsAction ? Color.orange : Color.indigo)
             }
             Text("➜ " + Tracker.nextStep(job, category: model.category(of: job)))
                 .font(.caption2)

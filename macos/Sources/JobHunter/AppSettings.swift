@@ -49,6 +49,8 @@ final class AppSettings {
     /// Mail account (name or address) whose INBOX receives the alerts.
     var jobAlertAccount: String { didSet { defaults.set(jobAlertAccount, forKey: Keys.jobAlertAccount) } }
     var jobAlertDays: Int { didSet { defaults.set(jobAlertDays, forKey: Keys.jobAlertDays) } }
+    /// "Antworten der Firmen lesen": employer replies from the same account (read-only) → server notes/tracker.
+    var employerRepliesEnabled: Bool { didSet { defaults.set(employerRepliesEnabled, forKey: Keys.employerRepliesEnabled) } }
     static let defaultJobAlertAccount = "info@daniele-michelin.com"
 
     /// Folder for "Als PDF speichern" ("~" allowed).
@@ -98,6 +100,7 @@ final class AppSettings {
         static let jobAlertsEnabled = "jobAlertsEnabled"
         static let jobAlertAccount = "jobAlertAccount"
         static let jobAlertDays = "jobAlertDays"
+        static let employerRepliesEnabled = "employerRepliesEnabled"
     }
 
     let ledger: SendLedger
@@ -127,6 +130,7 @@ final class AppSettings {
             Keys.jobAlertsEnabled: true,
             Keys.jobAlertAccount: AppSettings.defaultJobAlertAccount,
             Keys.jobAlertDays: 14,
+            Keys.employerRepliesEnabled: true,
         ])
         serverURL = defaults.string(forKey: Keys.serverURL) ?? ""
         username = defaults.string(forKey: Keys.username) ?? ""
@@ -150,6 +154,7 @@ final class AppSettings {
         jobAlertsEnabled = defaults.bool(forKey: Keys.jobAlertsEnabled)
         jobAlertAccount = defaults.string(forKey: Keys.jobAlertAccount) ?? AppSettings.defaultJobAlertAccount
         jobAlertDays = min(90, max(1, defaults.integer(forKey: Keys.jobAlertDays)))
+        employerRepliesEnabled = defaults.bool(forKey: Keys.employerRepliesEnabled)
         loadPassword()
     }
 

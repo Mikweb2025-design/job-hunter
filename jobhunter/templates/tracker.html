@@ -21,7 +21,10 @@
   <div class="tile"><span class="big">{{ k.applied }}</span><span class="small muted">Bewerbungen</span></div>
   <div class="tile"><span class="big">{{ k.this_week }}</span><span class="small muted">diese Woche</span></div>
   <div class="tile"><span class="big">{{ k.by_channel.email }} <small>/ {{ k.by_channel.manual }}</small></span><span class="small muted">✉ E-Mail / 🖐 manuell</span></div>
-  <div class="tile"><span class="big">{{ k.response_rate if k.response_rate is not none else '–' }}<small>{% if k.response_rate is not none %} %{% endif %}</small></span><span class="small muted">Antwortquote ({{ k.responses }})</span></div>
+  <div class="tile"><span class="big">{{ k.response_rate if k.response_rate is not none else '–' }}<small>{% if k.response_rate is not none %} %{% endif %}</small></span><span class="small muted">Rückmeldequote ({{ k.responses }})</span></div>
+  <div class="tile" title="Rückfrage / Rücksprache oder Unterlagen angefordert – zählt als Rückmeldung"><span class="big">{{ k.rueckfragen }}</span><span class="small muted">Rückfragen / Unterlagen</span></div>
+  <div class="tile {% if k.open_requests %}warn{% endif %}"><span class="big">{{ k.open_requests }}</span><span class="small muted">noch nachzureichen</span></div>
+  <div class="tile"><span class="big">{{ k.waiting }}</span><span class="small muted">warten auf Antwort</span></div>
   <div class="tile"><span class="big">{{ k.interviews }}</span><span class="small muted">Gespräche</span></div>
   <div class="tile"><span class="big">{{ k.offers }}</span><span class="small muted">Angebote</span></div>
   <div class="tile"><span class="big">{{ k.avg_days_to_answer if k.avg_days_to_answer is not none else '–' }}</span><span class="small muted">Ø Tage bis Antwort</span></div>
@@ -76,6 +79,47 @@
   </section>
 </div>
 
+{% set rp = tr.replies %}
+<div class="tr-grid two">
+  <section class="card" id="requests">
+    <h2>Nachreichen / beantworten <span class="small muted">(von Firmen per Mail angefordert)</span></h2>
+    {% if tr.action_needed %}
+    <ul class="plain fulist">
+      {% for c in tr.action_needed %}
+      <li class="kb-item">
+        <a class="kb-open" href="{{ base }}/jobs/{{ c.id }}?back=tracker">{{ c.title }}</a> <span class="muted small">{{ c.company or '' }}</span>
+        <div class="small">📎 {{ c.docs_requested|join(', ') }}</div>
+        <div class="small muted">{{ c.reply_label }}{% if c.reply_at %} · {{ c.reply_at|rel }}{% endif %}</div>
+        <div class="row"><button type="button" class="ghost req-done" data-id="{{ c.id }}" title="Entfernt die offenen Punkte (die Notiz bleibt)">Erledigt – nachgereicht</button></div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="small muted">Nichts offen. Fordert eine Firma Zeugnisse, Gehaltsvorstellung o. Ä. an, erscheint es hier (die Mac-App liest dein Postfach).</p>{% endif %}
+  </section>
+
+  <section class="card" id="replies">
+    <h2>Antworten der Firmen <span class="small muted">({{ rp.mails }} Mails{% if rp.last_reply_at %}, zuletzt {{ rp.last_reply_at|rel }}{% endif %})</span></h2>
+    <table class="mini">
+      <tr><th>Art</th><th>Stellen</th><th>Mails</th></tr>
+      {% for r in rp.by_kind %}{% if r.mails or r.kind in ('absage','einladung','unterlagen','rueckfrage') %}
+      <tr><td>{{ r.label }}</td><td>{{ r.jobs }}</td><td>{{ r.mails }}</td></tr>{% endif %}{% endfor %}
+    </table>
+    {% if rp.requested %}
+    <p class="small"><strong>Am häufigsten angefragt:</strong>
+      {% for r in rp.requested %}{{ r.item }} ({{ r.count }}){% if not loop.last %} · {% endif %}{% endfor %}</p>
+    {% endif %}
+    {% if tr.by_source %}
+    <p class="small"><strong>Rückmeldequote nach Quelle:</strong>
+      {% for s in tr.by_source %}{{ s.label }} {{ s.rate if s.rate is not none else '–' }} %{% if not loop.last %} · {% endif %}{% endfor %}</p>
+    {% endif %}
+    {% if rp.unmatched %}
+    <details class="small"><summary>{{ rp.unmatched|length }} Antwort(en) ohne passende Stelle</summary>
+      <ul class="plain">{% for u in rp.unmatched %}<li>{{ u.received_at|dmy }} · {{ u.kind_label }} · {{ u.subject }} <span class="muted">({{ u.sender }})</span></li>{% endfor %}</ul>
+    </details>
+    {% endif %}
+  </section>
+</div>
+
 <div class="tr-grid two">
   <section class="card" id="followups">
     <h2>Nachfassen <span class="small muted">(beworben, ≥ {{ k.follow_up_days }} Tage ohne Antwort oder Erinnerung fällig)</span></h2>
@@ -123,6 +167,7 @@
         {% if c.channel %}<div class="small">{{ c.channel.label }}{% if c.applied_date %} · {{ c.applied_date|rel }}{% endif %}</div>{% endif %}
         {% if c.interview_at %}<div class="small">📅 {{ c.interview_at|dmyhm }}</div>{% endif %}
         {% if c.close_reason_label %}<div class="small muted">{{ c.close_reason_label }}</div>{% endif %}
+        {% if c.reply_label and c.status != 'absage' %}<div class="small reply-badge rk-{{ c.reply_kind }}">✉ {{ c.reply_label }}{% if c.reply_at %} · {{ c.reply_at|rel }}{% endif %}</div>{% endif %}
         <div class="small knext {% if c.follow_up_due %}due{% endif %}">➜ {{ c.next_step }}</div>
         {% if c.notes %}<div class="small note">📝 {{ c.notes }}</div>{% endif %}
         <select class="quick-status" data-id="{{ c.id }}" data-current="{{ c.status }}" aria-label="Status von {{ c.title }}">
@@ -194,6 +239,12 @@
       }
     }
   }
+  // "Erledigt – nachgereicht": clear the open requests (the note stays).
+  document.querySelectorAll('.req-done').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try { await api('PATCH', '/jobs/' + b.dataset.id, {docs_requested: null}); b.closest('li').remove(); toast('Als nachgereicht markiert.', 'ok'); }
+    catch (e) { b.disabled = false; toast('Nicht gespeichert: ' + e.message, 'err'); }
+  }));
   // Drag & drop
   let dragged = null;
   document.querySelectorAll('.kcard').forEach((card) => {

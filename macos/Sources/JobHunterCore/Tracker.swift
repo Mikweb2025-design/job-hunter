@@ -6,7 +6,8 @@ import Foundation
 /// * applied   – real e-mail sent, or status beworben/gespraech/angebot, or absage with an applied
 ///               date. Close reason "duplikat" never counts.
 /// * responded – applied and gespraech/angebot, or an employer absage (no reason, "absage_firma",
-///               "stelle_besetzt").
+///               "stelle_besetzt"), or an employer reply from the mailbox / set by hand
+///               (`replyKind`: Rückfrage/Rücksprache, Unterlagen angefordert, Einladung, Absage).
 /// * follow-up – status beworben and follow_up_at <= today, or no follow_up_at and applied
 ///               >= `followUpDays` days ago ("Nachfassen").
 ///
@@ -34,6 +35,37 @@ public enum Tracker {
             guard let raw, !raw.isEmpty else { return true }
             return raw == CloseReason.absageFirma.rawValue || raw == CloseReason.stelleBesetzt.rawValue
         }
+    }
+
+    /// Employer reply (server `jobhunter/replies.py`, RESPONSE_KINDS). All count as "Rückmeldung".
+    public enum ReplyKind: String, CaseIterable, Sendable, Identifiable {
+        case rueckfrage, unterlagen, einladung, absage
+        public var id: String { rawValue }
+        public var label: String {
+            switch self {
+            case .rueckfrage: "Rückfrage / Rücksprache"
+            case .unterlagen: "Unterlagen angefordert"
+            case .einladung: "Einladung zum Gespräch"
+            case .absage: "Absage"
+            }
+        }
+        public var symbolName: String {
+            switch self {
+            case .rueckfrage: "questionmark.bubble"
+            case .unterlagen: "paperclip"
+            case .einladung: "calendar.badge.plus"
+            case .absage: "xmark.circle"
+            }
+        }
+        /// Needs an action from the applicant.
+        public var needsAction: Bool { self == .rueckfrage || self == .unterlagen }
+    }
+
+    public static func replyKind(_ job: JobSummary) -> ReplyKind? { job.replyKind.flatMap(ReplyKind.init(rawValue:)) }
+
+    /// Open requests while the application is still running.
+    public static func openRequests(_ job: JobSummary) -> [String] {
+        [.beworben, .gespraech, .angebot].contains(job.status) ? job.openRequests : []
     }
 
     // MARK: Dates (Europe/Berlin, like the user)
@@ -110,6 +142,7 @@ public enum Tracker {
 
     public static func hasResponse(_ job: JobSummary) -> Bool {
         guard isApplied(job) else { return false }
+        if replyKind(job) != nil { return true }  // Rückfrage/Rücksprache, Unterlagen, Einladung, Absage per Mail
         switch job.status {
         case .gespraech, .angebot: return true
         case .absage: return CloseReason.isEmployerAnswer(job.closeReason)
@@ -144,13 +177,19 @@ public enum Tracker {
         appliedDay(job).map { days(from: $0, to: now) }
     }
 
+    /// Day of the employer's last reply (only real answers).
+    public static func replyDay(_ job: JobSummary) -> Date? {
+        replyKind(job) != nil ? day(job.replyAt) : nil
+    }
+
     public static func followUpFrom(_ job: JobSummary) -> Date? {
         if let fu = day(job.followUpAt) { return fu }
-        return appliedDay(job).flatMap { calendar.date(byAdding: .day, value: followUpDays, to: $0) }
+        let base = [appliedDay(job), replyDay(job)].compactMap { $0 }.max()
+        return base.flatMap { calendar.date(byAdding: .day, value: followUpDays, to: $0) }
     }
 
     public static func followUpDue(_ job: JobSummary, now: Date = .now) -> Bool {
-        guard job.status == .beworben, let from = followUpFrom(job) else { return false }
+        guard job.status == .beworben, openRequests(job).isEmpty, let from = followUpFrom(job) else { return false }
         return calendar.startOfDay(for: from) <= calendar.startOfDay(for: now)
     }
 
@@ -161,7 +200,10 @@ public enum Tracker {
             if ApplyCategory.isFar(job) { return "Zu weit weg – nur bei Interesse manuell" }
             if category == .automatic { return "Wird per E-Mail beworben (Regeln im Postausgang)" }
             return "Manuell über das Portal bewerben"
+        case .beworben where !openRequests(job).isEmpty, .gespraech where !openRequests(job).isEmpty:
+            return "Nachreichen / beantworten: " + openRequests(job).joined(separator: ", ")
         case .beworben:
+            if replyKind(job) == .rueckfrage { return "Rückfrage der Firma beantwortet? Dann auf Antwort warten" }
             if followUpDue(job, now: now) {
                 if let d = daysSinceApplied(job, now: now) { return "Nachfassen – seit \(d) Tagen keine Antwort" }
                 return "Nachfassen"
@@ -235,6 +277,12 @@ public enum Tracker {
         public var id: String { label }
     }
 
+    public struct RequestCount: Identifiable, Equatable, Sendable {
+        public var item: String
+        public var count: Int
+        public var id: String { item }
+    }
+
     public struct Metrics: Equatable, Sendable {
         public var found = 0
         public var applied = 0
@@ -245,6 +293,14 @@ public enum Tracker {
         public var interviews = 0
         public var offers = 0
         public var rejections = 0
+        /// Rückfrage/Rücksprache or documents requested (counts as Rückmeldung).
+        public var rueckfragen = 0
+        /// Employers that asked for documents.
+        public var docsRequested = 0
+        /// Requests still to send / answer.
+        public var openRequests = 0
+        /// Most requested documents/information (from the open requests).
+        public var requested: [RequestCount] = []
         public var waiting = 0
         public var avgDaysToAnswer: Double?
         public var weeks: [Week] = []
@@ -260,9 +316,12 @@ public enum Tracker {
         calendar.dateInterval(of: .weekOfYear, for: date)?.start ?? calendar.startOfDay(for: date)
     }
 
-    /// Day the employer answered: last status change (status_updated_at) for jobs in a response status.
+    /// Day the employer answered: last status change (status_updated_at) for jobs in a response
+    /// status, else the day of the reply e-mail.
     public static func answerDay(_ job: JobSummary) -> Date? {
-        guard [.gespraech, .absage, .angebot].contains(job.status) else { return nil }
+        guard [.gespraech, .absage, .angebot].contains(job.status) else {
+            return ServerDate.parse(job.replyAt).map { calendar.startOfDay(for: $0) }.flatMap { replyKind(job) != nil ? $0 : nil }
+        }
         return ServerDate.parse(job.statusUpdatedAt).map { calendar.startOfDay(for: $0) }
     }
 
@@ -281,7 +340,14 @@ public enum Tracker {
         m.interviews = applied.filter { $0.status == .gespraech || $0.status == .angebot || $0.interviewAt != nil }.count
         m.offers = applied.filter { $0.status == .angebot }.count
         m.rejections = responded.filter { $0.status == .absage }.count
-        m.waiting = applied.filter { $0.status == .beworben }.count
+        m.waiting = applied.filter { $0.status == .beworben && !hasResponse($0) }.count
+        m.rueckfragen = applied.filter { replyKind($0)?.needsAction == true }.count
+        m.docsRequested = applied.filter { replyKind($0) == .unterlagen }.count
+        let open = applied.filter { !openRequests($0).isEmpty }
+        m.openRequests = open.count
+        var counts: [String: Int] = [:]
+        for j in open { for r in openRequests(j) { counts[r, default: 0] += 1 } }
+        m.requested = counts.sorted { ($0.value, $1.key) > ($1.value, $0.key) }.prefix(8).map { RequestCount(item: $0.key, count: $0.value) }
         let answerDays: [Int] = responded.compactMap { j in
             guard let ad = appliedDay(j), let ans = answerDay(j) else { return nil }
             return max(0, days(from: ad, to: ans))
@@ -326,6 +392,12 @@ public enum Tracker {
         default:
             return items.sorted { ($0.score, $0.id) > ($1.score, $1.id) }
         }
+    }
+
+    /// Applications where the employer asked for documents/answers that are still open.
+    public static func actionNeeded(_ jobs: [JobSummary]) -> [JobSummary] {
+        jobs.filter { isApplied($0) && !openRequests($0).isEmpty }
+            .sorted { ($0.replyAt ?? "") > ($1.replyAt ?? "") }
     }
 
     public static func followUps(_ jobs: [JobSummary], now: Date = .now) -> [JobSummary] {

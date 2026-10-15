@@ -74,6 +74,18 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         try? await center.add(UNNotificationRequest(identifier: "sent-\(jobID)", content: content, trigger: nil))
     }
 
+    /// An employer asked for documents/answers or invited/rejected (read from the mailbox).
+    func notifyReplies(_ message: String) async {
+        guard isAvailable else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Antwort auf deine Bewerbung"
+        content.body = message
+        content.sound = .default
+        content.threadIdentifier = "replies"
+        try? await UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: "replies-\(message.hashValue)", content: content, trigger: nil))
+    }
+
     func notifySendProblem(_ message: String) async {
         guard isAvailable else { return }
         let content = UNMutableNotificationContent()

@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import actions, alerts, letter_doc, letters, links, pipeline, search_profile, tracker
+from . import actions, alerts, letter_doc, letters, links, pipeline, replies, search_profile, tracker
 from .api import build_api_router
 from .config import Settings, load_settings
 from .db import Database
@@ -133,6 +133,7 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
     templates.env.globals["view_counts"] = _nav_counts
     templates.env.globals.update(VIEW_LABELS=VIEW_LABELS, NAV_VIEWS=VIEWS, source_label=alerts.source_label,
                                  STATUS_LABELS=tracker.STATUS_LABELS, CLOSE_REASONS=tracker.CLOSE_REASON_LABELS,
+                                 REPLY_KINDS={k: replies.KIND_LABELS[k] for k in replies.RESPONSE_KINDS},
                                  FOLLOW_UP_DAYS=tracker.FOLLOW_UP_DAYS)
     # Cache-busting for /static (style.css, app.js change with deploys).
     templates.env.globals["asset_v"] = str(int(max(f.stat().st_mtime for f in (HERE / "static").iterdir())))
@@ -345,7 +346,8 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
     def update_status(job_id: int, status: str = Form(...), notes: str | None = Form(None),
                       applied_date: str | None = Form(None), interview_at: str | None = Form(None),
                       follow_up_at: str | None = Form(None), close_reason: str | None = Form(None),
-                      back: str = Form("detail")):
+                      reply_kind: str | None = Form(None), docs_requested: str | None = Form(None),
+                      reply_fields: str | None = Form(None), back: str = Form("detail")):
         """Tracker form on the detail page (and quick status forms elsewhere). Fields that are not
         in the form stay unchanged."""
         job = db.get_job(job_id)
@@ -353,9 +355,12 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
             raise HTTPException(400)
         kwargs: dict = {"status": status}
         for name, value in (("notes", notes), ("applied_date", applied_date), ("interview_at", interview_at),
-                            ("follow_up_at", follow_up_at), ("close_reason", close_reason)):
+                            ("follow_up_at", follow_up_at), ("close_reason", close_reason),
+                            ):
             if value is not None:
                 kwargs[name] = value
+        if reply_fields:  # detail form: empty select/field (sent as None) clears them
+            kwargs.update(reply_kind=reply_kind or None, docs_requested=docs_requested or None)
         try:
             actions.update_tracker(db, job, **kwargs)
         except ValueError as exc:

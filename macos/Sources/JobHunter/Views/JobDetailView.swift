@@ -573,6 +573,7 @@ struct JobDetailView: View {
                 }
                 .font(.callout)
                 .controlSize(.small)
+                replyRow(s)
                 Text("Notizen").font(.caption).foregroundStyle(.secondary)
                 TextEditor(text: $notes)
                     .font(.body)
@@ -616,12 +617,37 @@ struct JobDetailView: View {
         }
     }
 
+    /// "Rückmeldung der Firma" (set automatically from the mailbox or by hand, e.g. after a call)
+    /// and the documents/answers still to send.
+    @ViewBuilder
+    private func replyRow(_ s: JobSummary) -> some View {
+        HStack(spacing: 10) {
+            Picker("Rückmeldung", selection: Binding(
+                get: { Tracker.replyKind(s) },
+                set: { k in applyLocal(model.setReplyKind(id: jobID, k), savedText("Rückmeldung gespeichert")) })) {
+                Text("– keine –").tag(Tracker.ReplyKind?.none)
+                ForEach(Tracker.ReplyKind.allCases) { k in Label(k.label, systemImage: k.symbolName).tag(Tracker.ReplyKind?.some(k)) }
+            }
+            .frame(maxWidth: 300)
+            .help("Rückfrage/Rücksprache und angeforderte Unterlagen zählen im Tracker als Rückmeldung. Wird aus den Antwort-Mails automatisch gesetzt.")
+            if !s.openRequests.isEmpty {
+                Label(s.openRequests.joined(separator: ", "), systemImage: "paperclip")
+                    .foregroundStyle(.orange).lineLimit(2)
+                Button("Nachgereicht") { applyLocal(model.setDocsRequested(id: jobID, nil), savedText("Als nachgereicht markiert")) }
+                    .help("Entfernt die offenen Punkte – die Notiz bleibt")
+            }
+        }
+        .font(.callout)
+        .controlSize(.small)
+    }
+
     private func icon(for kind: String) -> String {
         switch kind {
         case "found": "sparkles"
         case "sent": "envelope.fill"
         case "test": "testtube.2"
         case "interview": "calendar"
+        case "reply": "envelope.open"
         default: "arrow.right.circle"
         }
     }

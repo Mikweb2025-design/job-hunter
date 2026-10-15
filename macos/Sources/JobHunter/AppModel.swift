@@ -112,6 +112,7 @@ final class AppModel {
     private(set) var alertState = JobAlertState()
     private(set) var isImportingAlerts = false
     private(set) var lastAlertOutcome: JobAlertOutcome?
+    private(set) var lastReplyOutcome: EmployerReplyOutcome?
     let alertReader: AlertMailReading
 
     var filter = JobFilter() {
@@ -393,13 +394,24 @@ final class AppModel {
         var state = alertState
         let api: JobImportAPI? = isOnline ? client : nil
         let outcome: JobAlertOutcome
-        if manual || (due && mailRunning) {
+        let readMail = manual || (due && mailRunning)
+        var replies: EmployerReplyOutcome?
+        if settings.employerRepliesEnabled, readMail || (isOnline && !(state.pendingReplies ?? []).isEmpty) {
+            replies = await EmployerReplyImporter.run(
+                state: &state, reader: readMail ? alertReader as? EmployerReplyReading : nil,
+                api: isOnline ? client : nil, account: settings.jobAlertAccount, daysBack: settings.jobAlertDays,
+                senderKeys: EmployerReplyFilter.senderKeys(applied: allJobs),
+                ownAddresses: [settings.jobAlertAccount, settings.applicantEmail])
+        }
+        if readMail {
             outcome = await JobAlertImporter.run(state: &state, reader: alertReader, api: api,
                                                  account: settings.jobAlertAccount, daysBack: settings.jobAlertDays)
         } else if api != nil, !state.pending.isEmpty {
             var o = JobAlertOutcome()  // only send what is still queued from an offline run
             await JobAlertImporter.flush(state: &state, api: api, outcome: &o)
             outcome = o
+        } else if replies != nil {
+            outcome = JobAlertOutcome()
         } else {
             return
         }
@@ -408,10 +420,20 @@ final class AppModel {
             transientMessage = "Job-Alerts: Zustand konnte nicht gespeichert werden: \(error.localizedDescription)"
         }
         lastAlertOutcome = outcome
-        if manual || outcome.imported > 0 || outcome.mailError != nil {
-            transientMessage = "Job-Alerts: " + outcome.summary
+        lastReplyOutcome = replies ?? lastReplyOutcome
+        if let r = replies?.summary, readMail {
+            alertState.lastSummary = [alertState.lastSummary, r].compactMap { $0 }.joined(separator: " · ")
+            try? store.saveAlertState(alertState)
         }
-        if outcome.imported > 0, let client, let all = try? await client.jobs(JobFilter(status: .all), limit: 5000) {
+        if manual || outcome.imported > 0 || outcome.mailError != nil {
+            transientMessage = "Job-Alerts: " + outcome.summary + (replies?.summary.map { " · " + $0 } ?? "")
+        } else if let r = replies, r.matched > 0, let text = r.summary {
+            transientMessage = "Antworten der Firmen: " + text
+        }
+        if let r = replies, r.requests + (r.kinds["einladung"] ?? 0) > 0, let text = r.summary, !manual {
+            await NotificationManager.shared.notifyReplies(text + " – Details im Tracker und in den Notizen.")
+        }
+        if outcome.imported > 0 || (replies?.matched ?? 0) > 0, let client, let all = try? await client.jobs(JobFilter(status: .all), limit: 5000) {
             if let s = try? await client.stats(minScore: settings.notifyThreshold) {
                 stats = s
                 sources = Self.withAlertSources(s.sources)
@@ -520,6 +542,8 @@ final class AppModel {
             case .interviewAt: return summary?.interviewAt
             case .followUpAt: return summary?.followUpAt
             case .closeReason: return summary?.closeReason
+            case .replyKind: return summary?.replyKind
+            case .docsRequested: return summary?.docsRequested.flatMap { $0.isEmpty ? nil : $0 }
             case .notes: return summary?.notes
             default: return nil
             }
@@ -831,6 +855,19 @@ final class AppModel {
     @discardableResult
     func setCloseReason(id: Int, _ reason: Tracker.CloseReason?) -> JobDetail? {
         recordEdit(id: id, field: .closeReason, value: reason?.rawValue)
+    }
+
+    /// "Rückmeldung der Firma" set by hand (e.g. after a phone call: Rücksprache) – counts as Rückmeldung.
+    @discardableResult
+    func setReplyKind(id: Int, _ kind: Tracker.ReplyKind?) -> JobDetail? {
+        recordEdit(id: id, field: .replyKind, value: kind?.rawValue)
+    }
+
+    /// Open requests ("Arbeitszeugnisse, Gehaltsvorstellung"); nil/empty = all sent ("nachgereicht").
+    @discardableResult
+    func setDocsRequested(id: Int, _ text: String?) -> JobDetail? {
+        let v = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return recordEdit(id: id, field: .docsRequested, value: (v?.isEmpty ?? true) ? nil : v)
     }
 
     /// Current notes: cached detail (full text) or the list's copy.

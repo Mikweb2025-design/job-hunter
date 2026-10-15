@@ -46,11 +46,13 @@ def _check_datetime(value: str | None, name: str) -> str | None:
 
 
 CLOSE_REASONS = ("duplikat", "kein_interesse", "stelle_besetzt", "absage_firma", "sonstiges")
+REPLY_KINDS = ("rueckfrage", "unterlagen", "einladung", "absage")  # see jobhunter.replies.RESPONSE_KINDS
 
 
 def update_tracker(db: Database, job: dict, status: str | None = None, notes=_UNSET,
                    applied_date=_UNSET, interview_at=_UNSET, follow_up_at=_UNSET,
-                   close_reason=_UNSET, history_source: str = "tracker") -> dict:
+                   close_reason=_UNSET, reply_kind=_UNSET, docs_requested=_UNSET,
+                   history_source: str = "tracker") -> dict:
     """Validate and apply tracker changes (status, notes, dates, close reason).
 
     Raises ValueError (with the field name) for an unknown status / close reason or a malformed
@@ -81,6 +83,19 @@ def update_tracker(db: Database, job: dict, status: str | None = None, notes=_UN
         if reason and reason not in CLOSE_REASONS:
             raise ValueError("close_reason")
         fields["close_reason"] = reason
+    if reply_kind is not _UNSET:
+        # Set by hand in the tracker ("Rücksprache gehalten", "Unterlagen angefordert"); counts as Rückmeldung.
+        kind = (reply_kind or "").strip().lower() or None
+        if kind and kind not in REPLY_KINDS:
+            raise ValueError("reply_kind")
+        fields["reply_kind"] = kind
+        if kind and kind != job.get("reply_kind"):
+            fields["reply_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        elif not kind:
+            fields["reply_at"] = None
+    if docs_requested is not _UNSET:
+        items = [x.strip() for x in (docs_requested or "").split(",") if x.strip()]
+        fields["docs_requested"] = ", ".join(dict.fromkeys(items))[:500] or None
     if status != "absage" and (job.get("close_reason") or fields.get("close_reason")):
         fields["close_reason"] = None
     if status != job["status"]:

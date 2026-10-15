@@ -97,6 +97,20 @@ CREATE TABLE IF NOT EXISTS job_status_history (
     source TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_history_job ON job_status_history(job_id, changed_at);
+CREATE TABLE IF NOT EXISTS job_replies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id TEXT NOT NULL UNIQUE,   -- RFC Message-ID of the employer's e-mail
+    job_id INTEGER,                    -- NULL: could not be matched to an application
+    received_at TEXT NOT NULL,
+    sender TEXT,
+    subject TEXT,
+    kind TEXT NOT NULL,                -- absage|einladung|unterlagen|rueckfrage|eingang|sonstiges
+    documents TEXT,                    -- requested documents/information, comma separated
+    deadline TEXT,
+    snippet TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_replies_job ON job_replies(job_id, received_at);
 CREATE TABLE IF NOT EXISTS client_state (
     client TEXT PRIMARY KEY,
     state TEXT NOT NULL,
@@ -113,6 +127,9 @@ MIGRATIONS = [
     ("interview_at", "TEXT"),          # "YYYY-MM-DDTHH:MM" (local time, Europe/Berlin)
     ("follow_up_at", "TEXT"),          # "YYYY-MM-DD": reminder to follow up ("Nachfassen")
     ("close_reason", "TEXT"),          # e.g. "duplikat" (status absage without an employer reply)
+    ("reply_kind", "TEXT"),            # latest employer reply: absage|einladung|unterlagen|rueckfrage (jobhunter.replies)
+    ("reply_at", "TEXT"),              # when that reply was received (ISO, UTC)
+    ("docs_requested", "TEXT"),        # still open: documents/information the employer asked for
 ]
 
 
@@ -139,6 +156,9 @@ class Database:
             self.backfill_apply_email()
         if not had_history:
             self.backfill_status_history()
+        if any(n == "reply_kind" for n, _ in added):
+            from .replies import backfill_from_notes
+            backfill_from_notes(self)
 
     def backfill_status_history(self) -> int:
         """One-time: give every job that left "neu" a history. If it was applied for (applied_date)
@@ -292,6 +312,26 @@ class Database:
                 c.execute("INSERT INTO job_status_history (job_id, old_status, new_status, changed_at, source) "
                           "VALUES (?,?,?,?,?)", (job_id, old, fields["status"],
                                                  fields.get("status_updated_at") or now_iso(), history_source))
+
+    # --- employer replies (jobhunter.replies) ---
+
+    def reply_exists(self, message_id: str) -> bool:
+        with self.conn() as c:
+            return c.execute("SELECT 1 FROM job_replies WHERE message_id=?", (message_id,)).fetchone() is not None
+
+    def insert_reply(self, **f: Any) -> None:
+        f.setdefault("created_at", now_iso())
+        cols = ", ".join(f)
+        with self.conn() as c:
+            c.execute(f"INSERT OR IGNORE INTO job_replies ({cols}) VALUES ({', '.join('?' * len(f))})", tuple(f.values()))
+
+    def replies(self, job_id: int | None = None) -> list[dict]:
+        sql, args = "SELECT * FROM job_replies", []
+        if job_id is not None:
+            sql += " WHERE job_id=?"
+            args.append(job_id)
+        with self.conn() as c:
+            return [dict(r) for r in c.execute(sql + " ORDER BY received_at, id", args)]
 
     def status_history(self, job_id: int | None = None) -> list[dict]:
         sql = "SELECT * FROM job_status_history"

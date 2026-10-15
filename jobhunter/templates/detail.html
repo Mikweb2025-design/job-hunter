@@ -155,6 +155,13 @@
             <option value="">– Absage der Firma / ohne Grund –</option>
             {% for k, v in CLOSE_REASONS.items() %}<option value="{{ k }}" {% if job.close_reason == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
           </select></label>
+        <input type="hidden" name="reply_fields" value="1">
+        <label>Rückmeldung der Firma <span class="small muted">(Rückfrage/Rücksprache zählt als Rückmeldung)</span>
+          <select name="reply_kind">
+            <option value="">– keine –</option>
+            {% for k, v in REPLY_KINDS.items() %}<option value="{{ k }}" {% if job.reply_kind == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+          </select></label>
+        <label>Noch nachzureichen <span class="small muted">(Komma-getrennt, leer = erledigt)</span><input type="text" name="docs_requested" value="{{ job.docs_requested or '' }}" placeholder="z. B. Arbeitszeugnisse, Gehaltsvorstellung"></label>
         <label>{{ t('applied_date') }}<input type="date" name="applied_date" value="{{ job.applied_date or '' }}"></label>
         <label>Gespräch am<input type="datetime-local" name="interview_at" value="{{ (job.interview_at or '')[:16] }}"></label>
         <label>Nachfassen am <span class="small muted">(leer = {{ FOLLOW_UP_DAYS }} Tage nach der Bewerbung)</span><input type="date" name="follow_up_at" value="{{ job.follow_up_at or '' }}"></label>

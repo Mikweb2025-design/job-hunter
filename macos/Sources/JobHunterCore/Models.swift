@@ -91,6 +91,18 @@ public struct JobSummary: Codable, Sendable, Identifiable, Hashable {
     public var closeReason: String?
     /// Tracker notes (the list carries them so rows can show/edit a quick note).
     public var notes: String?
+    // Employer replies read from the mailbox (newer servers, 15.10.2026; `jobhunter/replies.py`).
+    /// Latest answer of the employer: rueckfrage | unterlagen | einladung | absage. Counts as "Rückmeldung".
+    public var replyKind: String?
+    /// When that answer was received (ISO).
+    public var replyAt: String?
+    /// Still open: documents/answers the employer asked for, comma separated ("" = nothing open).
+    public var docsRequested: String?
+
+    /// Open requests as a list ("Arbeitszeugnisse", "Gehaltsvorstellung" …).
+    public var openRequests: [String] {
+        (docsRequested ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
 
     /// Minimum posting text for a KI letter (same rule as the server's letters.candidates).
     public static let minPostingText = 300
@@ -245,10 +257,16 @@ public struct JobUpdate: Encodable, Sendable, Equatable {
     public var followUpAt: AppliedDate?
     /// Close reason (with status absage) or clear.
     public var closeReason: AppliedDate?
+    /// Employer reply set by hand (rueckfrage | unterlagen | einladung | absage) or clear.
+    public var replyKind: AppliedDate?
+    /// Open requests (comma separated) or clear ("nachgereicht").
+    public var docsRequested: AppliedDate?
 
     public init(status: JobStatus? = nil, notes: String? = nil, appliedDate: AppliedDate? = nil,
                 applyEmail: String? = nil, interviewAt: AppliedDate? = nil, followUpAt: AppliedDate? = nil,
-                closeReason: AppliedDate? = nil) {
+                closeReason: AppliedDate? = nil, replyKind: AppliedDate? = nil, docsRequested: AppliedDate? = nil) {
+        self.replyKind = replyKind
+        self.docsRequested = docsRequested
         self.status = status
         self.notes = notes
         self.appliedDate = appliedDate
@@ -265,6 +283,8 @@ public struct JobUpdate: Encodable, Sendable, Equatable {
         case interviewAt = "interview_at"
         case followUpAt = "follow_up_at"
         case closeReason = "close_reason"
+        case replyKind = "reply_kind"
+        case docsRequested = "docs_requested"
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -273,7 +293,8 @@ public struct JobUpdate: Encodable, Sendable, Equatable {
         try c.encodeIfPresent(notes, forKey: .notes)
         try c.encodeIfPresent(applyEmail, forKey: .applyEmail)
         for (value, key) in [(appliedDate, CodingKeys.appliedDate), (interviewAt, .interviewAt),
-                             (followUpAt, .followUpAt), (closeReason, .closeReason)] {
+                             (followUpAt, .followUpAt), (closeReason, .closeReason),
+                             (replyKind, .replyKind), (docsRequested, .docsRequested)] {
             switch value {
             case .set(let v): try c.encode(v, forKey: key)
             case .clear: try c.encodeNil(forKey: key)
