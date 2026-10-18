@@ -44,10 +44,10 @@ struct TrackerTests {
         #expect(Tracker.appliedDay(mailed) == Tracker.day("2026-10-02"))
     }
 
-    @Test func followUpAfter14DaysOrAtReminder() throws {
+    @Test func followUpAfter10DaysOrAtReminder() throws {
         let now = date("2026-10-20")
         let old = try job(1, status: "beworben", applied: "2026-10-05")      // 15 days
-        let fresh = try job(2, status: "beworben", applied: "2026-10-10")
+        let fresh = try job(2, status: "beworben", applied: "2026-10-12")      // 8 days
         let snoozed = try job(3, status: "beworben", applied: "2026-09-01", followUp: "2026-10-25")
         let reminder = try job(4, status: "beworben", applied: "2026-10-18", followUp: "2026-10-20")
         let talk = try job(5, status: "gespraech", applied: "2026-09-01")
@@ -58,7 +58,7 @@ struct TrackerTests {
         #expect(!Tracker.followUpDue(talk, now: now))
         #expect(Tracker.followUps([fresh, reminder, old, talk], now: now).map(\.id) == [1, 4])
         #expect(Tracker.nextStep(old, now: now) == "Nachfassen – seit 15 Tagen keine Antwort")
-        #expect(Tracker.nextStep(fresh, now: now) == "Auf Antwort warten (Nachfassen ab 24.10.2026)")
+        #expect(Tracker.nextStep(fresh, now: now) == "Auf Antwort warten (Nachfassen ab 22.10.2026)")
     }
 
     @Test func nextStepForAllStatuses() throws {

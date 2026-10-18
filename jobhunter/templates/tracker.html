@@ -132,7 +132,7 @@
         <div class="row">
           <a class="button" href="mailto:{{ c.draft.to }}?subject={{ c.draft.subject|urlencode }}&amp;body={{ c.draft.body|urlencode }}" title="Öffnet nur einen Entwurf in deinem Mailprogramm – nichts wird automatisch gesendet">✉ Entwurf öffnen</a>
           <button type="button" class="ghost" data-copy="#fu-{{ c.id }}">Text kopieren</button>
-          <form method="post" action="{{ base }}/jobs/{{ c.id }}/follow-up"><input type="hidden" name="action" value="done"><button type="submit" class="ghost" title="Notiz „Nachgefasst am …“ + nächste Erinnerung in 14 Tagen">Erledigt</button></form>
+          <form method="post" action="{{ base }}/jobs/{{ c.id }}/follow-up"><input type="hidden" name="action" value="done"><button type="submit" class="ghost" title="Notiz „Nachgefasst am …“ + nächste Erinnerung in {{ FOLLOW_UP_DAYS }} Tagen">Erledigt</button></form>
           <form method="post" action="{{ base }}/jobs/{{ c.id }}/follow-up"><input type="hidden" name="action" value="snooze"><input type="hidden" name="days" value="7"><button type="submit" class="ghost">+7 Tage</button></form>
         </div>
         <textarea id="fu-{{ c.id }}" hidden readonly>{{ c.draft.body }}</textarea>

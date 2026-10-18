@@ -69,7 +69,7 @@ struct EmployerRepliesTests {
                            replyAt: "2026-10-03T09:00:00+00:00", docs: "Zeugnis")
         #expect(!Tracker.followUpDue(open, now: now))
         let answered = try job(2, status: "beworben", applied: "2026-10-01", replyKind: "rueckfrage",
-                               replyAt: "2026-10-10T09:00:00+00:00")
+                               replyAt: "2026-10-14T09:00:00+00:00")
         #expect(Tracker.followUpFrom(answered) == Tracker.day("2026-10-24"))
         #expect(!Tracker.followUpDue(answered, now: now))
         // closed jobs never show open requests

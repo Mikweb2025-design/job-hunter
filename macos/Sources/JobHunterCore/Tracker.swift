@@ -13,7 +13,7 @@ import Foundation
 ///
 /// Works fully offline on the locally known jobs (pending edits included).
 public enum Tracker {
-    public static let followUpDays = 14
+    public static let followUpDays = 10
     /// Kanban order: the pipeline from left to right, the closed ones at the end.
     public static let columns: [JobStatus] = [.neu, .interessant, .beworben, .gespraech, .angebot, .absage, .zuWeit]
 

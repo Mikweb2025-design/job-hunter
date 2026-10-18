@@ -50,10 +50,34 @@ public enum ApplyCategory: String, CaseIterable, Sendable, Identifiable, Hashabl
         job.status == .zuWeit || job.view == "far"
     }
 
-    /// "Heute zu tun": open manual jobs, best score first.
-    public static func todayManual(_ jobs: [JobSummary], blocklist: [String] = [], limit: Int = 10) -> [JobSummary] {
+    /// Same as the server's `views.freshness_bonus`: posting age (published, else first seen)
+    /// ≤ 3 days +10, ≤ 7 +5, ≤ 14 0, ≤ 21 -5, older -10; unknown date 0.
+    public static func freshnessBonus(_ job: JobSummary, now: Date = .now) -> Int {
+        let raw = String((job.published?.isEmpty == false ? job.published! : job.fetchedAt).prefix(10))
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = .current
+        f.dateFormat = "yyyy-MM-dd"
+        guard let day = f.date(from: raw) else { return 0 }
+        let cal = Calendar(identifier: .gregorian)
+        let age = cal.dateComponents([.day], from: cal.startOfDay(for: day), to: cal.startOfDay(for: now)).day ?? 0
+        switch age {
+        case ...3: return 10
+        case ...7: return 5
+        case ...14: return 0
+        case ...21: return -5
+        default: return -10
+        }
+    }
+
+    /// "Heute zu tun": open manual jobs, best score + freshness first (old postings are often filled).
+    public static func todayManual(_ jobs: [JobSummary], blocklist: [String] = [], limit: Int = 10,
+                                   now: Date = .now) -> [JobSummary] {
         Array(jobs.filter { of($0, blocklist: blocklist) == .manual }
-            .sorted { ($0.score, $0.fetchedAt) > ($1.score, $1.fetchedAt) }
+            .map { ($0, $0.score + freshnessBonus($0, now: now)) }
+            .sorted { ($0.1, $0.0.fetchedAt) > ($1.1, $1.0.fetchedAt) }
+            .map(\.0)
             .prefix(limit))
     }
 }

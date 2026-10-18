@@ -11,9 +11,13 @@
               Berlin/Brandenburg without explicit 100% remote (see jobhunter.location).
               Explicitly marking such a job "interessant" moves it to manual –
               the outbox still never sends it automatically.
-* today    – "Heute zu tun": the top 10 manual jobs by score (then newest).
+* today    – "Heute zu tun": the top 10 manual jobs by score plus a freshness bonus
+              (fresh postings first – old ones are often already filled), then newest.
+              Same rule as ApplyCategory.todayManual in the macOS app.
 """
 from __future__ import annotations
+
+from datetime import date
 
 from .db import Database
 from .location import location_ok
@@ -80,14 +84,36 @@ def annotate(jobs: list[dict], sent_ids: set[int], blocklist: list[str]) -> list
     return jobs
 
 
-def _today_sort(jobs: list[dict]) -> list[dict]:
-    return sorted(jobs, key=lambda j: (j.get("score") or 0, j.get("fetched_at") or ""), reverse=True)
+def freshness_bonus(job: dict, today: date | None = None) -> int:
+    """Points for "Heute zu tun" by the posting's age (published, else first seen):
+    ≤ 3 days +10, ≤ 7 +5, ≤ 14 0, ≤ 21 -5, older -10; unknown date 0."""
+    raw = (job.get("published") or job.get("fetched_at") or "")[:10]
+    try:
+        age = ((today or date.today()) - date.fromisoformat(raw)).days
+    except ValueError:
+        return 0
+    if age <= 3:
+        return 10
+    if age <= 7:
+        return 5
+    if age <= 14:
+        return 0
+    return -5 if age <= 21 else -10
 
 
-def filter_view(jobs: list[dict], view: str, limit: int = TODAY_LIMIT) -> list[dict]:
-    """`jobs` must be annotated. today = top `limit` manual jobs by score."""
+def today_rank(job: dict, today: date | None = None) -> int:
+    return (job.get("score") or 0) + freshness_bonus(job, today)
+
+
+def _today_sort(jobs: list[dict], today: date | None = None) -> list[dict]:
+    today = today or date.today()
+    return sorted(jobs, key=lambda j: (today_rank(j, today), j.get("fetched_at") or ""), reverse=True)
+
+
+def filter_view(jobs: list[dict], view: str, limit: int = TODAY_LIMIT, today: date | None = None) -> list[dict]:
+    """`jobs` must be annotated. today = top `limit` manual jobs by score + freshness."""
     if view == "today":
-        return _today_sort([j for j in jobs if j["view"] == "manual"])[:limit]
+        return _today_sort([j for j in jobs if j["view"] == "manual"], today)[:limit]
     return [j for j in jobs if j["view"] == view]
 
 

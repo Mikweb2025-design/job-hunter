@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import __version__, actions, alerts, letter_doc, letters, links, pipeline, replies, same_release, search_profile, tracker
+from . import __version__, actions, learning, alerts, letter_doc, letters, links, pipeline, replies, same_release, search_profile, tracker
 from .api import build_api_router
 from .config import Settings, load_settings
 from .db import Database
@@ -90,6 +90,7 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
     db = db or Database(settings.db_path)
     search_profile.sync_cv_on_start(settings, db)
     search_profile.apply_overrides(settings, db)
+    learning.refresh(db)
     t = translator(settings.ui_lang)
     auth_enabled = bool(settings.dashboard_user and settings.dashboard_password)
     if not auth_enabled:
@@ -373,7 +374,7 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
         return _back(back, job_id, anchor="tracker", msg="saved")
 
     @app.post("/jobs/{job_id}/follow-up")
-    def follow_up(job_id: int, action: str = Form("done"), days: int = Form(14), back: str = Form("tracker")):
+    def follow_up(job_id: int, action: str = Form("done"), days: int = Form(tracker.FOLLOW_UP_DAYS), back: str = Form("tracker")):
         """"Nachfassen": done = note + next reminder in `days`; snooze = only move the reminder."""
         job = db.get_job(job_id)
         if not job:

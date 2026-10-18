@@ -198,6 +198,7 @@
         <tr><td>{{ t('location_pts') }}</td><td>{{ bd.location }} / 15 <span class="small muted">({{ bd.location_reason }})</span></td></tr>
         <tr><td>{{ t('salary_pts') }}</td><td>{{ bd.salary }} / 20 <span class="small muted">({{ bd.salary_reason }})</span></td></tr>
         {% if bd.penalty %}<tr><td>{{ t('penalty') }}</td><td>{{ bd.penalty }} <span class="small muted">({{ bd.excluded_in_text|join(', ') }})</span></td></tr>{% endif %}
+        {% if bd.learned %}<tr><td>{{ t('learned_pts') }}</td><td>{{ '%+g'|format(bd.learned) }} <span class="small muted">({{ bd.learned_reasons|join(', ') }})</span></td></tr>{% endif %}
         <tr class="total"><td>{{ t('rule_score') }}</td><td>{{ job.rule_score }}</td></tr>
         {% if job.llm_score is not none %}<tr><td>{{ t('llm_score') }}</td><td>{{ job.llm_score }}</td></tr>{% endif %}
       </table>

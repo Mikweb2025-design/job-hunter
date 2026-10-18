@@ -236,7 +236,7 @@ def test_tracker_page_and_followup_actions(ctx):
     r = c.post(f"/jobs/{j['id']}/follow-up", data={"action": "done"}, follow_redirects=False)
     assert r.status_code == 303 and "/tracker" in r.headers["location"]
     job = db.get_job(j["id"])
-    assert "Nachgefasst am" in job["notes"] and job["follow_up_at"] == (date.today() + timedelta(days=14)).isoformat()
+    assert "Nachgefasst am" in job["notes"] and job["follow_up_at"] == (date.today() + timedelta(days=tracker.FOLLOW_UP_DAYS)).isoformat()
     c.post(f"/jobs/{j['id']}/follow-up", data={"action": "snooze", "days": "7"})
     assert db.get_job(j["id"])["follow_up_at"] == (date.today() + timedelta(days=7)).isoformat()
 

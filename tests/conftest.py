@@ -49,3 +49,12 @@ def settings(tmp_path, profile):
 
 def mock_client(handler):
     return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+@pytest.fixture(autouse=True)
+def reset_learning():
+    """The learned-outcome model is module state – start every test without it."""
+    from jobhunter import learning
+    learning._ACTIVE = learning.OutcomeModel()
+    yield
+    learning._ACTIVE = learning.OutcomeModel()

@@ -6,6 +6,7 @@ Components (max points):
   location  15  in configured location(s) or remote possible (if remote_ok)
   salary    20  salary vs. minimum; unknown salary = neutral (10)
   penalty  -30  excluded keywords in description (-10 each)
+  learned  ±10  bonus/malus from the outcomes of past applications (jobhunter.learning)
 An excluded keyword in the *title* forces the score to 0.
 """
 from __future__ import annotations
@@ -138,7 +139,9 @@ def _salary_points(job: JobPosting, min_salary: int) -> tuple[float, str]:
     return 0.0, "zu niedrig"
 
 
-def score_job(job: JobPosting, profile: SearchProfile, cv: CVProfile) -> ScoreResult:
+def score_job(job: JobPosting, profile: SearchProfile, cv: CVProfile, model=None) -> ScoreResult:
+    from . import learning  # local import: learning is optional for callers/tests
+    model = learning.active() if model is None else model
     text = f"{job.title}\n{job.description}"
     bd: dict = {}
 
@@ -160,7 +163,9 @@ def score_job(job: JobPosting, profile: SearchProfile, cv: CVProfile) -> ScoreRe
     excl_desc = find_keywords(job.description, profile.excluded_keywords)
     penalty = min(10 * len(excl_desc), 30)
 
-    total = kw_pts + title_pts + loc_pts + sal_pts - penalty
+    learned, learned_why = model.score({"title": job.title, "company": job.company,
+                                        "description": job.description, "remote": job.remote})
+    total = kw_pts + title_pts + loc_pts + sal_pts - penalty + learned
     score = int(round(max(0.0, min(100.0, total))))
     bd = {
         "keywords": round(kw_pts, 1),
@@ -173,6 +178,8 @@ def score_job(job: JobPosting, profile: SearchProfile, cv: CVProfile) -> ScoreRe
         "salary_reason": sal_reason,
         "penalty": -penalty,
         "excluded_in_text": excl_desc,
+        "learned": learned,
+        "learned_reasons": learned_why,
         "excluded": [],
     }
     return ScoreResult(score, bd)

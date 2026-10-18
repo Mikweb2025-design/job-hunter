@@ -85,7 +85,7 @@ public struct JobSummary: Codable, Sendable, Identifiable, Hashable {
     // Tracker (newer servers, 08.10.2026; nil on older servers).
     /// Interview date/time, local wall time "YYYY-MM-DDTHH:MM".
     public var interviewAt: String?
-    /// Follow-up reminder "YYYY-MM-DD" ("Nachfassen"). Nil = 14 days after applying.
+    /// Follow-up reminder "YYYY-MM-DD" ("Nachfassen"). Nil = Tracker.followUpDays (10) days after applying.
     public var followUpAt: String?
     /// Why a job was closed with status absage: duplikat | kein_interesse | stelle_besetzt | absage_firma | sonstiges.
     public var closeReason: String?
@@ -139,6 +139,9 @@ public struct ScoreBreakdown: Codable, Sendable, Hashable {
     public var penalty: Double
     public var excludedInText: [String]
     public var excluded: [String]
+    /// Bonus/malus from the outcomes of past applications (server: jobhunter.learning); nil on old scores.
+    public var learned: Double?
+    public var learnedReasons: [String]?
 
     public var isExcluded: Bool { !excluded.isEmpty }
 }

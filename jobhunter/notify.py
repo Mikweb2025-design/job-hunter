@@ -9,8 +9,9 @@ import httpx
 log = logging.getLogger(__name__)
 
 
-def format_message(jobs: list[dict], dashboard_url: str | None = None) -> str:
-    lines = [f"<b>Job-Hunter: {len(jobs)} neue Top-Treffer</b>"]
+def format_message(jobs: list[dict], dashboard_url: str | None = None,
+                   follow_ups: list[dict] | None = None) -> str:
+    lines = [f"<b>Job-Hunter: {len(jobs)} neue Top-Treffer</b>"] if jobs else []
     for j in jobs:
         title = html.escape(j["title"])
         company = html.escape(j.get("company") or "?")
@@ -20,7 +21,13 @@ def format_message(jobs: list[dict], dashboard_url: str | None = None) -> str:
         if dashboard_url:
             line += f'\n<a href="{html.escape(dashboard_url.rstrip("/"))}/jobs/{j["id"]}">Details</a>'
         lines.append(line)
-    return "\n".join(lines)
+    if follow_ups:
+        lines.append(f"\n<b>Nachfassen fällig: {len(follow_ups)}</b>")
+        for j in follow_ups[:5]:
+            lines.append(f"· {html.escape(j['title'])} – {html.escape(j.get('company') or '?')}")
+        if dashboard_url:
+            lines.append(f'<a href="{html.escape(dashboard_url.rstrip("/"))}/tracker">Zum Tracker</a>')
+    return "\n".join(lines).strip()
 
 
 def send_telegram(token: str, chat_id: str, text: str, client: httpx.Client | None = None) -> bool:

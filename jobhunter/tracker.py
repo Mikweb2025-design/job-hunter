@@ -24,7 +24,7 @@ from . import alerts, links, replies
 from .db import Database
 from .models import STATUSES
 
-FOLLOW_UP_DAYS = 14
+FOLLOW_UP_DAYS = 10
 APPLIED_STATUSES = ("beworben", "gespraech", "angebot")
 RESPONSE_STATUSES = ("gespraech", "absage", "angebot")
 EMPLOYER_ABSAGE = (None, "", "absage_firma", "stelle_besetzt")

@@ -6,6 +6,8 @@ APIs/feeds and stores drafts locally. E-mail applications are sent by the macOS 
 """
 from __future__ import annotations
 
+from datetime import date
+
 import logging
 import threading
 from dataclasses import dataclass, field
@@ -17,6 +19,7 @@ from .llm import get_llm, template_letter
 from .location import location_ok, location_label
 from .models import JobPosting
 from .notify import format_message, send_telegram
+from . import learning
 from .scoring import CVProfile, find_keywords, score_job
 from .sources import Source, build_sources
 
@@ -59,6 +62,7 @@ def run_cycle(settings: Settings, db: Database | None = None,
 def _run(settings: Settings, db: Database, sources: list[Source] | None, notify: bool) -> RunReport:
     rep = RunReport()
     run_id = db.start_run()
+    learning.refresh(db)
     profile = settings.profile
     cv = CVProfile.load(settings.cv_path, profile.keyword_weights)
     if not cv.text:
@@ -140,8 +144,11 @@ def _run(settings: Settings, db: Database, sources: list[Source] | None, notify:
     # 5) notify
     if notify and settings.telegram_token and settings.telegram_chat_id:
         top = db.unnotified(settings.notify_min_score, settings.notify_max_items)
-        if top and send_telegram(settings.telegram_token, settings.telegram_chat_id,
-                                 format_message(top, _public_url())):
+        from . import tracker  # local import: tracker -> views -> outbox
+        sent, today = tracker.real_sends(db), date.today()
+        due = [j for j in db.list_jobs(status="beworben", limit=100000) if tracker.follow_up_due(j, sent, today)]
+        if (top or due) and send_telegram(settings.telegram_token, settings.telegram_chat_id,
+                                          format_message(top, _public_url(), due)):
             db.mark_notified([j["id"] for j in top])
             rep.notified = len(top)
 
@@ -162,6 +169,7 @@ def rescore_all(settings: Settings, db: Database | None = None) -> int:
     jobs outside the home region as "zu_weit" (the relocation filter)."""
     db = db or Database(settings.db_path)
     db.backfill_apply_email()
+    learning.refresh(db)
     cv = CVProfile.load(settings.cv_path, settings.profile.keyword_weights)
     n = 0
     for j in db.list_jobs(limit=100000):

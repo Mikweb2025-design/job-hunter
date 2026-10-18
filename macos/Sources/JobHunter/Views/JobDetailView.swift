@@ -675,6 +675,17 @@ struct JobDetailView: View {
                     }
                     .font(.callout)
                 }
+                if let learned = bd.learned, learned != 0 {
+                    HStack {
+                        Text("Erfahrung").frame(width: 90, alignment: .leading)
+                        Text(learned, format: .number.precision(.fractionLength(0)).sign(strategy: .always()))
+                            .monospacedDigit()
+                            .foregroundStyle(learned > 0 ? .green : .red)
+                        Text((bd.learnedReasons ?? []).joined(separator: ", ")).foregroundStyle(.secondary)
+                    }
+                    .font(.callout)
+                    .help("Aus den Ergebnissen deiner bisherigen Bewerbungen (✓ Rückmeldung/Gespräch, ✗ Absage)")
+                }
                 Divider()
                 HStack(spacing: 18) {
                     LabeledContent("Regel-Score", value: d.summary.ruleScore.map(String.init) ?? "–")

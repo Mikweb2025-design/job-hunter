@@ -56,7 +56,7 @@ struct JobActionsMenu: View {
                     Button("Als nachgefasst markieren (+\(Tracker.followUpDays) Tage)") { model.followUpDone(id: job.id) }
                     Button("Erinnerung in 7 Tagen") { model.snoozeFollowUp(id: job.id, days: 7) }
                     if job.followUpAt != nil {
-                        Button("Erinnerung zurücksetzen (14 Tage nach Bewerbung)") { _ = model.setFollowUp(id: job.id, on: nil) }
+                        Button("Erinnerung zurücksetzen (\(Tracker.followUpDays) Tage nach Bewerbung)") { _ = model.setFollowUp(id: job.id, on: nil) }
                     }
                 }
             }

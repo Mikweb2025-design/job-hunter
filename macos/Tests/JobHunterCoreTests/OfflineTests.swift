@@ -553,3 +553,25 @@ struct OldServerAPI: JobSyncAPI {
     func update(id: Int, _ update: JobUpdate) async throws -> JobDetail { detail }
     func saveLetter(id: Int, text: String) async throws -> JobDetail { detail }
 }
+
+@Suite("Heute zu tun – Frische")
+struct TodayFreshnessTests {
+    private func job(_ id: Int, score: Int, published: String) throws -> JobSummary {
+        let json = """
+        {"id": \(id), "title": "Job \(id)", "source": "arbeitsagentur", "fetched_at": "\(published)T06:30:00+00:00",
+         "published": "\(published)", "score": \(score), "status": "neu", "remote": false,
+         "salary_predicted": false, "also_seen_on": [], "has_letter": true}
+        """
+        return try APIClient.decode(JobSummary.self, from: Data(json.utf8))
+    }
+
+    @Test func freshPostingsComeFirstLikeTheServer() throws {
+        let now = ServerDate.parse("2026-10-18T12:00:00+00:00")!
+        let old = try job(1, score: 70, published: "2026-08-20")    // 70 - 10 = 60
+        let fresh = try job(2, score: 64, published: "2026-10-17")  // 64 + 10 = 74
+        #expect(ApplyCategory.freshnessBonus(old, now: now) == -10)
+        #expect(ApplyCategory.freshnessBonus(fresh, now: now) == 10)
+        #expect(ApplyCategory.freshnessBonus(try job(3, score: 1, published: "2026-10-12"), now: now) == 5)
+        #expect(ApplyCategory.todayManual([old, fresh], now: now).map(\.id) == [2, 1])
+    }
+}
