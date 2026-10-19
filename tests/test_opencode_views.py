@@ -416,6 +416,8 @@ def test_outbox_rows_states(client):
 
 
 def test_pipeline_uses_opencode_for_letters(settings, fake_oc, monkeypatch):
+    from jobhunter import letters as _letters
+    monkeypatch.setattr(_letters, "auto_send_candidates", lambda s, db: _letters.candidates(s, db))  # selection tested in test_letter_retry
     from jobhunter import alerts
     monkeypatch.setattr(alerts, "MIN_DESCRIPTION_FOR_KI", 0)  # fixture snippets are short
     from jobhunter.pipeline import run_cycle
@@ -431,3 +433,23 @@ def test_pipeline_uses_opencode_for_letters(settings, fake_oc, monkeypatch):
     origins = [j["letter_origin"] for j in db.list_jobs()]
     assert origins.count("KI (opencode)") == 1
     assert all(j["llm_score"] is None for j in db.list_jobs())
+
+
+def test_automatic_letters_only_for_jobs_that_will_be_mailed(settings):
+    """Wish 19.10.: KI letters by themselves only for auto-send jobs; the rest only on request."""
+    from jobhunter import letters
+    from jobhunter.config import SendConfig
+    settings.send = SendConfig(mode="auto", dry_run=False, auto_min_score=60, blocklist=["STRATO"])
+    db = Database(settings.db_path)
+    auto = add_job(db, title="Auto", company="A GmbH", score=75, origin="vorlage", letter="Vorlage")
+    low = add_job(db, title="Zu niedrig", company="B GmbH", score=50)
+    portal = add_job(db, title="Portal", company="C GmbH", email=None, score=90)
+    far = add_job(db, title="Weit", company="D GmbH", score=90, location="80331 München")
+    blocked = add_job(db, title="Gesperrt", company="STRATO AG", email="jobs@strato.de", score=90)
+    approved = add_job(db, title="Freigegeben", company="E GmbH", score=40)
+    db.update_job(approved["id"], send_approved_at="2026-10-19T08:00:00+00:00")
+    got = {j["title"] for j in letters.auto_send_candidates(settings, db)}
+    assert got == {"Auto", "Freigegeben"}
+    assert {"Zu niedrig", "Portal"} <= {j["title"] for j in letters.candidates(settings, db, capped=False)}
+    settings.send = SendConfig(mode="approve", dry_run=False, auto_min_score=60)
+    assert {j["title"] for j in letters.auto_send_candidates(settings, db)} == {"Freigegeben"}

@@ -575,3 +575,31 @@ struct TodayFreshnessTests {
         #expect(ApplyCategory.todayManual([old, fresh], now: now).map(\.id) == [2, 1])
     }
 }
+
+@Suite("KI-Anschreiben nur für Auto-Versand")
+struct WouldAutoSendTests {
+    private func job(_ id: Int, score: Int, email: String?, location: String = "10115 Berlin",
+                     approved: Bool = false, status: String = "neu") throws -> JobSummary {
+        var obj: [String: Any] = ["id": id, "title": "Job \(id)", "company": "Firma \(id)", "source": "arbeitsagentur",
+                                  "fetched_at": "2026-10-18T06:30:00+00:00", "score": score, "status": status,
+                                  "remote": false, "salary_predicted": false, "also_seen_on": [], "has_letter": true,
+                                  "location": location, "send_approved": approved]
+        obj["apply_email"] = email
+        return try APIClient.decode(JobSummary.self, from: try JSONSerialization.data(withJSONObject: obj))
+    }
+
+    @Test func onlyJobsThatWillBeMailed() throws {
+        let auto = try job(1, score: 75, email: "jobs@a.de")
+        let low = try job(2, score: 50, email: "jobs@b.de")
+        let portal = try job(3, score: 90, email: nil)
+        let approved = try job(4, score: 40, email: "jobs@c.de", approved: true)
+        let applied = try job(5, score: 90, email: "jobs@d.de", status: "beworben")
+        #expect(ApplyCategory.wouldAutoSend(auto, mode: "auto", autoMinScore: 60))
+        #expect(!ApplyCategory.wouldAutoSend(low, mode: "auto", autoMinScore: 60))
+        #expect(!ApplyCategory.wouldAutoSend(portal, mode: "auto", autoMinScore: 60))
+        #expect(ApplyCategory.wouldAutoSend(approved, mode: "approve", autoMinScore: 60))
+        #expect(!ApplyCategory.wouldAutoSend(applied, mode: "auto", autoMinScore: 60))
+        #expect(!ApplyCategory.wouldAutoSend(auto, mode: "off", autoMinScore: 60))
+        #expect(!ApplyCategory.wouldAutoSend(auto, mode: nil, autoMinScore: nil))  // unknown settings: never
+    }
+}

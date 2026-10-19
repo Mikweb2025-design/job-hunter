@@ -178,10 +178,12 @@ SOURCE_INFO: dict[str, dict[str, Any]] = {
                        "info": "Offizielle, öffentliche Such-API der Bundesagentur für Arbeit.",
                        "options": {"max_pages": ("int", 1, 5), "remote_search": ("bool",)}},
     "adzuna": {"label": "Adzuna", "kind": "Suche",
-               "info": "Braucht kostenlose Schlüssel ADZUNA_APP_ID / ADZUNA_APP_KEY in der .env des Servers "
-                       "(selbst eintragen, nie hier).",
+               "info": "Braucht Schlüssel ADZUNA_APP_ID / ADZUNA_APP_KEY in der .env des Servers "
+                       "(selbst eintragen, nie hier). Gratis-Konto: nur 25 Test-Aufrufe insgesamt – "
+                       "daher nur im ersten Lauf des Tages, max. 2 Aufrufe pro Lauf und 25 insgesamt (1 Aufruf = 1 Suchseite).",
                "url": "https://developer.adzuna.com/signup",
-               "options": {"max_pages": ("int", 1, 3)}},
+               "options": {"max_pages": ("int", 1, 3), "max_calls_per_run": ("int", 0, 50),
+                           "max_calls_total": ("int", 0, 100000), "once_per_day": ("bool",)}},
     "arbeitnow": {"label": "Arbeitnow", "kind": "Feed",
                   "info": "Freie Job-API (viele Berliner Tech-Firmen). Lokal nach Titel und Ort gefiltert.",
                   "url": "https://www.arbeitnow.com/blog/job-board-api",

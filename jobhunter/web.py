@@ -73,14 +73,15 @@ def _start_scheduler(settings: Settings):
     from apscheduler.triggers.cron import CronTrigger
 
     sched = BackgroundScheduler(timezone=settings.timezone)
-    sched.add_job(lambda: pipeline.run_cycle(settings),
+    sched.add_job(lambda: pipeline.run_cycle(settings, letters_in_background=True),
                   CronTrigger.from_crontab(settings.cron, timezone=settings.timezone),
                   id="daily-run", max_instances=1, coalesce=True, misfire_grace_time=3600)
     sched.start()
     log.info("scheduler started: cron=%r tz=%s next=%s", settings.cron, settings.timezone,
              sched.get_job("daily-run").next_run_time)
     if settings.run_on_start:
-        threading.Thread(target=pipeline.run_cycle, args=(settings,), daemon=True).start()
+        threading.Thread(target=pipeline.run_cycle, args=(settings,), kwargs={"letters_in_background": True},
+                         daemon=True).start()
     return sched
 
 

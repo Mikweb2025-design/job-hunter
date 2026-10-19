@@ -85,6 +85,10 @@ class LLMError(RuntimeError):
     pass
 
 
+class LLMTimeout(LLMError):
+    """The model did not answer in time (retrying the same model rarely helps)."""
+
+
 class LetterRejected(LLMError):
     """The model answered, but the text is not a usable letter."""
 
@@ -302,7 +306,7 @@ def run_opencode(binary: str, model: str, prompt: str, timeout_s: float,
         out, err = proc.communicate(timeout=timeout_s)
     except subprocess.TimeoutExpired:
         _kill_group(proc)
-        raise LLMError(f"opencode hat nach {int(timeout_s)} s nicht geantwortet – abgebrochen.") from None
+        raise LLMTimeout(f"opencode hat nach {int(timeout_s)} s nicht geantwortet – abgebrochen.") from None
     stdout = out.decode("utf-8", "replace")
     if proc.returncode != 0:
         msg = strip_ansi(err.decode("utf-8", "replace")).strip()[-400:]

@@ -140,7 +140,8 @@ def start_run(settings: Settings) -> bool:
     """Start a search run in the background. Returns False if one is already running."""
     if pipeline.is_running():
         return False
-    threading.Thread(target=pipeline.run_cycle, args=(settings,), daemon=True).start()
+    threading.Thread(target=pipeline.run_cycle, args=(settings,), kwargs={"letters_in_background": True},
+                     daemon=True).start()
     return True
 
 

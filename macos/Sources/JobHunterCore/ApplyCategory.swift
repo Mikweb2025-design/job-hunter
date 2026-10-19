@@ -50,6 +50,18 @@ public enum ApplyCategory: String, CaseIterable, Sendable, Identifiable, Hashabl
         job.status == .zuWeit || job.view == "far"
     }
 
+    /// Same idea as the server's `outbox.Gate.would_auto_send`: the job would go out by e-mail
+    /// once it has a real letter (approved, or auto mode + score + not far + automatic category).
+    /// Only these get KI letters by themselves; all others only on request (wish 19.10.).
+    public static func wouldAutoSend(_ job: JobSummary, mode: String?, autoMinScore: Int?,
+                                     blocklist: [String] = []) -> Bool {
+        guard [.neu, .interessant].contains(job.status), of(job, blocklist: blocklist) == .automatic,
+              !isFar(job) else { return false }
+        if job.sendApproved == true { return mode == "approve" || mode == "auto" }
+        guard mode == "auto", let min = autoMinScore else { return false }
+        return job.score >= min
+    }
+
     /// Same as the server's `views.freshness_bonus`: posting age (published, else first seen)
     /// ≤ 3 days +10, ≤ 7 +5, ≤ 14 0, ≤ 21 -5, older -10; unknown date 0.
     public static func freshnessBonus(_ job: JobSummary, now: Date = .now) -> Int {

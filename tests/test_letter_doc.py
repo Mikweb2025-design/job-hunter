@@ -215,7 +215,9 @@ def test_cli_letters_all_with_fake_opencode(settings, fake_oc, tmp_path, capsys)
     assert db.get_job(m["id"])["letter"] == "Eigener Text"
 
 
-def test_pipeline_templates_new_jobs_and_rewrites_old_templates(settings, fake_oc):
+def test_pipeline_templates_new_jobs_and_rewrites_old_templates(settings, fake_oc, monkeypatch):
+    from jobhunter import letters as _letters
+    monkeypatch.setattr(_letters, "auto_send_candidates", lambda s, db: _letters.candidates(s, db))  # selection tested in test_letter_retry
     from jobhunter.pipeline import run_cycle
     from jobhunter.sources.adzuna import parse_response as adzuna_parse
 

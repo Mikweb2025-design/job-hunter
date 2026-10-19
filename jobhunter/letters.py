@@ -17,7 +17,7 @@ from . import actions
 from .alerts import has_posting_text
 from .config import Settings
 from .db import Database
-from .llm import LLMError, generation_busy, template_letter
+from .llm import LLMError, LLMTimeout, generation_busy, template_letter
 from .outbox import ACTIVE_STATUSES, has_placeholder
 from .scoring import CVProfile
 from .views import annotate, filter_view, real_sent_ids
@@ -51,6 +51,15 @@ def needs_letter(job: dict) -> bool:
     if job.get("letter_origin") == "manuell":
         return False  # written/edited by the user: never replaced automatically
     return job.get("letter_origin") == "vorlage" or has_placeholder(letter)
+
+
+def auto_send_candidates(settings: Settings, db: Database) -> list[dict]:
+    """Letters written *automatically* (daily run): only for jobs that will really be e-mailed
+    (jobhunter.outbox rules). All other letters only on request (dashboard / app / CLI)."""
+    from .outbox import Gate  # local import: outbox -> config only, but keep letters light
+    gate = Gate(settings, db)
+    cap = max(1, settings.llm.max_per_run)
+    return [j for j in candidates(settings, db, capped=False) if gate.would_auto_send(j)][:cap]
 
 
 def candidates(settings: Settings, db: Database, view: str | None = None, limit: int | None = None,
@@ -125,16 +134,30 @@ def _attempt_settings(settings: Settings) -> list[Settings]:
     return attempts
 
 
+MAX_TIMEOUT_JOBS = 2  # this many jobs in a row without any answer from the model -> stop the batch
+
+
 def _run(settings: Settings, db: Database, job_ids: list[int], progress=None, only_needed: bool = False) -> None:
+    timeout_streak = 0
     try:
         for job_id in job_ids:
+            if timeout_streak >= MAX_TIMEOUT_JOBS:
+                with _lock:
+                    _state["errors"].append({"id": None, "title": None,
+                                             "error": "KI antwortet nicht (Zeitüberschreitung) – Batch angehalten, "
+                                                      "der Rest folgt beim nächsten Lauf."})
+                log.warning("letters: %s jobs in a row timed out – batch stopped", timeout_streak)
+                break
             job = db.get_job(job_id)
             if not job or (only_needed and not needs_letter(job)):  # e.g. edited by the user meanwhile
                 continue
             with _lock:
                 _state["current"] = {"id": job_id, "title": job.get("title"), "company": job.get("company")}
             error = None
+            skip_model = None
             for attempt, attempt_settings in enumerate(_attempt_settings(settings), start=1):
+                if attempt_settings.llm.model == skip_model:
+                    continue  # this model already timed out for this job: go to the fallback
                 try:
                     actions.write_letter(attempt_settings, db, job)
                     with _lock:
@@ -148,10 +171,14 @@ def _run(settings: Settings, db: Database, job_ids: list[int], progress=None, on
                     log.info("letter for job %s failed (attempt %s, %s): %s",
                              job_id, attempt, attempt_settings.llm.model, exc)
                     error = str(exc)
+                    if isinstance(exc, LLMTimeout):
+                        skip_model = attempt_settings.llm.model
                 except Exception as exc:  # never leave the batch "running" forever
                     log.exception("letter for job %s crashed", job_id)
                     error = str(exc)
                     break
+            # The main model did not answer and nothing else worked either (fallback errors are quick).
+            timeout_streak = timeout_streak + 1 if (error and skip_model == settings.llm.model) else 0
             if error:
                 with _lock:
                     _state["failed"] += 1

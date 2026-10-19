@@ -268,6 +268,17 @@ class Gate:
                 a.append("location")
         return d
 
+    LETTER_BLOCKERS = ("no_letter", "placeholder", "template_letter", "daily_cap")
+
+    def would_auto_send(self, job: dict) -> bool:
+        """True if the job would go out by e-mail (auto rules, or approved) once it has a real
+        letter – ignoring only the letter itself and today's cap. Used to decide which jobs get a
+        KI letter automatically; it does not change the send rules."""
+        d = self.evaluate(job)
+        if any(b not in self.LETTER_BLOCKERS for b in d.blockers):
+            return False
+        return d.approved or not [a for a in d.auto_blockers if a != "no_letter"]
+
     # -- outbox ----------------------------------------------------------------
     def outbox(self) -> list[dict]:
         """Jobs to send now, best first; never two for the same company, never above the cap."""

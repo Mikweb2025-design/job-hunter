@@ -69,6 +69,8 @@ def test_openai_compatible():
 
 
 def test_pipeline_calls_llm_only_above_threshold(settings, monkeypatch):
+    from jobhunter import letters as _letters
+    monkeypatch.setattr(_letters, "auto_send_candidates", lambda s, db: _letters.candidates(s, db))  # selection tested elsewhere
     calls = []
     from jobhunter import alerts
     monkeypatch.setattr(alerts, "MIN_DESCRIPTION_FOR_KI", 0)  # fixture snippets are short

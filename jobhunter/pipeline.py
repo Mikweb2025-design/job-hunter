@@ -48,18 +48,23 @@ def is_running() -> bool:
 
 
 def run_cycle(settings: Settings, db: Database | None = None,
-              sources: list[Source] | None = None, notify: bool = True) -> RunReport:
+              sources: list[Source] | None = None, notify: bool = True,
+              letters_in_background: bool = False) -> RunReport:
+    """letters_in_background: the run ends (is_running() False) right after search/score/notify and
+    the KI letters are written afterwards in the letters thread – so the dashboard and the Mac app
+    see new jobs at once instead of waiting for a slow model (scheduler and "Jetzt suchen")."""
     if not _run_lock.acquire(blocking=False):
         rep = RunReport()
         rep.errors.append("Ein Lauf ist bereits aktiv")
         return rep
     try:
-        return _run(settings, db or Database(settings.db_path), sources, notify)
+        return _run(settings, db or Database(settings.db_path), sources, notify, letters_in_background)
     finally:
         _run_lock.release()
 
 
-def _run(settings: Settings, db: Database, sources: list[Source] | None, notify: bool) -> RunReport:
+def _run(settings: Settings, db: Database, sources: list[Source] | None, notify: bool,
+         letters_in_background: bool = False) -> RunReport:
     rep = RunReport()
     run_id = db.start_run()
     learning.refresh(db)
@@ -73,6 +78,8 @@ def _run(settings: Settings, db: Database, sources: list[Source] | None, notify:
     by_source: dict[str, Source] = {}
     postings: list[JobPosting] = []
     for src in sources:
+        if hasattr(src, "attach_db"):
+            src.attach_db(db)  # e.g. Adzuna: persistent call budget
         ok, why = src.is_configured()
         if not ok:
             rep.skipped[src.name] = why
@@ -130,10 +137,14 @@ def _run(settings: Settings, db: Database, sources: list[Source] | None, notify:
             db.set_llm_result(job_id, None, None, template_letter(cv, job), "vorlage")
     from . import letters  # local import: letters -> actions -> pipeline
     letters.fix_old_templates(settings, db)
-    #    b) KI: ALL open jobs whose letter is missing or still a template, best score first,
-    #    one at a time, at most llm.max_per_run per run ("manuell" letters are never touched).
-    if get_llm(settings.llm):
-        todo = letters.candidates(settings, db)
+    #    b) KI automatically ONLY for jobs that will be e-mailed by the auto-send rules (wish of the
+    #    user 19.10.: everything else only on request), best score first, at most llm.max_per_run
+    #    per run ("manuell" letters are never touched).
+    background_todo: list[dict] = []
+    if get_llm(settings.llm) and letters_in_background:
+        background_todo = letters.auto_send_candidates(settings, db)  # started after finish_run
+    elif get_llm(settings.llm):
+        todo = letters.auto_send_candidates(settings, db)
         result = letters.run_sync(settings, db, todo) if todo else None
         if result:
             rep.llm_done += result["done"]
@@ -155,6 +166,11 @@ def _run(settings: Settings, db: Database, sources: list[Source] | None, notify:
     db.finish_run(run_id, {"fetched": rep.fetched, "skipped": rep.skipped, "llm": rep.llm_done},
                   len(rep.new_ids), rep.errors)
     log.info("run finished: %s", rep.summary())
+    if background_todo:
+        if letters.start(settings, db, background_todo, only_needed=True):
+            log.info("KI-Anschreiben: %s im Hintergrund gestartet", len(background_todo))
+        else:
+            log.info("KI-Anschreiben übersprungen: ein anderer Anschreiben-Lauf ist aktiv")
     return rep
 
 

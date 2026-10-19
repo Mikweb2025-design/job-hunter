@@ -91,3 +91,17 @@ def test_telegram_message_lists_follow_ups():
     msg = format_message([], "https://x/jobs", [{"title": "Cloud Support", "company": "ACME"}])
     assert "Nachfassen fällig: 1" in msg and "Cloud Support – ACME" in msg and "/tracker" in msg
     assert "neue Top-Treffer" not in msg
+
+
+def test_run_ends_before_background_letters(settings, monkeypatch):
+    """The run must not stay "running" while a slow model writes letters."""
+    from jobhunter import letters, pipeline
+    from jobhunter.db import Database
+    started = {}
+    monkeypatch.setattr(pipeline, "get_llm", lambda cfg: object())
+    monkeypatch.setattr(letters, "auto_send_candidates", lambda s, db: [{"id": 1}])
+    monkeypatch.setattr(letters, "run_sync", lambda *a, **k: (_ for _ in ()).throw(AssertionError("sync")))
+    monkeypatch.setattr(letters, "start", lambda s, db, jobs, only_needed=False: started.setdefault("jobs", jobs) or True)
+    rep = pipeline.run_cycle(settings, db=Database(settings.db_path), sources=[], notify=False,
+                             letters_in_background=True)
+    assert started["jobs"] == [{"id": 1}] and rep.llm_done == 0 and not pipeline.is_running()

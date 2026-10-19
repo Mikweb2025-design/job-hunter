@@ -143,9 +143,49 @@ def test_adzuna_fetch_params(profile):
         assert req.url.params["what"] in ("Support Engineer", "Support Engineer remote")
         return httpx.Response(200, json=load_json("adzuna_search.json"))
 
-    src = AdzunaSource({"app_id": "test-id", "app_key": "test-key", "max_pages": 1},
+    src = AdzunaSource({"app_id": "test-id", "app_key": "test-key", "max_pages": 1, "remote_search": True},
                        client=mock_client(handler))
     assert len(src.fetch(profile)) == 6  # local + remote search
+
+
+def _adzuna(db, calls, **opts):
+    def handler(req):
+        calls.append(req.url.params["what"])
+        return httpx.Response(200, json=load_json("adzuna_search.json"))
+    src = AdzunaSource({"app_id": "id", "app_key": "key", **opts}, client=mock_client(handler))
+    src.attach_db(db)
+    return src
+
+
+def test_adzuna_call_budget_per_run_total_and_rotation(profile, settings):
+    from jobhunter.db import Database
+    db = Database(settings.db_path)
+    profile.queries = ["A", "B", "C"]
+    calls: list[str] = []
+    src = _adzuna(db, calls, max_calls_per_run=2, max_calls_total=5, once_per_day=False)
+    assert src.is_configured()[0]
+    src.fetch(profile)
+    assert calls == ["A", "B"] and src.calls_used() == 2        # 2 per run
+    src.fetch(profile)
+    assert calls[2:] == ["C", "A"]                             # next run continues with the next terms
+    src.fetch(profile)
+    assert calls[4:] == ["B"] and src.calls_used() == 5        # only what is left of the total
+    ok, why = src.is_configured()
+    assert not ok and "aufgebraucht" in why and "5/5" in why
+    assert src.fetch(profile) == [] and len(calls) == 5         # never more
+
+
+def test_adzuna_stops_for_good_on_quota_error(profile, settings):
+    import pytest
+    from jobhunter.db import Database
+    db = Database(settings.db_path)
+    src = AdzunaSource({"app_id": "id", "app_key": "key"},
+                       client=mock_client(lambda req: httpx.Response(429, text="limit")))
+    src.attach_db(db)
+    with pytest.raises(SourceError):
+        src.fetch(profile)
+    ok, why = src.is_configured()
+    assert not ok and "HTTP 429" in why
 
 
 # ---- RSS / Atom ------------------------------------------------------------------
@@ -184,3 +224,16 @@ def test_rss_one_broken_feed_does_not_kill_others(profile):
     src = RSSSource({"feeds": ["https://broken.example/x.rss", {"url": "https://ok.example/y.rss"}]},
                     client=mock_client(handler))
     assert len(src.fetch(profile)) == 2
+
+
+def test_adzuna_only_once_per_day(profile, settings):
+    from jobhunter.db import Database
+    db = Database(settings.db_path)
+    calls: list[str] = []
+    src = _adzuna(db, calls, max_calls_per_run=1)
+    assert src.is_configured()[0]
+    src.fetch(profile)
+    ok, why = src.is_configured()          # a second run today ("Jetzt suchen") is skipped
+    assert not ok and "heute schon" in why and len(calls) == 1
+    db.set_setting("adzuna_calls", {"used": 1, "day": "2000-01-01"})
+    assert src.is_configured()[0]          # next day: allowed again

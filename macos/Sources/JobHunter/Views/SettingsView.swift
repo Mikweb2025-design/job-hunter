@@ -236,7 +236,7 @@ struct SettingsView: View {
             }
             Section("Automatik") {
                 Toggle("Vorlagen automatisch durch KI ersetzen", isOn: $settings.autoReplaceTemplates)
-                Text("Nach dem Aktualisieren schreibt die App für offene Stellen, die noch die Vorlage haben, ein KI-Anschreiben – eins nach dem anderen (max. 20 pro Durchgang, abbrechbar). Nur wenn der Server keine KI hat oder es seit 6 Stunden nicht geschafft hat. Selbst bearbeitete Anschreiben bleiben unberührt.")
+                Text("Nach dem Aktualisieren schreibt die App NUR für Stellen, die automatisch per E-Mail verschickt werden (oder freigegeben sind) und noch die Vorlage haben, ein KI-Anschreiben – eins nach dem anderen (max. 20 pro Durchgang, abbrechbar). Nur wenn der Server keine KI hat oder es seit 6 Stunden nicht geschafft hat. Alle anderen Stellen bekommen ein KI-Anschreiben nur auf Wunsch („KI-Anschreiben“ / „Neu generieren“). Selbst bearbeitete Anschreiben bleiben unberührt.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Absender im Anschreiben (PDF)") {

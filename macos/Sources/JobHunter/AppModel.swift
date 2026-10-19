@@ -1043,8 +1043,11 @@ final class AppModel {
         let serverKI = health.llmEnabled
         if serverKI && (health.lettersRunning ?? false || health.running) { return }
         let cutoff = Date.now.addingTimeInterval(-6 * 3600)
+        let send = sendSettings
         let targets = templateLetterJobs.filter { job in
             !autoLetterFailed.contains(job.id) && job.score > 0
+                && ApplyCategory.wouldAutoSend(job, mode: send?.mode, autoMinScore: send?.autoMinScore,
+                                               blocklist: blocklist)
                 && (!serverKI || (job.fetchedDate ?? .now) < cutoff)
         }
         guard !targets.isEmpty else { return }
