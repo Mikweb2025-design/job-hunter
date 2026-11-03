@@ -35,6 +35,7 @@ public struct AppleMailAlertReader: AlertMailReading {
                 set found to (messages of mb whose date received ≥ cutoff and sender contains pat)
                 repeat with m in found
                     set mid to message id of m
+                    if mid is missing value or mid is "" then set mid to "mail-local:" & (id of m as text)
                     if (skipIDs does not contain mid) and (seen does not contain mid) then
                         set end of seen to mid
                         set secs to ((date received of m) - (current date))

@@ -368,9 +368,9 @@ final class AppModel {
         if queue.isEmpty {
             await processOutbox()
         }
+        await importJobAlerts()
         await prefetchDetails(client)
         await autoReplaceTemplates(client)
-        await importJobAlerts()
     }
 
     /// Source filter: the server's sources plus the job-alert sources (even before the first import).
@@ -386,7 +386,7 @@ final class AppModel {
     /// server (queued while offline). Automatic: after a refresh, at most every 15 minutes, only while Mail
     /// is running (never launches Mail by itself). `manual`: "Jetzt importieren".
     func importJobAlerts(manual: Bool = false) async {
-        guard manual || settings.jobAlertsEnabled, !isImportingAlerts else { return }
+        guard manual || settings.jobAlertsEnabled || settings.employerRepliesEnabled, !isImportingAlerts else { return }
         let mailRunning = NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == "com.apple.mail" }
         let due = alertState.lastRun.map { Date.now.timeIntervalSince($0) >= 900 } ?? true
         isImportingAlerts = true
@@ -403,7 +403,7 @@ final class AppModel {
                 senderKeys: EmployerReplyFilter.senderKeys(applied: allJobs),
                 ownAddresses: [settings.jobAlertAccount, settings.applicantEmail])
         }
-        if readMail {
+        if readMail && (manual || settings.jobAlertsEnabled) {
             outcome = await JobAlertImporter.run(state: &state, reader: alertReader, api: api,
                                                  account: settings.jobAlertAccount, daysBack: settings.jobAlertDays)
         } else if api != nil, !state.pending.isEmpty {

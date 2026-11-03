@@ -124,6 +124,7 @@ extension AppleMailAlertReader {
                 repeat with m in found
                     if (count of out) ≥ maxCount then exit repeat
                     set mid to message id of m
+                    if mid is missing value or mid is "" then set mid to "mail-local:" & (id of m as text)
                     if (skipIDs does not contain mid) and (seen does not contain mid) then
                         set end of seen to mid
                         set secs to ((date received of m) - (current date))
