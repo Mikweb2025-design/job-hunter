@@ -79,6 +79,10 @@ Leider hat Beispiel Partners LLP deine Bewerbung nicht für die nächste Runde a
 Unten findest du das Feedback von Beispiel Partners LLP*:
 Nach einer sorgfältigen Prüfung Ihrer Unterlagen müssen wir Ihnen jedoch leider mitteilen, dass wir Ihnen die gewünschte Position nicht anbieten können."""
 
+ABSAGE_NICHT_INFRAGE = """Sehr geehrte Frau Muster,
+wir bedanken uns für Ihre Bewerbung. Ihre Unterlagen haben wir eingehend geprüft. Obwohl Ihre Bewerbung viele positive Elemente enthält, müssen wir Ihnen mitteilen, dass die Stelle, auf die Sie sich beworben haben, nicht infrage kommt. Sie erfordert nachweisliche Erfahrung im Spezialbereich Administration.
+Am 02.11.2026 schrieb die Bewerberin: Ich freue mich auf ein Gespräch."""
+
 CONDITIONAL_ABSAGE = """Hallo, vielen Dank für deine Bewerbung. Deine Mail ist eingegangen und wird von uns zeitnah gesichtet. Solltest du keine Rückmeldung von uns erhalten, so kannst du davon ausgehen, dass deine Bewerbung leider nicht in die engere Auswahl gekommen und dies als Absage zu werten ist. Aufgrund der vielen Bewerbungseingänge ist uns bedauerlicherweise nicht immer eine persönliche Absage möglich.
 If you do not receive any feedback from us, you can assume that your application has unfortunately not been shortlisted. Unfortunately, due to the large number of applications received, it is not always possible for us to reject every applicant personally."""
 
@@ -134,7 +138,7 @@ def test_quoted_own_mail_is_ignored():
     assert c.documents == []
 
 
-@pytest.mark.parametrize("body", [ABSAGE, ABSAGE_DU, STEPSTONE_FEEDBACK])
+@pytest.mark.parametrize("body", [ABSAGE, ABSAGE_DU, STEPSTONE_FEEDBACK, ABSAGE_NICHT_INFRAGE])
 def test_absage(body):
     c = classify("Ihre Bewerbung", body)
     assert c.kind == "absage" and c.requested == []

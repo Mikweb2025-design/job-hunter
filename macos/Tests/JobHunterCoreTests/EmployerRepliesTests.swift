@@ -155,7 +155,7 @@ struct EmployerRepliesTests {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let v = try String(contentsOf: root.appending(path: "VERSION"), encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
         #expect(v.split(separator: ".").count == 3)
-        let h = try APIClient.decode(Health.self, from: Data(#"{"ok":true,"api_version":1,"running":false,"llm_enabled":true,"server_time":"x","version":"1.1.1"}"#.utf8))
-        #expect(h.version == "1.1.1" && ReleaseVersion.same(h.version, v))
+        let h = try APIClient.decode(Health.self, from: Data(#"{"ok":true,"api_version":1,"running":false,"llm_enabled":true,"server_time":"x","version":"1.1.2"}"#.utf8))
+        #expect(h.version == "1.1.2" && ReleaseVersion.same(h.version, v))
     }
 }

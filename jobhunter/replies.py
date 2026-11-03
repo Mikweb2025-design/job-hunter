@@ -108,6 +108,7 @@ _ABSAGE = re.compile(
     r"mit anderen kandidat|anderen bewerber(?:innen|n)? entschieden|keinen positiven bescheid|"
     r"keine positivere? rückmeldung|nicht für die nächste runde|nicht anbieten können|keine erfreulicheren nachrichten|(?:ihre|deine|eine) absage|absage (?:erteilen|mitteilen)|nicht (?:optimal|ausreichend)[^.]{0,80}(?:passt|übereinstimmt|entspricht)|"
     r"leider (?:müssen|muss|können|kann) (?:wir|ich) (?:ihnen|dir|euch)? ?(?:mitteilen|heute mitteilen)|"
+    r"(?:stelle|position|bewerbung)[^.]{0,120}nicht (?:in ?frage|infrage) komm|"
     r"(?:stelle|position) (?:wurde |ist )?(?:bereits )?(?:besetzt|vergeben)|"
     r"unfortunately,? (?:we|i) (?:have|had|must|will|are|cannot|can not|decided)|not (?:be )?(?:moving|proceed)|decided to (?:move|proceed) with other|not been successful)",
     re.I)
