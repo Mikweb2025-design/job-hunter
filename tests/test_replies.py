@@ -83,6 +83,12 @@ ABSAGE_NICHT_INFRAGE = """Sehr geehrte Frau Muster,
 wir bedanken uns für Ihre Bewerbung. Ihre Unterlagen haben wir eingehend geprüft. Obwohl Ihre Bewerbung viele positive Elemente enthält, müssen wir Ihnen mitteilen, dass die Stelle, auf die Sie sich beworben haben, nicht infrage kommt. Sie erfordert nachweisliche Erfahrung im Spezialbereich Administration.
 Am 02.11.2026 schrieb die Bewerberin: Ich freue mich auf ein Gespräch."""
 
+ABSAGE_ENGERE_WAHL = """Sehr geehrter Herr Michelin, wir haben inzwischen unsere Vorauswahl getroffen.
+Leider konnten wir Ihre Bewerbung nicht in die engere Wahl ziehen – wir haben uns für andere Kandidatinnen und Kandidaten entschieden."""
+
+ABSAGE_POSITION_VERGEBEN = """Hallo Daniele, bedauerlicherweise müssen wir dir mitteilen,
+dass wir die Position kürzlich an eine andere Person vergeben haben. Daher werden wir deine Bewerbung nicht weiter verfolgen."""
+
 CONDITIONAL_ABSAGE = """Hallo, vielen Dank für deine Bewerbung. Deine Mail ist eingegangen und wird von uns zeitnah gesichtet. Solltest du keine Rückmeldung von uns erhalten, so kannst du davon ausgehen, dass deine Bewerbung leider nicht in die engere Auswahl gekommen und dies als Absage zu werten ist. Aufgrund der vielen Bewerbungseingänge ist uns bedauerlicherweise nicht immer eine persönliche Absage möglich.
 If you do not receive any feedback from us, you can assume that your application has unfortunately not been shortlisted. Unfortunately, due to the large number of applications received, it is not always possible for us to reject every applicant personally."""
 
@@ -138,7 +144,8 @@ def test_quoted_own_mail_is_ignored():
     assert c.documents == []
 
 
-@pytest.mark.parametrize("body", [ABSAGE, ABSAGE_DU, STEPSTONE_FEEDBACK, ABSAGE_NICHT_INFRAGE])
+@pytest.mark.parametrize("body", [ABSAGE, ABSAGE_DU, STEPSTONE_FEEDBACK, ABSAGE_NICHT_INFRAGE,
+                                  ABSAGE_ENGERE_WAHL, ABSAGE_POSITION_VERGEBEN])
 def test_absage(body):
     c = classify("Ihre Bewerbung", body)
     assert c.kind == "absage" and c.requested == []
