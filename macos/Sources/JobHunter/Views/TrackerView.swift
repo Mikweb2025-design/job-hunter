@@ -284,8 +284,13 @@ struct TrackerView: View {
         return ScrollView(.horizontal) {
             HStack(alignment: .top, spacing: 10) {
                 ForEach(statuses) { status in
-                    KanbanColumn(status: status, jobs: Tracker.column(status, in: jobs), limit: perColumn,
+                    let items = Tracker.column(status, in: jobs)
+                    KanbanColumn(status: status, jobs: status == .beworben ? items.filter { !Tracker.waitingOverThreeWeeks($0) } : items, limit: perColumn,
                                  onShowAll: { showAll(status) })
+                    if status == .beworben {
+                        KanbanColumn(status: status, jobs: items.filter { Tracker.waitingOverThreeWeeks($0) },
+                                     limit: Int.max, onShowAll: {}, automatic: true)
+                    }
                 }
             }
             .padding(.bottom, 8)
@@ -329,12 +334,14 @@ private struct KanbanColumn: View {
     let jobs: [JobSummary]
     let limit: Int
     let onShowAll: () -> Void
+    var automatic = false
+    private var heading: String { automatic ? "Keine Antwort seit über 3 Wochen" : status.label }
     @State private var targeted = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Label(status.label, systemImage: status.symbolName).font(.headline)
+                Label(heading, systemImage: automatic ? "clock" : status.symbolName).font(.headline)
                 Spacer()
                 Text("\(jobs.count)").font(.callout.weight(.semibold)).monospacedDigit()
             }
@@ -350,7 +357,7 @@ private struct KanbanColumn: View {
                         .buttonStyle(.link).font(.caption).padding(.vertical, 4)
                 }
                 if jobs.isEmpty {
-                    Text("Leer – Karte hierher ziehen").font(.caption).foregroundStyle(.secondary)
+                    Text(automatic ? "Keine überfälligen Bewerbungen." : "Leer – Karte hierher ziehen").font(.caption).foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, minHeight: 60)
                 }
             }
@@ -362,6 +369,7 @@ private struct KanbanColumn: View {
             .stroke(targeted ? Color.accentColor : .clear, lineWidth: 2))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .dropDestination(for: String.self) { items, _ in
+            guard !automatic else { return false }
             let ids = items.compactMap(Int.init).filter { id in model.job(id)?.status != status }
             guard !ids.isEmpty else { return false }
             switch status {
@@ -373,9 +381,9 @@ private struct KanbanColumn: View {
                 }
             }
             return true
-        } isTargeted: { targeted = $0 }
+        } isTargeted: { targeted = !automatic && $0 }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(status.label), \(jobs.count) Stellen")
+        .accessibilityLabel("\(heading), \(jobs.count) Stellen")
     }
 }
 

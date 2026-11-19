@@ -153,7 +153,7 @@ def test_tracker_columns_kpis_followups_interviews(ctx):
 
     t = _build(db)
     cols = {c["status"]: c for c in t["columns"]}
-    assert list(cols) == ["neu", "interessant", "beworben", "gespraech", "angebot", "absage", "zu_weit"]
+    assert list(cols) == ["neu", "interessant", "beworben", "ohne_antwort", "gespraech", "angebot", "absage", "zu_weit"]
     assert cols["neu"]["count"] == 1 and cols["zu_weit"]["count"] == 1 and cols["absage"]["count"] == 2
     assert cols["beworben"]["count"] == 3 and cols["angebot"]["count"] == 0
     k = t["kpis"]
@@ -284,3 +284,14 @@ def test_relative_day():
     assert tracker.relative_day("2026-09-17", today) == "vor 3 Wochen"
     assert tracker.relative_day("2026-10-10", today) == "in 2 Tagen"
     assert tracker.relative_day(None, today) == ""
+
+def test_over_three_weeks_groups_existing_applications(ctx):
+    _, _, db = ctx
+    for age in (21, 22, 35):
+        j = add_job(db, title=f"Rolle {age}", company="Test")
+        db.update_job(j["id"], status="beworben", applied_date=days_ago(age))
+    db.update_job(j["id"], reply_kind="rueckfrage", reply_at=days_ago(4))
+    cols = {c["status"]: c for c in _build(db)["columns"]}
+    assert [c["title"] for c in cols["ohne_antwort"]["cards"]] == ["Rolle 22"]
+    assert cols["beworben"]["count"] == 2
+    assert cols["ohne_antwort"]["cards"][0]["status"] == "beworben"

@@ -188,6 +188,12 @@ public enum Tracker {
         return base.flatMap { calendar.date(byAdding: .day, value: followUpDays, to: $0) }
     }
 
+    public static func waitingOverThreeWeeks(_ job: JobSummary, now: Date = .now) -> Bool {
+        guard job.status == .beworben, isApplied(job), openRequests(job).isEmpty, job.interviewAt == nil,
+              let applied = appliedDay(job) else { return false }
+        return days(from: max(applied, replyDay(job) ?? applied), to: now) > 21
+    }
+
     public static func followUpDue(_ job: JobSummary, now: Date = .now) -> Bool {
         guard job.status == .beworben, openRequests(job).isEmpty, let from = followUpFrom(job) else { return false }
         return calendar.startOfDay(for: from) <= calendar.startOfDay(for: now)

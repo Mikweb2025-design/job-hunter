@@ -20,6 +20,7 @@
 {% if tr.replies.unmatched %}
 <p class="small"><a href="#unmatched-replies">Nicht zugeordnete Bestätigungen und Antworten prüfen</a></p>
 {% endif %}
+<p class="small"><a href="#ohne-antwort">Keine Antwort seit über 3 Wochen ({{ (tr.columns|selectattr('status','equalto','ohne_antwort')|first).count }})</a></p>
 <section class="kpis" aria-label="Kennzahlen">
   <div class="tile"><span class="big">{{ k.applied }}</span><span class="small muted">Bewerbungen</span></div>
   <div class="tile"><span class="big">{{ k.this_week }}</span><span class="small muted">diese Woche</span></div>
@@ -159,7 +160,7 @@
 
 <section class="kanban" aria-label="Status-Spalten">
   {% for col in tr.columns %}
-  <div class="kcol" data-status="{{ col.status }}" aria-label="{{ col.label }}">
+  <div class="kcol" {% if col.status == 'ohne_antwort' %}id="ohne-antwort"{% endif %} data-status="{{ col.status }}" aria-label="{{ col.label }}">
     <header class="khead st-{{ col.status }}"><span>{{ col.label }}</span> <span class="kcount" data-count="{{ col.count }}">{{ col.count }}</span></header>
     <div class="kcards">
       {% for c in col.cards %}
@@ -168,6 +169,7 @@
           <a class="kb-open ktitle" href="{{ base }}/jobs/{{ c.id }}?back=tracker">{{ c.title }}</a></div>
         <div class="small muted">{{ c.company or '–' }}</div>
         {% if c.channel %}<div class="small">{{ c.channel.label }}{% if c.applied_date %} · {{ c.applied_date|rel }}{% endif %}</div>{% endif %}
+        {% if c.silent_days %}<div class="small due">{{ c.silent_days }} Tage ohne Rückmeldung</div>{% endif %}
         {% if c.interview_at %}<div class="small">📅 {{ c.interview_at|dmyhm }}</div>{% endif %}
         {% if c.close_reason_label %}<div class="small muted">{{ c.close_reason_label }}</div>{% endif %}
         {% if c.reply_label and c.status != 'absage' %}<div class="small reply-badge rk-{{ c.reply_kind }}">✉ {{ c.reply_label }}{% if c.reply_at %} · {{ c.reply_at|rel }}{% endif %}</div>{% endif %}
@@ -179,7 +181,7 @@
       </article>
       {% endfor %}
       {% if col.more %}<a class="kmore small" href="{{ base }}/?status={{ col.status }}">+ {{ col.more }} weitere in der Liste →</a>{% endif %}
-      {% if not col.count %}<p class="kempty small muted">Leer – Karte hierher ziehen.</p>{% endif %}
+      {% if not col.count %}<p class="kempty small muted">{{ 'Keine überfälligen Bewerbungen.' if col.status == 'ohne_antwort' else 'Leer – Karte hierher ziehen.' }}</p>{% endif %}
     </div>
   </div>
   {% endfor %}
@@ -218,14 +220,14 @@
       dlg.showModal();
     });
   }
-  function moveCard(card, status) {
-    const old = card.dataset.status;
-    const target = col(status) && col(status).querySelector('.kcards');
+  function moveCard(card, status, destination = status) {
+    const old = card.closest('.kcol').dataset.status;
+    const target = col(destination) && col(destination).querySelector('.kcards');
     if (target) { target.prepend(card); const e = target.querySelector('.kempty'); if (e) e.remove(); }
     card.dataset.status = status;
     const sel = card.querySelector('select.quick-status');
     if (sel) { sel.value = status; sel.dataset.current = status; }
-    bump(old, -1); bump(status, +1);
+    bump(old, -1); bump(destination, +1);
   }
   async function afterMove(id, status) {
     if (status === 'gespraech') {
@@ -254,7 +256,7 @@
     card.addEventListener('dragstart', (ev) => { dragged = card; card.classList.add('dragging'); ev.dataTransfer.setData('text/plain', card.dataset.id); ev.dataTransfer.effectAllowed = 'move'; });
     card.addEventListener('dragend', () => { card.classList.remove('dragging'); document.querySelectorAll('.kcol.over').forEach((c) => c.classList.remove('over')); });
   });
-  document.querySelectorAll('.kcol').forEach((c) => {
+  document.querySelectorAll('.kcol:not([data-status="ohne_antwort"])').forEach((c) => {
     c.addEventListener('dragover', (ev) => { if (dragged) { ev.preventDefault(); c.classList.add('over'); } });
     c.addEventListener('dragleave', () => c.classList.remove('over'));
     c.addEventListener('drop', async (ev) => {
@@ -263,14 +265,16 @@
       if (!card) return;
       const status = c.dataset.status, old = card.dataset.status;
       if (status === old) return;
+      const origin = card.closest('.kcol').dataset.status;
       moveCard(card, status);
       card.classList.add('saving');
       try {
         await api('PATCH', '/jobs/' + card.dataset.id, {status});
         toast('„' + card.querySelector('.ktitle').textContent + '“ → ' + labels[status], 'ok');
         await afterMove(card.dataset.id, status);
+        window.location.reload();
       } catch (e) {
-        moveCard(card, old);
+        moveCard(card, old, origin);
         toast('Nicht gespeichert: ' + e.message, 'err');
       } finally { card.classList.remove('saving'); }
     });
@@ -282,6 +286,7 @@
     card.dataset.status = ev.detail.old;
     moveCard(card, ev.detail.status);
     await afterMove(ev.detail.id, ev.detail.status);
+    window.location.reload();
   });
 })();
 </script>

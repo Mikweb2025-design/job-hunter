@@ -271,14 +271,35 @@ def build(db: Database, jobs: list[dict], applicant_name: str = "", today: date 
         if r["job_id"] is not None:
             mails.setdefault(r["job_id"], []).append(r)
 
-    cards_by: dict[str, list[dict]] = {s: [] for s in COLUMN_ORDER}
+    overdue = "ohne_antwort"
+    board_order = list(COLUMN_ORDER)
+    board_order.insert(board_order.index("beworben") + 1, overdue)
+    cards_by: dict[str, list[dict]] = {s: [] for s in board_order}
     for j in jobs:
-        cards_by.setdefault(j["status"], []).append(card(j, sent, today))
+        group = j["status"]
+        c = card(j, sent, today)
+        applied = applied_day(j, sent)
+        if group == "beworben" and applied and is_applied(j, sent) and not open_requests(j) and not j.get("interview_at"):
+            dates = [applied]
+            if last_reply := _reply_day(j):
+                dates.append(last_reply)
+            for mail in mails.get(j["id"], ()):
+                if mail["kind"] in replies.RESPONSE_KINDS and (when := _day(mail["received_at"])):
+                    dates.append(when)
+            silent_days = (today - max(dates)).days
+            if silent_days > 21:
+                group = overdue
+                c["silent_days"] = silent_days
+        cards_by[group].append(c)
     columns = []
-    for s in COLUMN_ORDER:
+    for s in board_order:
         cs = sorted(cards_by.get(s, []), key=_card_sort(s), reverse=True)
-        columns.append({"status": s, "label": STATUS_LABELS[s], "count": len(cs),
-                        "cards": cs[:per_column], "more": max(0, len(cs) - per_column)})
+        if s == overdue:
+            cs.sort(key=lambda c: c["silent_days"], reverse=True)
+        limit = len(cs) if s == overdue else per_column
+        label = "Keine Antwort seit über 3 Wochen" if s == overdue else STATUS_LABELS[s]
+        columns.append({"status": s, "label": label, "count": len(cs),
+                        "cards": cs[:limit], "more": max(0, len(cs) - limit)})
 
     applied = [j for j in jobs if is_applied(j, sent)]
     responded = [j for j in applied if has_response(j, sent)]
