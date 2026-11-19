@@ -357,3 +357,24 @@ def test_versions_are_reported_and_compared(ctx):
     assert f"Server {__version__}" in html and "Mac-App 1.0" in html and "Versionen passen nicht zusammen" in html
     c.post("/api/v1/client-state", json={"client": "macos", "auto_send_enabled": False, "app_version": __version__})
     assert "Versionen passen nicht zusammen" not in c.get("/tracker").text
+
+
+def test_named_receipts_find_new_role_create_missing_and_ignore_welcome(ctx):
+    _, _, db = ctx
+    existing = add_job(db, title="Knowledge Engineer (m/w/d)", company="Beispiel Software GmbH")
+    letters = [
+        item("a", "jobs@beispiel.teamtailor.com", "Deine Bewerbung bei Beispiel",
+             "Danke dir für deine Bewerbung als Knowledge Engineer bei Beispiel."),
+        item("b", "jobs@recruitee.com", "Support Specialist - We've received your application!",
+             "Thank you for applying for Support Specialist and your interest in contributing to the mission of Muster."),
+        item("c", "jobs@beispiel.teamtailor.com", "Willkommen bei Beispiel", "Vielen Dank für dein Interesse."),
+        item("d", "jobs@softgarden.de", "Eingangsbestätigung", "Wir haben Ihre Bewerbung erhalten."),
+    ]
+    out = replies.record_replies(db, letters)
+    assert out["matched"][0] == existing["id"]
+    new = db.get_job(out["matched"][1])
+    assert (new["company"], new["status"], new["apply_method"]) == ("Muster", "beworben", "manual")
+    assert db.get_job(existing["id"])["status"] == "beworben"
+    assert out["unmatched"] == 2
+    assert replies.record_replies(db, letters)["duplicates"] == 4
+    assert any(r["subject"] == "Eingangsbestätigung" for r in replies.stats(db, set())["unmatched"])

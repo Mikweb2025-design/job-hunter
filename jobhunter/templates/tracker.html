@@ -17,6 +17,9 @@
   </form>
 </div>
 
+{% if tr.replies.unmatched %}
+<p class="small"><a href="#unmatched-replies">Nicht zugeordnete Bestätigungen und Antworten prüfen</a></p>
+{% endif %}
 <section class="kpis" aria-label="Kennzahlen">
   <div class="tile"><span class="big">{{ k.applied }}</span><span class="small muted">Bewerbungen</span></div>
   <div class="tile"><span class="big">{{ k.this_week }}</span><span class="small muted">diese Woche</span></div>
@@ -113,7 +116,7 @@
       {% for s in tr.by_source %}{{ s.label }} {{ s.rate if s.rate is not none else '–' }} %{% if not loop.last %} · {% endif %}{% endfor %}</p>
     {% endif %}
     {% if rp.unmatched %}
-    <details class="small"><summary>{{ rp.unmatched|length }} Antwort(en) ohne passende Stelle</summary>
+    <details open id="unmatched-replies" class="small"><summary>{{ rp.unmatched|length }} Antwort(en) ohne passende Stelle</summary>
       <ul class="plain">{% for u in rp.unmatched %}<li>{{ u.received_at|dmy }} · {{ u.kind_label }} · {{ u.subject }} <span class="muted">({{ u.sender }})</span></li>{% endfor %}</ul>
     </details>
     {% endif %}

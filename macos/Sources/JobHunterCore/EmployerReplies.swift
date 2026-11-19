@@ -52,6 +52,7 @@ public enum EmployerReplyFilter {
     public static let subjectKeys = [
         "Bewerbung", "application", "Bewerbungsunterlagen", "Vorstellungsgespräch", "Interview",
         "kennenlernen", "Kennenlernen", "Absage", "Rückmeldung", "Unterlagen", "Ihre Kandidatur", "candidature",
+        "Kontaktaufnahme bei", "Eingangsbestätigung", "Dein Kontakt zur",
     ]
     /// Applicant-tracking systems that send on behalf of employers (any subject, e.g. "Terminverschiebung").
     public static let atsSenders = [

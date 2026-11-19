@@ -247,7 +247,7 @@ class Database:
             sets = ", ".join(f"{k}=?" for k in updates)
             c.execute(f"UPDATE jobs SET {sets} WHERE id=?", (*updates.values(), row["id"]))
 
-    def insert_job(self, job: JobPosting, rule_score: int, breakdown: dict) -> int | None:
+    def insert_job(self, job: JobPosting, rule_score: int, breakdown: dict, *, confirmed_at: str | None = None) -> int | None:
         key = dedup_key(job.title, job.company)
         with self.conn() as c:
             cur = c.execute(
@@ -263,6 +263,11 @@ class Database:
                  ",".join(sorted(job.extra.get("also_seen", ()))) or None,
                  *apply_fields(job.description, job.source).values()),
             )
+            if confirmed_at and cur.rowcount:
+                c.execute("UPDATE jobs SET status='beworben', applied_date=?, status_updated_at=?, apply_method='manual' WHERE id=?",
+                          (confirmed_at[:10], confirmed_at, cur.lastrowid))
+                c.execute("INSERT INTO job_status_history(job_id,old_status,new_status,changed_at,source) VALUES (?, 'neu','beworben',?,'antwort')",
+                          (cur.lastrowid, confirmed_at))
             return cur.lastrowid if cur.rowcount else None
 
     def get_job(self, job_id: int) -> dict | None:

@@ -21,8 +21,9 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from .models import JobPosting
 from .db import Database, now_iso
-from .dedup import _fold, normalize_company, normalize_title
+from .dedup import dedup_key, _fold, normalize_company, normalize_title
 
 KINDS = ("absage", "einladung", "unterlagen", "rueckfrage", "eingang", "sonstiges")
 KIND_LABELS = {
@@ -260,7 +261,7 @@ _GENERIC_TOKENS = {
     "people", "team", "hr", "talent", "the", "und", "and", "fur", "der", "die", "das", "von", "mit", "it",
     "service", "services", "solutions", "systems", "group", "gruppe", "berlin", "digital", "consulting",
     "software", "technologies", "technology", "informationssysteme", "information", "gesellschaft",
-    "stiftung", "mail", "noreply", "reply", "info", "notifications", "communication", "news", "office",
+    "wir", "haben", "ihre", "deine", "gespeichert", "stelle", "mitarbeiter", "support", "engineer", "mail", "stiftung", "noreply", "reply", "info", "notifications", "communication", "news", "office",
 }
 
 
@@ -324,7 +325,10 @@ def match_job(db: Database, it: ReplyItem, jobs: list[dict] | None = None,
             doms.add(_domain(j["apply_email"]))
         if dom and core and (dom in doms or any(d.endswith("." + dom) or dom.endswith("." + d) for d in doms if d)):
             score += 100
-        toks = _tokens(j.get("company") or "")
+        company = j.get("company") or ""
+        if re.search(r"\b(bewerbung|gespeichert|wir haben|bewerben sie)\b", company, re.I):
+            continue
+        toks = _tokens(company)
         if toks:
             if core and core in toks:
                 score += 70
@@ -389,6 +393,41 @@ _STATUS_MOVES = {
 _TO_APPLIED = {"neu", "interessant", "zu_weit"}
 
 
+def receipt_identity(it: ReplyItem) -> tuple[str, str] | None:
+    """Extract a title and employer only from an explicit acknowledgement."""
+    body = " ".join(strip_quoted(it.body).split())
+    de = re.search(r"(?:danke dir|vielen dank) für (?:deine|ihre) bewerbung als (.{2,180}?) bei ([^.!?]{2,100})[.!?]", body, re.I)
+    if de:
+        return de.group(1).strip(), de.group(2).strip()
+    en = re.search(r"thank you for applying for (.{2,180}?) and your interest in contributing to the mission of ([^.!?]{2,100})[.!?]", body, re.I)
+    contact = re.fullmatch(r"(?:Deine|Ihre) Kontaktaufnahme bei (.{2,100})", it.subject, re.I)
+    role = re.search(r"Interesse an der Position als (.{2,180}?) für unseren Standort", body, re.I)
+    if contact and role and re.search(r"wir melden uns|erste[n]? Schritte", body, re.I):
+        return role[1].strip(), contact[1].strip()
+    if en and re.search(r"received your application|application has been successfully submitted", it.subject + " " + body, re.I):
+        return en.group(1).strip(), en.group(2).strip()
+    return None
+
+
+def receipt_job(db: Database, identity: tuple[str, str], received: str) -> dict | None:
+    title, company = identity
+    candidates = [j for j in db.list_jobs(limit=100000)
+                  if normalize_title(j["title"]) == normalize_title(title)
+                  and (normalize_company(j["company"]) == normalize_company(company)
+                       or normalize_company(j["company"]).startswith(normalize_company(company) + " "))]
+    if len(candidates) == 1:
+        return candidates[0] if candidates[0].get("close_reason") != "duplikat" else None
+    if candidates:
+        return None
+    job = JobPosting(source="bewerbungsbestaetigung", source_id="", title=title, company=company)
+    job_id = db.insert_job(job, 0, {}, confirmed_at=received)
+    if not job_id:
+        with db.conn() as conn:
+            row = conn.execute("SELECT id FROM jobs WHERE dedup_key=?", (dedup_key(title, company),)).fetchone()
+        job_id = row["id"] if row else None
+    return db.get_job(job_id) if job_id else None
+
+
 def record_replies(db: Database, items: list[ReplyItem]) -> dict:
     out = {"received": len(items), "matched": [], "unmatched": 0, "duplicates": 0, "invalid": 0,
            "status_changed": [], "kinds": {}}
@@ -408,7 +447,22 @@ def record_replies(db: Database, items: list[ReplyItem]) -> dict:
             continue
         c = classify(it.subject, it.body)
         received = _received(it)
-        job = match_job(db, it, jobs, sent_domains)
+        identity = receipt_identity(it)
+        if identity and c.kind in ("eingang", "sonstiges"):
+            c.kind = "eingang"
+            job = receipt_job(db, identity, received)
+        elif re.match(r"willkommen bei|passwort erstellen", it.subject, re.I):
+            job = None
+            c.kind = "sonstiges"
+        elif re.fullmatch(r"(?:Dein|Ihr) Kontakt zur? (.+)", it.subject, re.I):
+            employer = re.sub(r"^(?:Dein|Ihr) Kontakt zur? ", "", it.subject, flags=re.I)
+            matches = [j for j in candidate_jobs(db) if normalize_company(j["company"]) == normalize_company(employer)]
+            job = matches[0] if len(matches) == 1 else None
+        elif company_only := re.fullmatch(r"Wir haben Ihre Bewerbung für die Position bei (.+?) erhalten[.!]?", it.subject, re.I):
+            matches = [j for j in candidate_jobs(db) if normalize_company(j["company"]) == normalize_company(company_only[1])]
+            job = matches[0] if len(matches) == 1 else None
+        else:
+            job = match_job(db, it, jobs, sent_domains)
         kinds[c.kind] += 1
         db.insert_reply(message_id=mid, job_id=job["id"] if job else None, received_at=received,
                         sender=(it.sender or "")[:300], subject=(it.subject or "")[:300], kind=c.kind,
@@ -436,6 +490,8 @@ def record_replies(db: Database, items: list[ReplyItem]) -> dict:
             fields["docs_requested"] = None
         # Status: only forward, and never over a change the user made after this mail.
         user_later = (job.get("status_updated_at") or "") > received
+        if identity and job["status"] == "neu" and not db.status_history(job["id"]):
+            user_later = False
         new_status = None
         if not user_later:
             new_status = _STATUS_MOVES.get(c.kind, {}).get(job["status"])
@@ -496,7 +552,7 @@ def stats(db: Database, applied_ids: set[int]) -> dict:
                 requested[d.strip()] += 1
     unmatched = [{"received_at": r["received_at"], "sender": r["sender"], "subject": r["subject"],
                   "kind": r["kind"], "kind_label": KIND_LABELS.get(r["kind"], r["kind"])}
-                 for r in rows if r["job_id"] is None and r["kind"] in RESPONSE_KINDS]
+                 for r in rows if r["job_id"] is None and r["kind"] in (*RESPONSE_KINDS, "eingang")]
     unmatched.sort(key=lambda r: r["received_at"] or "", reverse=True)
     return {
         "mails": sum(by_kind.values()),
