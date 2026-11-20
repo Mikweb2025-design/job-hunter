@@ -263,7 +263,7 @@ _GENERIC_TOKENS = {
     "people", "team", "hr", "talent", "the", "und", "and", "fur", "der", "die", "das", "von", "mit", "it",
     "service", "services", "solutions", "systems", "group", "gruppe", "berlin", "digital", "consulting",
     "software", "technologies", "technology", "informationssysteme", "information", "gesellschaft",
-    "wir", "haben", "ihre", "deine", "gespeichert", "stelle", "mitarbeiter", "support", "engineer", "mail", "stiftung", "noreply", "reply", "info", "notifications", "communication", "news", "office",
+    "wir", "haben", "bei", "zur", "zum", "gemeinde", "stadt", "amt", "verband", "ihre", "deine", "gespeichert", "stelle", "mitarbeiter", "support", "engineer", "mail", "stiftung", "noreply", "reply", "info", "notifications", "communication", "news", "office",
 }
 
 
@@ -437,6 +437,9 @@ _SENDER_NOISE = re.compile(
     r"people(?: (?:&|and) culture)?|ats|mailer)\b", re.I)
 
 
+_TALENT_SUBJECT = re.compile(r"(?:willkommen bei|passwort erstellen|bleib immer auf dem laufenden|stay in touch|welcome to)", re.I)
+
+
 def _company_from_sender(sender: str) -> str:
     name = re.sub(r"<[^>]*>", "", sender or "").replace('"', "").strip()
     if " - " in name:       # "Elvira Sinani - Aira" → company after the dash
@@ -462,6 +465,11 @@ def generic_receipt_identity(it: ReplyItem) -> tuple[str, str] | None:
     if re.match(r"(?:willkommen bei|passwort|bleib immer auf dem laufenden|newsletter)", it.subject, re.I):
         return None
     company = _company_from_sender(it.sender)
+    core = _core(_domain(_addr(it.sender)))
+    if core and company.lower() == core.lower():     # name came from the domain: prefer the spelling in the text
+        m = re.search(r"\b" + r"\s?".join(re.escape(ch) for ch in core) + r"\b", body, re.I)
+        if m and " " in m.group(0):
+            company = m.group(0).strip()
     for pat in _TITLE_PATTERNS:
         m = re.search(pat, " ".join(body.split()), re.I)
         if m:
@@ -514,11 +522,15 @@ def record_replies(db: Database, items: list[ReplyItem]) -> dict:
             continue
         c = classify(it.subject, it.body)
         received = _received(it)
+        if _TALENT_SUBJECT.match(it.subject or ""):
+            c.kind, c.documents, c.questions = "sonstiges", [], []
+        elif c.kind == "rueckfrage" and not c.requested and generic_receipt_identity(it):
+            c.kind = "eingang"      # "Was kommt als Nächstes?" in an acknowledgement is not a question to us
         identity = receipt_identity(it)
         if identity and c.kind in ("eingang", "sonstiges"):
             c.kind = "eingang"
             job = receipt_job(db, identity, received)
-        elif re.match(r"willkommen bei|passwort erstellen", it.subject, re.I):
+        elif _TALENT_SUBJECT.match(it.subject or ""):
             job = None
             c.kind = "sonstiges"
         elif re.fullmatch(r"(?:Dein|Ihr) Kontakt zur? (.+)", it.subject, re.I):
@@ -530,6 +542,10 @@ def record_replies(db: Database, items: list[ReplyItem]) -> dict:
             job = matches[0] if len(matches) == 1 else None
         else:
             job = match_job(db, it, jobs, sent_domains)
+            gen = generic_receipt_identity(it) if job is not None and c.kind in ("eingang", "sonstiges") else None
+            if gen and not (set(_tokens(gen[1])) & set(_tokens(job["company"] or ""))) \
+                    and _domain(_addr(it.sender)) not in sent_domains.get(job["id"], set()):
+                job = None      # named employer differs from the matched job → do not mix up applications
             if job is None and c.kind in ("eingang", "sonstiges") and (gen := generic_receipt_identity(it)):
                 identity, c.kind = gen, "eingang"
                 job = receipt_job(db, identity, received)

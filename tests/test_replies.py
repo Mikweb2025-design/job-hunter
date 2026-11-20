@@ -428,3 +428,35 @@ def test_ui_language_switch_en_it_cookie(ctx):
     assert "Tracker candidature" in it and "Prossimi colloqui" in it
     assert "Bewerbungs-Tracker" in c.get("/tracker?lang=de").text
     assert "Skip to content" in c.get("/?lang=en").text
+
+
+def test_acknowledgement_with_next_steps_is_eingang_and_talent_mail_is_ignored(ctx):
+    _, _, db = ctx
+    aira = item("a1", "Elvira - Aira <e@airahome.teamtailor-mail.com>", "Deine Bewerbung bei Aira",
+                "Vielen Dank, dass du dich für die Stelle als Claims Manager (m/w/d) bei Aira beworben hast. "
+                "Wir haben deine Bewerbung erfolgreich erhalten. Was kommt als Nächstes? Wir haben Fragen zu deinem Profil? Keine Sorge.")
+    talent = item("a2", "Davies - Aira <d@airahome.teamtailor-mail.com>", "Bleib immer auf dem Laufenden",
+                  "Danke für dein Interesse an Aira! Hast du Fragen? Schreib uns.")
+    out = replies.record_replies(db, [aira, talent])
+    assert out["kinds"].get("rueckfrage", 0) == 0 and out["kinds"]["eingang"] == 1
+    assert len(out["matched"]) == 1 and out["unmatched"] == 1
+
+
+def test_receipt_is_not_mixed_up_with_job_whose_company_contains_bei(ctx):
+    _, _, db = ctx
+    other = applied(db, "IT-Systemadministrator (m/w/d)", "Gemeinde Musterdorf bei Berlin")
+    out = replies.record_replies(db, [item(
+        "b1", "Elvira - Aira <e@airahome.teamtailor-mail.com>", "Deine Bewerbung bei Aira",
+        "Vielen Dank, dass du dich für die Stelle als Claims Manager (m/w/d) bei Aira beworben hast. "
+        "Wir haben deine Bewerbung erfolgreich erhalten.")])
+    assert out["matched"] and out["matched"][0] != other["id"]
+    assert db.get_job(out["matched"][0])["company"] == "Aira"
+    assert db.get_job(other["id"])["reply_kind"] in (None, "")
+
+
+def test_receipt_company_spelling_from_text_when_sender_is_bare_domain():
+    got = replies.generic_receipt_identity(item(
+        "bc", "bewerbung@biocompany.de", "Eingangsbestätigung Bewerbung als IT-Support (w/m/d) in Vollzeit",
+        "Hallo Daniele, vielen Dank für die Zusendung deiner Unterlagen und dem Interesse an einer Tätigkeit bei der BIO COMPANY! "
+        "Wir haben deine Bewerbung erhalten und melden uns."))
+    assert got == ("IT-Support (w/m/d) in Vollzeit", "BIO COMPANY")
