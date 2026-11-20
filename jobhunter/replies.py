@@ -250,6 +250,8 @@ def classify(subject: str, body: str) -> Classification:
 # Matching a reply to an application
 
 # Applicant-tracking / mail services: their domain says nothing about the employer.
+UNKNOWN_TITLE = "(Stelle unbekannt)"
+
 ATS_DOMAINS = (
     "personio.de", "personio.com", "softgarden", "join.com", "onlyfy.jobs", "successfactors", "icims",
     "hrworks", "workday", "greenhouse", "lever.co", "recruitee", "smartrecruiters", "bamboohr", "d.vinci",
@@ -409,6 +411,71 @@ def receipt_identity(it: ReplyItem) -> tuple[str, str] | None:
     return None
 
 
+# Generic acknowledgements from any portal / ATS (DE · EN · IT): title and employer are taken from
+# the text; the employer falls back to the sender's display name ("Enpal Hiring Team" → "Enpal").
+_RECEIPT_CUE = re.compile(
+    r"(thank(?:s| you) for (?:your )?appl|thanks for applying|vielen dank für (?:deine|ihre|dein|ihr) bewerbung|"
+    r"danke (?:dir )?für (?:deine|ihre) bewerbung|bewerbung (?:ist )?(?:bei uns )?(?:erfolgreich )?(?:eingegangen|eingetroffen|erhalten)|"
+    r"(?:deine|ihre) bewerbung (?:erfolgreich )?erhalten|erfolgreich erhalten|received your application|"
+    r"application (?:was |has been )?(?:successfully )?(?:received|submitted|sent)|eingangsbestätigung|"
+    r"grazie per (?:aver )?(?:la tua |la sua )?candidatura|candidatura (?:ricevuta|inviata))", re.I)
+_TITLE_PATTERNS = [
+    r"(?:stelle|position) als (.{2,160}?) bei (?:der |dem |uns |der firma )?([^.!?\n]{2,80}?) (?:beworben|erhalten|gesendet)",
+    r"thank(?:s| you) for applying (?:for|to) (?:the |our )?(?:position of |role of |position |role )?(.{2,160}?) (?:at|with|@) ([^.!?,\n]{2,80})[.!?,]",
+    r"(?:deine|ihre) bewerbung (?:auf|für) (?:die |den |das )?(?:stelle |position |stelle als )?(.{2,160}?) bei ([^.!?\n]{2,80})[.!?]",
+    r"your application (?:for|to) (?:the )?(?:position of |role of )?(.{2,160}?) (?:at|with) ([^.!?,\n]{2,80})[.!?,]",
+    r"candidatura (?:per|al ruolo di|come) (.{2,160}?) (?:presso|da|in) ([^.!?,\n]{2,80})[.!?,]",
+]
+_TITLE_ONLY = [
+    r"(?:bewerbung|application|candidatura) (?:als|as|for the position of|for the role of|per il ruolo di) (.{2,140}?)(?:\.|!|\?| bei | at | with |,| – | - | l |\n|$)",
+    r"(?:stelle|position|role) (?:als|of) (.{2,140}?)(?: beworben|\.|!|\?|,| bei | at |\n|$)",
+    r"thank(?:s| you) for applying (?:for|to) (?:the |our )?(?:position of |role of )?(.{2,140}?)(?: at |!|\.|,|\n|$)",
+]
+_SENDER_NOISE = re.compile(
+    r"\b(hiring ?team|recruiting(?: team)?|recruitment(?: team)?|karriere(?:team)?|careers?|talent(?: acquisition)?|"
+    r"personal(?:abteilung)?|hr|human resources|bewerbung(?:en)?|jobs?|team|no-?reply|noreply|notifications?|"
+    r"people(?: (?:&|and) culture)?|ats|mailer)\b", re.I)
+
+
+def _company_from_sender(sender: str) -> str:
+    name = re.sub(r"<[^>]*>", "", sender or "").replace('"', "").strip()
+    if " - " in name:       # "Elvira Sinani - Aira" → company after the dash
+        name = name.split(" - ")[-1]
+    name = _SENDER_NOISE.sub(" ", name)
+    name = re.sub(r"\s+", " ", name).strip(" -–|·")
+    if not name or "@" in name:
+        d = _core(_domain(_addr(sender)))
+        name = d.capitalize() if d else ""
+    return name[:100]
+
+
+def _clean_title(t: str) -> str:
+    t = re.sub(r"^(?:the|die|den|das|eine?|der)\s+", "", t.strip(), flags=re.I)
+    return t.strip(" \t\"'“”„-–|").rstrip(".,;:")[:160]
+
+
+def generic_receipt_identity(it: ReplyItem) -> tuple[str, str] | None:
+    body = " ".join(strip_quoted(it.body).split())
+    text = f"{it.subject}\n{body}"
+    if not _RECEIPT_CUE.search(text):
+        return None
+    if re.match(r"(?:willkommen bei|passwort|bleib immer auf dem laufenden|newsletter)", it.subject, re.I):
+        return None
+    company = _company_from_sender(it.sender)
+    for pat in _TITLE_PATTERNS:
+        m = re.search(pat, " ".join(body.split()), re.I)
+        if m:
+            return _clean_title(m.group(1)), (company or m.group(2).strip())
+    if not company:
+        return None
+    for src in (it.subject, " ".join(body.split())):
+        for pat in _TITLE_ONLY:
+            m = re.search(pat, src, re.I)
+            if m and len(_clean_title(m.group(1))) >= 3:
+                return _clean_title(m.group(1)), company
+    return UNKNOWN_TITLE, company
+
+
 def receipt_job(db: Database, identity: tuple[str, str], received: str) -> dict | None:
     title, company = identity
     candidates = [j for j in db.list_jobs(limit=100000)
@@ -463,6 +530,9 @@ def record_replies(db: Database, items: list[ReplyItem]) -> dict:
             job = matches[0] if len(matches) == 1 else None
         else:
             job = match_job(db, it, jobs, sent_domains)
+            if job is None and c.kind in ("eingang", "sonstiges") and (gen := generic_receipt_identity(it)):
+                identity, c.kind = gen, "eingang"
+                job = receipt_job(db, identity, received)
         kinds[c.kind] += 1
         db.insert_reply(message_id=mid, job_id=job["id"] if job else None, received_at=received,
                         sender=(it.sender or "")[:300], subject=(it.subject or "")[:300], kind=c.kind,

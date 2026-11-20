@@ -22,7 +22,8 @@ from .api import build_api_router
 from .config import Settings, load_settings
 from .db import Database
 from .export import to_csv, to_xlsx
-from .i18n import translator
+from .i18n import LANGS, LANG_LABELS, current_lang, reset_lang, set_lang, translator
+from .i18n_phrases import translate_html
 from .llm import LLMError
 from .models import STATUSES
 from .outbox import BLOCKER_TEXT, Gate, render_email, send_state, status_summary
@@ -111,7 +112,7 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
     base = "/" + os.environ.get("BASE_PATH", "").strip().strip("/")
     base = "" if base == "/" else base
     templates = Jinja2Templates(directory=HERE / "templates")
-    templates.env.globals.update(apply_link=links.apply_link, link_alternatives=links.alternatives, base=base, t=t, STATUSES=STATUSES, auth_enabled=auth_enabled, lang=settings.ui_lang,
+    templates.env.globals.update(apply_link=links.apply_link, link_alternatives=links.alternatives, base=base, t=t, STATUSES=STATUSES, auth_enabled=auth_enabled, lang=lambda: current_lang(settings.ui_lang), LANGS=LANGS, LANG_LABELS=LANG_LABELS,
                                  BLOCKER_TEXT=BLOCKER_TEXT)
     # Evaluated on every page render: the send banner must always show the live state.
     def _versions() -> dict:
@@ -152,6 +153,26 @@ def create_app(settings: Settings | None = None, db: Database | None = None,
     templates.env.globals["ki"] = lambda: {"enabled": settings.llm.enabled, "label": llm_name,
                                            "provider": settings.llm.provider,
                                            "max": settings.llm.max_per_run, **letters.status()}
+
+    @app.middleware("http")
+    async def ui_language(request: Request, call_next):
+        """?lang=de|en|it (remembered in a cookie) > cookie > settings.ui_lang; HTML is translated after rendering."""
+        q = request.query_params.get("lang")
+        lang = q if q in LANGS else (request.cookies.get("jh_lang") if request.cookies.get("jh_lang") in LANGS else None)
+        token = set_lang(lang)
+        try:
+            response = await call_next(request)
+            eff = current_lang(settings.ui_lang)
+            if eff != "de" and not request.url.path.rstrip("/").endswith("/anschreiben") and response.headers.get("content-type", "").startswith("text/html"):
+                body = b"".join([chunk async for chunk in response.body_iterator])
+                page = translate_html(body.decode("utf-8", "replace"), eff).encode("utf-8")
+                headers = {k: v for k, v in response.headers.items() if k.lower() != "content-length"}
+                response = Response(page, status_code=response.status_code, headers=headers, media_type="text/html")
+            if q in LANGS:
+                response.set_cookie("jh_lang", q, max_age=365 * 86400, samesite="lax", httponly=True)
+            return response
+        finally:
+            reset_lang(token)
 
     @app.middleware("http")
     async def basic_auth(request: Request, call_next):

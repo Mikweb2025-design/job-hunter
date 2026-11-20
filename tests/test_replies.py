@@ -378,3 +378,53 @@ def test_named_receipts_find_new_role_create_missing_and_ignore_welcome(ctx):
     assert out["unmatched"] == 2
     assert replies.record_replies(db, letters)["duplicates"] == 4
     assert any(r["subject"] == "Eingangsbestätigung" for r in replies.stats(db, set())["unmatched"])
+
+
+GENERIC_RECEIPTS = [
+    ("Checkly Hiring Team <no-reply@ashbyhq.com>", "Thanks for applying!",
+     "Hi Daniele, Thank you for applying for the Senior Product Engineer at Checkly! We're thrilled that you'd like to join us.",
+     "Senior Product Engineer", "Checkly"),
+    ("Elvira Sinani - Aira <elvira@airahome.teamtailor-mail.com>", "Deine Bewerbung bei Aira",
+     "Hi Daniele, Vielen Dank, dass du dich für die Stelle als Claims & Customer Relations Manager (m/w/d) bei Aira beworben hast. "
+     "Wir haben deine Bewerbung erfolgreich erhalten.", "Claims & Customer Relations Manager (m/w/d)", "Aira"),
+    ("Enpal Hiring Team <hiringteam@enpal.de>", "Enpal l Thank you for your application l Junior Operations Specialist (w/m/d)",
+     "Hey Daniele, vielen Dank für Deine Bewerbung als Junior Operations Specialist (w/m/d). Es gibt eine Menge spannender Organisationen.",
+     "Junior Operations Specialist (w/m/d)", "Enpal"),
+    ("Eduvia Bildungs Akademie GmbH <l@eduvia.example>", "Vielen Dank für Ihre Bewerbung",
+     "Sehr geehrter Herr Michelin, vielen Dank. Ihre Bewerbung ist bei uns eingetroffen.",
+     replies.UNKNOWN_TITLE, "Eduvia Bildungs Akademie GmbH"),
+    ("Candidature <jobs@esempio.it>", "Grazie per la tua candidatura",
+     "Grazie per la tua candidatura per Support Engineer presso Esempio Srl. Ti risponderemo presto.",
+     "Support Engineer", "Candidature"),
+]
+
+
+@pytest.mark.parametrize("sender,subject,body,title,company", GENERIC_RECEIPTS)
+def test_generic_receipt_identity(sender, subject, body, title, company):
+    got = replies.generic_receipt_identity(item("g", sender, subject, body))
+    assert got is not None and got[0] == title and got[1] == company
+
+
+def test_generic_receipts_create_tracked_jobs_and_skip_talent_welcome(ctx):
+    _, _, db = ctx
+    items = [item(f"r{i}", s, sub, b) for i, (s, sub, b, _, _) in enumerate(GENERIC_RECEIPTS[:4])]
+    items.append(item("w", "Davies - Aira <d@airahome.teamtailor-mail.com>", "Bleib immer auf dem Laufenden",
+                      "Vielen Dank für dein Interesse an Aira! Du erhältst Benachrichtigungen."))
+    out = replies.record_replies(db, items)
+    assert len(out["matched"]) == 4
+    assert {db.get_job(i)["status"] for i in out["matched"]} == {"beworben"}
+    assert out["unmatched"] == 1
+
+
+def test_ui_language_switch_en_it_cookie(ctx):
+    c, _, _ = ctx
+    de = c.get("/tracker").text
+    assert "Bewerbungs-Tracker" in de and "Application tracker" not in de
+    en = c.get("/tracker?lang=en")
+    assert "Application tracker" in en.text and "Bewerbungs-Tracker" not in en.text
+    assert 'lang="en"' in en.text and "jh_lang=en" in en.headers.get("set-cookie", "")
+    assert "Application tracker" in c.get("/tracker").text          # remembered by cookie
+    it = c.get("/tracker?lang=it").text
+    assert "Tracker candidature" in it and "Prossimi colloqui" in it
+    assert "Bewerbungs-Tracker" in c.get("/tracker?lang=de").text
+    assert "Skip to content" in c.get("/?lang=en").text

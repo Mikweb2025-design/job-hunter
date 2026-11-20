@@ -27,7 +27,7 @@ RUN if [ "$INSTALL_OPENCODE" = "1" ]; then \
 
 COPY jobhunter/ ./jobhunter/
 COPY config.yaml ./config.yaml
-COPY data/cv_profile.example.md ./seed/cv_profile.md
+COPY data/cv_profile.md ./seed/cv_profile.md
 
 RUN useradd --create-home --uid 1000 jobhunter \
     && mkdir -p /app/data && chown -R jobhunter:jobhunter /app

@@ -1,6 +1,8 @@
 """UI strings. German is the default; Italian provided as a second locale (UI_LANG=it)."""
 from __future__ import annotations
 
+from contextvars import ContextVar
+
 STRINGS: dict[str, dict[str, str]] = {
     "de": {
         "app_title": "Job-Hunter",
@@ -88,6 +90,95 @@ STRINGS: dict[str, dict[str, str]] = {
         "followup_done": "Nachgefasst ✓ – nächste Erinnerung gesetzt.",
         "followup_snoozed": "Erinnerung verschoben.",
         "status_changed": "Status geändert.",
+        "language": "Sprache",
+    },
+    "en": {
+        "app_title": "Job-Hunter",
+        "jobs": "Jobs",
+        "status": "Status",
+        "all": "All",
+        "active": "Active (no rejections)",
+        "min_score": "Min. score",
+        "source": "Source",
+        "new_since": "New since",
+        "search": "Search",
+        "filter": "Filter",
+        "reset": "Reset",
+        "score": "Score",
+        "title": "Title",
+        "company": "Company",
+        "location": "Location",
+        "salary": "Salary",
+        "found": "Found",
+        "published": "Published",
+        "no_jobs": "No jobs found. Start a run or loosen the filters.",
+        "run_now": "Search now",
+        "run_running": "Search running …",
+        "run_started": "Search started – reload the page in a few minutes.",
+        "last_runs": "Recent runs",
+        "export_csv": "CSV",
+        "export_xlsx": "Excel",
+        "back": "Back",
+        "open_application": "Open application",
+        "open_hint": "Opens the original posting in the browser.",
+        "outbox": "Outbox",
+        "approved": "Approved – the Mac app sends on its next refresh (not in test mode).",
+        "unapproved": "Approval withdrawn.",
+        "invalid_email": "Invalid e-mail address.",
+        "posting": "Posting text",
+        "breakdown": "Score breakdown",
+        "reason": "Reasoning (LLM)",
+        "letter": "Cover letter draft (German)",
+        "letter_template_note": "Template without AI (neutral, complete text) – will be replaced by an AI cover letter automatically; never sent automatically.",
+        "copy": "Copy",
+        "copied": "Copied ✓",
+        "save": "Save",
+        "regenerate": "Regenerate",
+        "generate": "Create draft",
+        "notes": "Notes",
+        "applied_date": "Applied on",
+        "saved": "Saved.",
+        "regenerated": "Draft regenerated.",
+        "llm_error": "LLM error",
+        "remote": "Remote possible",
+        "unknown": "unknown",
+        "keywords": "Keywords",
+        "title_match": "Title",
+        "salary_pts": "Salary",
+        "location_pts": "Location/remote",
+        "penalty": "Penalty",
+        "learned_pts": "From experience",
+        "excluded": "Excluded because of",
+        "matched_keywords": "Matches",
+        "rule_score": "Rule score",
+        "llm_score": "LLM score",
+        "also_seen": "Also seen on",
+        "no_auth_warning": "Warning: no login configured (DASHBOARD_USER/DASHBOARD_PASSWORD).",
+        "theme": "Light/dark",
+        "st_neu": "New",
+        "st_interessant": "Interesting",
+        "st_beworben": "Applied",
+        "st_gespraech": "Interview",
+        "st_absage": "Rejected",
+        "st_angebot": "Offer",
+        "st_zu_weit": "Too far",
+        "days_1": "last 24 h",
+        "days_3": "last 3 days",
+        "days_7": "last 7 days",
+        "days_30": "last 30 days",
+        "count": "results",
+        "marked_applied": "Marked as applied ✓",
+        "letter_started": "The AI is writing the cover letter – usually 30–120 seconds.",
+        "description_saved": "Posting text saved, job re-scored.",
+        "letters_started": "The AI writes the cover letters in the background (one after another).",
+        "letters_busy": "The AI is already writing – please wait until it finishes.",
+        "letters_none": "No open jobs with a template or without a cover letter.",
+        "write_letter_ki": "Write cover letter with AI",
+        "write_all_ki": "Write all templates",
+        "followup_done": "Followed up ✓ – next reminder set.",
+        "followup_snoozed": "Reminder postponed.",
+        "status_changed": "Status changed.",
+        "language": "Language",
     },
     "it": {
         "app_title": "Job-Hunter",
@@ -171,15 +262,34 @@ STRINGS: dict[str, dict[str, str]] = {
         "followup_done": "Sollecito annotato ✓ – prossimo promemoria impostato.",
         "followup_snoozed": "Promemoria spostato.",
         "status_changed": "Stato cambiato.",
+        "language": "Lingua",
     },
 }
 
 
-def translator(lang: str):
-    table = STRINGS.get(lang, STRINGS["de"])
+LANGS = ("de", "en", "it")
+LANG_LABELS = {"de": "DE", "en": "EN", "it": "IT"}
+_current: ContextVar[str | None] = ContextVar("jh_lang", default=None)
+
+
+def set_lang(lang: str | None):
+    return _current.set(lang if lang in LANGS else None)
+
+
+def reset_lang(token) -> None:
+    _current.reset(token)
+
+
+def current_lang(default: str = "de") -> str:
+    return _current.get() or (default if default in LANGS else "de")
+
+
+def translator(default_lang: str = "de"):
+    """t(key) for the language of the current request (falls back to `default_lang`, then German)."""
     fallback = STRINGS["de"]
 
     def t(key: str) -> str:
+        table = STRINGS.get(current_lang(default_lang), fallback)
         return table.get(key) or fallback.get(key) or key
 
     return t

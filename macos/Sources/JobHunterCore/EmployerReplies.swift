@@ -53,12 +53,14 @@ public enum EmployerReplyFilter {
         "Bewerbung", "application", "Bewerbungsunterlagen", "Vorstellungsgespräch", "Interview",
         "kennenlernen", "Kennenlernen", "Absage", "Rückmeldung", "Unterlagen", "Ihre Kandidatur", "candidature",
         "Kontaktaufnahme bei", "Eingangsbestätigung", "Dein Kontakt zur",
+        "applying", "applied", "Thanks for", "candidatura", "Grazie per", "Bewerbungseingang",
     ]
     /// Applicant-tracking systems that send on behalf of employers (any subject, e.g. "Terminverschiebung").
     public static let atsSenders = [
         "personio.de", "softgarden", "join.com", "onlyfy.jobs", "successfactors", "icims", "hrworks",
         "workday", "greenhouse", "lever.co", "recruitee", "smartrecruiters", "dvinci", "rexx-systems",
-        "umantis", "concludis", "teamtailor", "ashbyhq",
+        "umantis", "concludis", "teamtailor", "ashbyhq", "workable", "bamboohr", "breezy", "jobvite",
+        "xing.com", "glassdoor", "monster.", "jobware", "kimeta", "interamt",
     ]
 
     /// Sender patterns for one run: ATS + the domains the user applied to by e-mail (from the jobs).
@@ -80,7 +82,8 @@ public enum EmployerReplyFilter {
 
     /// Job alerts and the user's own mails are never sent as replies.
     public static func isCandidate(_ m: AlertMailMessage, ownAddresses: [String] = []) -> Bool {
-        if AlertSource.from(sender: m.sender) != nil {
+        if let src = AlertSource.from(sender: m.sender) {
+            if src == .indeed, m.subject.localizedCaseInsensitiveContains("Indeed Application") { return true }
             return boardReplySubjects.contains { m.subject.localizedCaseInsensitiveContains($0) }
         }
         let s = m.sender.lowercased()

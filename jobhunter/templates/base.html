@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ lang }}">
+<html lang="{{ lang() }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -15,6 +15,7 @@
     <a class="brand" href="{{ base }}/today">{{ t('app_title') }}</a>
     <nav class="topnav">
       <a href="{{ base }}/" {% if active_view == '' and request.url.path.rstrip('/') == base %}aria-current="page"{% endif %}>Alle Stellen</a>
+      <span class="langsw" role="group" aria-label="{{ t('language') }}">{% for l in LANGS %}<a href="?lang={{ l }}" {% if lang() == l %}aria-current="true" style="font-weight:700"{% endif %} title="{{ l }}">{{ LANG_LABELS[l] }}</a> {% endfor %}</span>
       <button type="button" class="ghost icon" id="kbd-help-btn" title="Tastenkürzel (?)" aria-label="Tastenkürzel anzeigen">⌨</button>
       <button type="button" class="ghost icon" id="theme-toggle" title="{{ t('theme') }}" aria-label="{{ t('theme') }}">◐</button>
     </nav>
